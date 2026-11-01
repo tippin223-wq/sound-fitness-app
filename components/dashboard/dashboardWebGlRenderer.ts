@@ -831,6 +831,13 @@ const attachDashboardWebGlSnapshotCapture = (
       return;
     }
 
+    // Environment-map and other offscreen passes must complete even when the
+    // visible canvas is asleep. They must never become its cached snapshot.
+    if (renderer.getRenderTarget() !== null) {
+      originalRender(...args);
+      return;
+    }
+
     // Scrolled out of view — skip the GPU draw entirely. The component's rAF
     // loop keeps running but does almost nothing, and the canvas resumes
     // drawing on the first frame after it scrolls back into view.

@@ -8,8 +8,12 @@ import {
   soundFitnessAvatarGear,
   soundFitnessAvatarHairColorPalettes,
   soundFitnessAvatarHairStyles,
+  soundFitnessAvatarHairByBody,
+  avatarHairForBody,
   soundFitnessAvatarPantsPalettes,
   soundFitnessAvatarShirtPalettes,
+  soundFitnessAvatarClothingColors,
+  type SoundFitnessAvatarClothingColor,
   soundFitnessAvatarShoesPalettes,
   soundFitnessAvatarSkinPalettes,
   type SoundFitnessAvatarAppearance,
@@ -28,13 +32,17 @@ import {
   type SoundFitnessAvatarSkinPreset,
 } from "@/components/dashboard/soundFitnessAvatarAppearance";
 import SoundFitnessAvatar3D from "@/components/dashboard/SoundFitnessAvatar3D";
+import { exerciseAnatomyRegionVisuals } from "@/lib/anatomy/exerciseAnatomyColors";
 import {
   BodyCommandRingFace,
   type BodyCommandGlyphName,
 } from "@/components/dashboard/BodyCommandGlyph";
 import { getSegmentedRingDashes } from "@/components/dashboard/segmentedRing";
 import {
-  Accessibility,
+  Hand,
+  MoveUpRight,
+  StretchHorizontal,
+  HeartHandshake,
   Activity,
   Check,
   ChevronDown,
@@ -51,6 +59,9 @@ import {
   RotateCcw,
   Shirt,
   Smile,
+  Laugh,
+  ScanFace,
+  Meh,
   Sparkles,
   TreePalm,
   Venus,
@@ -282,24 +293,14 @@ const avatarMotionOptions: Array<{
   id: SoundFitnessAvatarEmotePreset;
   label: string;
 }> = [
-  { icon: CircleUserRound, id: "calm", label: "Rest" },
-  { icon: Accessibility, id: "wave", label: "Wave" },
+  { icon: HeartHandshake, id: "bow", label: "Bow" },
+  { icon: Hand, id: "wave", label: "Wave" },
   { icon: Check, id: "nod", label: "Nod" },
   { icon: Activity, id: "focus", label: "Focus" },
   { icon: Sparkles, id: "celebrate", label: "Celebrate" },
-  { icon: Mars, id: "salute", label: "Salute" },
-  { icon: VenusAndMars, id: "stretch", label: "Stretch" },
+  { icon: MoveUpRight, id: "salute", label: "Salute" },
+  { icon: StretchHorizontal, id: "stretch", label: "Stretch" },
 ];
-
-const avatarEmoteWheelPositions = [
-  "left-1/2 top-2 -translate-x-1/2",
-  "right-3 top-8",
-  "right-1 top-1/2 -translate-y-1/2",
-  "bottom-3 right-8",
-  "bottom-3 left-8",
-  "left-1 top-1/2 -translate-y-1/2",
-  "left-3 top-8",
-] as const;
 
 // Training-category data now lives in MuscleGroupPanel (body-part driven).
 
@@ -1820,6 +1821,7 @@ const avatarHeatLegend = [
 
 function AvatarDetailLegend() {
   const railRef = useRef<HTMLDivElement>(null);
+  const activeTagRef = useRef(0);
   const [activeTagIndex, setActiveTagIndex] = useState(0);
   const [allTagsFit, setAllTagsFit] = useState(false);
 
@@ -1827,6 +1829,7 @@ function AvatarDetailLegend() {
     const rail = railRef.current;
     const target = rail?.children.item(nextIndex) as HTMLElement | null;
 
+    activeTagRef.current = nextIndex;
     setActiveTagIndex(nextIndex);
     if (rail && target) {
       const railStyle = window.getComputedStyle(rail);
@@ -1848,29 +1851,13 @@ function AvatarDetailLegend() {
       }
 
       rail.style.paddingLeft = "0px";
-      rail.style.paddingRight = "0px";
-      window.requestAnimationFrame(() => {
-        const targetLeft = target.offsetLeft;
-        const targetRight = targetLeft + target.offsetWidth;
-        const visibleLeft = rail.scrollLeft;
-        const visibleRight = visibleLeft + rail.clientWidth;
-        const nextLeft =
-          targetLeft < visibleLeft
-            ? targetLeft
-            : targetRight > visibleRight
-              ? targetRight - rail.clientWidth
-              : visibleLeft;
-        rail.scrollTo({
-          behavior,
-          left: Math.max(0, nextLeft),
-        });
-      });
+      // Leave enough trailing space for even the last label to reach the
+      // leading edge. Otherwise the browser clamps it between two options.
+      const last = rail.lastElementChild as HTMLElement | null;
+      rail.style.paddingRight = `${Math.max(0, rail.clientWidth - (last?.offsetWidth ?? 0))}px`;
+      rail.scrollTo({ behavior, left: target.offsetLeft });
     }
   }, []);
-
-  useLayoutEffect(() => {
-    highlightTag(activeTagIndex, "auto");
-  }, [activeTagIndex, highlightTag]);
 
   useLayoutEffect(() => {
     const rail = railRef.current;
@@ -1892,12 +1879,13 @@ function AvatarDetailLegend() {
         rail.parentElement?.clientWidth ?? rail.clientWidth;
       if (contentWidth <= availableWidth) {
         setAllTagsFit(true);
-        setActiveTagIndex(0);
+        rail.style.paddingLeft = "0px";
+        rail.style.paddingRight = "0px";
         rail.scrollTo({ behavior: "auto", left: 0 });
         return;
       }
 
-      highlightTag(activeTagIndex, "auto");
+      highlightTag(activeTagRef.current, "auto");
     };
 
     const observer = new ResizeObserver(() => {
@@ -1907,14 +1895,14 @@ function AvatarDetailLegend() {
     if (rail.parentElement) observer.observe(rail.parentElement);
 
     return () => observer.disconnect();
-  }, [activeTagIndex, highlightTag]);
+  }, [highlightTag]);
 
   const showNextTag = () => {
     highlightTag((activeTagIndex + 1) % avatarHeatLegend.length);
   };
 
   return (
-    <div className={`${layoutStyles.coolnessLegend} mr-auto flex w-full max-w-[340px] min-w-0 items-center justify-start gap-1.5 pr-2 pt-0.5`}>
+    <div className={`${layoutStyles.coolnessLegend} flex min-w-0 items-center justify-center gap-1.5 pt-0.5`}>
       {allTagsFit ? null : (
         <button
           aria-label={`Highlight next coolness indicator. Current: ${avatarHeatLegend[activeTagIndex].label}`}
@@ -1936,8 +1924,20 @@ function AvatarDetailLegend() {
       )}
       <div
         aria-label="Coolness indicators"
-        className={`${layoutStyles.coolnessRail} flex min-w-0 flex-nowrap items-center justify-start gap-2 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-[760px]:gap-3`}
+        className={`${layoutStyles.coolnessRail} flex min-w-0 flex-nowrap items-center justify-start gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-[760px]:gap-3`}
         ref={railRef}
+        onScroll={(event) => {
+          if (allTagsFit) return;
+          const rail = event.currentTarget;
+          let nearest = 0;
+          let distance = Infinity;
+          Array.from(rail.children).forEach((child, index) => {
+            const delta = Math.abs((child as HTMLElement).offsetLeft - rail.scrollLeft);
+            if (delta < distance) { nearest = index; distance = delta; }
+          });
+          activeTagRef.current = nearest;
+          setActiveTagIndex(nearest);
+        }}
       >
         {avatarHeatLegend.map((entry, index) => {
           const active = index === activeTagIndex;
@@ -1978,6 +1978,7 @@ function AvatarDetailLegend() {
 function HyperRealAvatarFigure({
   appearance,
   emotePreset,
+  emoteReplay = 0,
   glowFocus,
   glowMode,
   onHoverBodyPartChange,
@@ -1989,6 +1990,7 @@ function HyperRealAvatarFigure({
 }: {
   appearance: SoundFitnessAvatarAppearance;
   emotePreset: SoundFitnessAvatarEmotePreset;
+  emoteReplay?: number;
   glowFocus?: SoundFitnessAvatarGlowRegion | null;
   glowMode?: "whole" | "pieces";
   onHoverBodyPartChange?: (bodyPart: SoundFitnessAvatarBodyPart | null) => void;
@@ -2006,7 +2008,8 @@ function HyperRealAvatarFigure({
       // deliberately bleeds past this box, and the invisible body-part hit
       // paths are focusable — a hidden-overflow box is still a scroll
       // container, so focusing a shin used to scroll the figure up.
-      className={`${layoutStyles.avatarViewport} relative h-full min-h-[176px] w-full overflow-clip bg-transparent pt-8 transition-[background] duration-500 min-[760px]:min-h-[208px]`}
+      className={`${layoutStyles.avatarViewport} relative h-full min-h-0 w-full overflow-visible bg-transparent transition-[background] duration-500`}
+      data-dashboard-avatar-host
       // The pointer merely being over the box lights nothing: the glow
       // follows the part under the pointer (raycast hover), a menu hover,
       // or a fresh choice. Leaving only clears a hover.
@@ -2020,18 +2023,21 @@ function HyperRealAvatarFigure({
         onHoverBodyPartChange?.(null);
       }}
     >
+      <div className={layoutStyles.avatarEnvironment} aria-hidden="true" />
       {/* One avatar: the 3D figure carries the lab appearance, the
           muscle highlights and the body-part hover/click (raycast on the
           real parts, plus a screen-reader button set). The flat SVG that
           used to sit invisibly on top for hit paths is gone with its ten
           idle animations. */}
       <SoundFitnessAvatar3D
+        allowOverheadOverflow
         active
         appearance={appearance}
         bodyPartGlowActive={zoneGlowActive}
         bodyPartGlowColors={zoneGlowColors}
         className="absolute inset-x-0 bottom-0 z-10 h-full w-full opacity-100 transition-opacity duration-500"
         emotePreset={emotePreset}
+        emoteReplay={emoteReplay}
         glowFocus={glowFocus}
         glowMode={glowMode}
         interactive
@@ -2099,7 +2105,7 @@ const bodyPartGroups: BodyPartGroup[] = [
     label: "Back",
     side: "back",
     muscles: ["trapezius", "rhomboids", "lats"],
-    tone: "purple",
+    tone: "blue",
   },
   {
     glyph: "chest",
@@ -2107,7 +2113,7 @@ const bodyPartGroups: BodyPartGroup[] = [
     label: "Chest",
     side: "front",
     muscles: ["upper-chest", "mid-chest", "lower-chest"],
-    tone: "cyan",
+    tone: "rose",
   },
   {
     glyph: "shoulders",
@@ -2121,7 +2127,7 @@ const bodyPartGroups: BodyPartGroup[] = [
       "external-rotation",
       "internal-rotation",
     ],
-    tone: "cyan",
+    tone: "gold",
   },
   {
     glyph: "arms",
@@ -2129,7 +2135,7 @@ const bodyPartGroups: BodyPartGroup[] = [
     label: "Arms",
     side: "front",
     muscles: ["biceps", "triceps", "forearm"],
-    tone: "gold",
+    tone: "purple",
   },
   {
     glyph: "core",
@@ -2150,7 +2156,7 @@ const bodyPartGroups: BodyPartGroup[] = [
       "neck-rotators",
       "neck-lateral-flexors",
     ],
-    tone: "teal",
+    tone: "purple",
   },
 ];
 
@@ -2416,7 +2422,10 @@ function getBodyPartGroupLoad(group: BodyPartGroup): SevenDayTrainingLoad {
 function AvatarBodyPicker({
   appearance,
   avatarSceneId,
+  backgroundPickerOpen,
+  setBackgroundPickerOpen,
   emotePreset,
+  emoteReplay = 0,
   onAvatarSceneChange,
   onEmoteChange,
   onHoverBodyPartChange,
@@ -2431,7 +2440,10 @@ function AvatarBodyPicker({
 }: {
   appearance: SoundFitnessAvatarAppearance;
   avatarSceneId: AvatarScenePreset;
+  backgroundPickerOpen: boolean;
+  setBackgroundPickerOpen: (open: boolean | ((previous: boolean) => boolean)) => void;
   emotePreset: SoundFitnessAvatarEmotePreset;
+  emoteReplay?: number;
   onAvatarSceneChange: (scene: AvatarScenePreset) => void;
   onEmoteChange: (emote: SoundFitnessAvatarEmotePreset) => void;
   onHoverBodyPartChange?: (bodyPart: SoundFitnessAvatarBodyPart | null) => void;
@@ -2446,12 +2458,12 @@ function AvatarBodyPicker({
     Record<SoundFitnessAvatarGlowRegion, string | undefined>
   >;
 }) {
-  const [backgroundPickerOpen, setBackgroundPickerOpen] = useState(false);
+
   const [emoteWheelOpen, setEmoteWheelOpen] = useState(false);
 
   return (
-    <div className="relative h-full min-h-0">
-      <div className={`${layoutStyles.avatarActions} absolute inset-x-1 top-1 z-30 flex items-center justify-center gap-1`}>
+    <div className={`${layoutStyles.avatarPicker} relative h-full min-h-0`}>
+      <div className={`${layoutStyles.avatarActions} z-30 flex items-center justify-center gap-1`}>
         <button
           aria-haspopup="dialog"
           aria-label="Open Avatar Lab"
@@ -2470,8 +2482,8 @@ function AvatarBodyPicker({
           <CircleUserRound aria-hidden="true" className="h-4.5 w-4.5" strokeWidth={2.1} />
         </button>
         <button
-          aria-label="Change avatar dance"
-          className="dashboard-avatar-emote-indicator grid h-8 w-8 place-items-center bg-transparent text-cyan-100 drop-shadow-[0_0_9px_rgba(34,211,238,0.72)] transition hover:-translate-y-0.5 hover:text-white active:scale-90"
+          aria-label="Choose avatar emote"
+          className={`${layoutStyles.emoteTrigger} dashboard-avatar-emote-indicator grid h-8 w-8 place-items-center bg-transparent text-cyan-100 drop-shadow-[0_0_9px_rgba(34,211,238,0.72)] transition hover:-translate-y-0.5 hover:text-white active:scale-90`}
           data-dashboard-tooltip="Choose emote"
           onClick={(event) => {
             event.stopPropagation();
@@ -2484,27 +2496,9 @@ function AvatarBodyPicker({
           onPointerUp={(event) => event.stopPropagation()}
           type="button"
         >
-          <Accessibility aria-hidden="true" className="h-4 w-4" strokeWidth={2.1} />
+          <Hand aria-hidden="true" className="h-4 w-4" strokeWidth={2.1} />
         </button>
-        <button
-          aria-expanded={backgroundPickerOpen}
-          aria-haspopup="menu"
-          aria-label="Choose avatar background"
-          className="grid h-8 w-8 place-items-center bg-transparent text-emerald-200 drop-shadow-[0_0_9px_rgba(52,211,153,0.7)] transition hover:-translate-y-0.5 hover:text-white active:scale-90"
-          data-dashboard-tooltip="Avatar background"
-          onClick={(event) => {
-            event.stopPropagation();
-            setEmoteWheelOpen(false);
-            setBackgroundPickerOpen((open) => !open);
-          }}
-          onPointerCancel={(event) => event.stopPropagation()}
-          onPointerDown={(event) => event.stopPropagation()}
-          onPointerMove={(event) => event.stopPropagation()}
-          onPointerUp={(event) => event.stopPropagation()}
-          type="button"
-        >
-          <TreePalm aria-hidden="true" className="h-4.5 w-4.5" strokeWidth={2.1} />
-        </button>
+
       </div>
       {backgroundPickerOpen ? (
         <div
@@ -2570,26 +2564,36 @@ function AvatarBodyPicker({
           </div>
         </div>
       ) : null}
-      {emoteWheelOpen ? (
+      {emoteWheelOpen ? createPortal(
         <div
           aria-label="Choose an avatar emote"
-          className="absolute left-1/2 top-10 z-40 h-44 w-44 -translate-x-1/2 rounded-full border border-cyan-100/24 bg-[radial-gradient(circle,rgba(15,23,42,0.92)_0_34%,rgba(8,15,31,0.84)_68%,rgba(2,6,23,0.72)_100%)] shadow-[0_18px_46px_rgba(0,0,0,0.48),0_0_34px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.1)] backdrop-blur-xl"
+          className={layoutStyles.emotePicker}
           role="menu"
+          onPointerDown={(event) => event.stopPropagation()}
+          onPointerMove={(event) => event.stopPropagation()}
+          onPointerUp={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setEmoteWheelOpen(false);
+          }}
         >
-          <span className="pointer-events-none absolute inset-[3.2rem] rounded-full border border-cyan-200/18 bg-cyan-300/6 shadow-[inset_0_0_20px_rgba(34,211,238,0.12)]" />
           {avatarMotionOptions.map((option, index) => {
             const active = option.id === emotePreset;
             const EmoteIcon = option.icon;
             return (
               <button
                 aria-label={option.label}
-                className={`absolute grid h-10 w-10 place-items-center rounded-full border text-[8px] font-black uppercase tracking-normal transition hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/70 ${avatarEmoteWheelPositions[index]} ${
+                className={`${layoutStyles.emoteOption} border text-[8px] font-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-100 ${
                   active
                     ? "border-cyan-100/72 bg-cyan-300/24 text-white shadow-[0_0_22px_rgba(34,211,238,0.42)]"
-                    : "border-white/14 bg-slate-950/84 text-cyan-100/78 hover:border-cyan-100/48 hover:bg-cyan-300/14"
+                    : "border-white/14 bg-white/5 text-cyan-100/78 hover:border-cyan-100/48 hover:bg-cyan-300/14"
                 }`}
                 data-dashboard-tooltip={option.label}
                 key={option.id}
+                style={{
+                  left: `${50 + Math.sin(index / avatarMotionOptions.length * Math.PI * 2) * 33}%`,
+                  top: `${50 - Math.cos(index / avatarMotionOptions.length * Math.PI * 2) * 33}%`,
+                }}
                 onClick={() => {
                   onEmoteChange(option.id);
                   setEmoteWheelOpen(false);
@@ -2598,22 +2602,25 @@ function AvatarBodyPicker({
                 type="button"
               >
                 <EmoteIcon aria-hidden="true" className="h-4 w-4" strokeWidth={2.15} />
+                <span>{option.label}</span>
               </button>
             );
           })}
           <button
             aria-label="Close emote wheel"
-            className="absolute left-1/2 top-1/2 grid h-10 w-10 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-white/12 bg-slate-950/88 text-cyan-100 transition hover:border-cyan-100/45 hover:bg-cyan-300/12"
+            className={`${layoutStyles.emoteOption} border border-white/12 bg-white/5 text-cyan-100 hover:bg-cyan-300/12`}
             onClick={() => setEmoteWheelOpen(false)}
             type="button"
           >
             <X aria-hidden="true" className="h-4 w-4" />
+            <span>Close</span>
           </button>
-        </div>
+        </div>, document.body,
       ) : null}
       <HyperRealAvatarFigure
         appearance={appearance}
         emotePreset={emotePreset}
+        emoteReplay={emoteReplay}
         onHoverBodyPartChange={onHoverBodyPartChange}
         onSelectBodyPart={onSelectGroup}
         glowFocus={glowFocus}
@@ -2664,8 +2671,58 @@ function AvatarLabChoice({
   );
 }
 
+function AvatarLabOptionRail({label, children}: {label: string; children: ReactNode}) {
+  const railRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({index: 0, count: 0});
+  // Only move this horizontal rail; scrollIntoView would also move the options panel.
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const options = Array.from(rail.querySelectorAll<HTMLButtonElement>("button[aria-pressed]"));
+    const index = Math.max(0, options.findIndex(option => option.getAttribute("aria-pressed") === "true"));
+    const selected = options[index];
+    setPosition(previous => previous.index === index && previous.count === options.length ? previous : {index, count: options.length});
+    if (selected) rail.scrollTo({left: Math.max(0, selected.offsetLeft - (rail.clientWidth-selected.offsetWidth)/2), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
+  }, [children]);
+  function step(direction: number) {
+    const options = Array.from(railRef.current?.querySelectorAll<HTMLButtonElement>("button[aria-pressed]") ?? []);
+    const index = Math.max(0, options.findIndex(option => option.getAttribute("aria-pressed") === "true"));
+    options[Math.max(0, Math.min(options.length-1, index+direction))]?.click();
+  }
+  return <div role="group" aria-label={label} className="min-w-0">
+    <div ref={railRef} className="relative flex min-w-0 snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain px-1 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>button]:w-[calc(50%-4px)] [&>button]:shrink-0 [&>button]:snap-center">
+      {children}
+    </div>
+    <div className="mt-1 flex items-center justify-center gap-4">
+      <button type="button" aria-label={`Previous ${label} option`} disabled={position.index === 0} onClick={()=>step(-1)} className="grid h-8 w-9 place-items-center rounded-lg border border-cyan-100/15 bg-cyan-200/5 text-cyan-100 transition hover:bg-cyan-200/15 disabled:opacity-25"><ChevronLeft aria-hidden="true" className="h-4 w-4"/></button>
+      <span aria-live="polite" className="min-w-9 text-center text-[9px] font-bold tabular-nums text-cyan-100/70">{position.count ? `${position.index+1} / ${position.count}` : ""}</span>
+      <button type="button" aria-label={`Next ${label} option`} disabled={position.index >= position.count-1} onClick={()=>step(1)} className="grid h-8 w-9 place-items-center rounded-lg border border-cyan-100/15 bg-cyan-200/5 text-cyan-100 transition hover:bg-cyan-200/15 disabled:opacity-25"><ChevronRight aria-hidden="true" className="h-4 w-4"/></button>
+    </div>
+  </div>;
+}
+
+function AvatarClothingColors({label, value, onChange}: {
+  label: string;
+  value: SoundFitnessAvatarClothingColor;
+  onChange: (color: SoundFitnessAvatarClothingColor) => void;
+}) {
+  return <fieldset className="mt-3 min-w-0">
+    <legend className="mb-2 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72">{label}</legend>
+    <AvatarLabOptionRail label={label}>
+      {(Object.entries(soundFitnessAvatarClothingColors) as [SoundFitnessAvatarClothingColor, typeof soundFitnessAvatarClothingColors.navy][]).map(([id,color]) =>
+        <button key={id} type="button" aria-label={`${label}: ${color.label}`} aria-pressed={value === id} onClick={()=>onChange(id)}
+          className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-lg border p-1 text-[8px] font-bold ${value === id ? "border-cyan-200 bg-cyan-300/15 text-white" : "border-white/10 text-slate-300"}`}>
+          <span className="grid h-5 w-5 place-items-center rounded-full border border-white/30" style={{background:color.base}}>
+            {value === id ? <Check aria-hidden="true" className="h-3 w-3 text-cyan-300" strokeWidth={3}/> : null}
+          </span>{color.label}
+        </button>)}
+    </AvatarLabOptionRail>
+  </fieldset>;
+}
+
 function AvatarLabMenu({
   appearance,
+  backgroundImage,
   bodyMapHref,
   emotePreset,
   onAppearanceChange,
@@ -2674,6 +2731,7 @@ function AvatarLabMenu({
   onReset,
 }: {
   appearance: SoundFitnessAvatarAppearance;
+  backgroundImage: string;
   bodyMapHref: string;
   emotePreset: SoundFitnessAvatarEmotePreset;
   onAppearanceChange: (appearance: SoundFitnessAvatarAppearance) => void;
@@ -2695,11 +2753,11 @@ function AvatarLabMenu({
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex min-h-0 items-center justify-center bg-slate-950/84 p-[clamp(8px,2vw,18px)] backdrop-blur-md">
+    <div data-dashboard-wheel-lock="true" className="fixed inset-0 z-[99999] flex min-h-0 items-center justify-center bg-slate-950/84 p-[clamp(8px,2vw,18px)] backdrop-blur-md">
       <section
         aria-label="Avatar Lab"
         aria-modal="true"
-        className="relative flex max-h-[calc(100dvh-16px)] min-h-0 w-full max-w-[820px] flex-col overflow-hidden rounded-[18px] border border-cyan-100/34 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.2),transparent_32%),radial-gradient(circle_at_92%_12%,rgba(251,191,36,0.12),transparent_28%),linear-gradient(145deg,rgba(8,15,30,0.98),rgba(2,6,23,0.98))] shadow-[0_26px_80px_rgba(0,0,0,0.68),0_0_42px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.12)]"
+        className="relative flex h-[min(760px,calc(100dvh-16px))] max-h-[calc(100dvh-16px)] min-h-0 w-full max-w-[820px] flex-col overflow-hidden rounded-[18px] border border-cyan-100/34 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.2),transparent_32%),radial-gradient(circle_at_92%_12%,rgba(251,191,36,0.12),transparent_28%),linear-gradient(145deg,rgba(8,15,30,0.98),rgba(2,6,23,0.98))] shadow-[0_26px_80px_rgba(0,0,0,0.68),0_0_42px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.12)]"
         role="dialog"
       >
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-3 py-2.5">
@@ -2726,45 +2784,24 @@ function AvatarLabMenu({
           </button>
         </header>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-x-hidden overflow-y-auto [scrollbar-color:rgba(34,211,238,0.38)_rgba(15,23,42,0.36)] [scrollbar-width:thin] min-[700px]:grid-cols-2">
-          <div className="relative flex min-h-[260px] flex-col border-b border-white/8 p-2 min-[700px]:border-b-0 min-[700px]:border-r">
-            <SoundFitnessAvatar3D
-              appearance={appearance}
-              className="min-h-[210px] w-full flex-1 rounded-[14px]"
-              emotePreset={emotePreset}
-            />
-            <div className="pointer-events-none relative z-20 mt-2 flex shrink-0 flex-wrap justify-center gap-1 px-3 pb-2">
-              {/* Keyed by slot, not value — shirt and shoes both offer an
-                  "ember" preset, so raw-value keys can collide. Labels come
-                  from the option arrays so chips read "Sound Tee", not the
-                  internal id. */}
-              {(
-                [
-                  ["body", appearance.body, avatarBodyOptions],
-                  ["face", appearance.face, avatarFaceOptions],
-                  ["shirt", appearance.shirt, avatarShirtOptions],
-                  ["pants", appearance.pants, avatarPantsOptions],
-                  ["shoes", appearance.shoes, avatarShoeOptions],
-                  ["hair", appearance.hair, avatarHairOptions],
-                  ["gear", appearance.gear, avatarGearOptions],
-                ] as Array<
-                  [string, string, ReadonlyArray<{ id: string; label: string }>]
-                >
-              ).map(([slot, value, options]) => (
-                <span
-                  className="rounded-full border border-white/12 bg-slate-950/72 px-2 py-1 text-[7px] font-black uppercase tracking-[0.09em] text-slate-200 backdrop-blur"
-                  key={slot}
-                >
-                  {options.find((option) => option.id === value)?.label ?? value}
-                </span>
-              ))}
+        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,42%)_minmax(0,1fr)] overflow-hidden min-[700px]:grid-cols-2 min-[700px]:grid-rows-1">
+          <div className="relative flex min-h-0 flex-col border-b border-white/8 p-2 min-[700px]:border-b-0 min-[700px]:border-r">
+            <div data-avatar-lab-preview="true" className="relative isolate min-h-0 w-full flex-1 overflow-hidden rounded-[14px] bg-cover bg-center" style={{ backgroundImage: `linear-gradient(rgba(2,6,23,.30),rgba(2,6,23,.42)),url("${backgroundImage}")` }}>
+              <div className={layoutStyles.avatarEnvironment} aria-hidden="true" />
+              <SoundFitnessAvatar3D
+                appearance={appearance}
+                className="absolute inset-0 z-10 h-full w-full rounded-[14px]"
+                emotePreset={emotePreset}
+                portrait={activeTab === "face"}
+                interactive
+              />
             </div>
           </div>
 
-          <div className="flex min-h-[240px] min-w-0 flex-col p-2.5">
+          <div className="flex min-h-0 min-w-0 flex-col overflow-hidden p-2.5">
             <div
               aria-label="Avatar customization categories"
-              className="grid grid-cols-7 overflow-hidden rounded-[10px] border border-white/10 bg-slate-950/48"
+              className="grid shrink-0 grid-cols-7 overflow-hidden rounded-[10px] border border-white/10 bg-slate-950/48"
               role="tablist"
             >
               {avatarLabTabs.map(({ icon: Icon, id, label }) => {
@@ -2789,35 +2826,20 @@ function AvatarLabMenu({
               })}
             </div>
 
-            <div className="mt-2.5 min-h-0 flex-1">
+            <div key={activeTab} data-dashboard-orbiter-local-scroll="true" data-avatar-lab-options="true" className="mt-2.5 min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pr-1 [scrollbar-color:rgba(34,211,238,0.38)_rgba(15,23,42,0.36)] [scrollbar-width:thin]">
               {activeTab === "body" ? (
                 <>
                   <div className="mb-2 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72">
                     Athlete Profile
                   </div>
-                  <div className="grid grid-cols-2 gap-1.5">
+                  <AvatarLabOptionRail label="Athlete Profile">
                     {avatarBodyOptions.map(({ icon: Icon, ...option }) => (
                       <AvatarLabChoice
                         active={appearance.body === option.id}
                         key={option.id}
                         label={option.label}
                         onClick={() => {
-                          // Picking Female while the hair is still the male
-                          // default upgrades to Swept — the ponytail style —
-                          // so she doesn't inherit the crop. An explicit
-                          // non-default hair choice is left alone.
-                          if (
-                            option.id === "female" &&
-                            appearance.hair === "crop"
-                          ) {
-                            onAppearanceChange({
-                              ...appearance,
-                              body: "female",
-                              hair: "swept",
-                            });
-                            return;
-                          }
-                          updateAppearance("body", option.id);
+                          onAppearanceChange({ ...appearance, body: option.id, hair: avatarHairForBody(option.id, appearance.hair) });
                         }}
                         preview={
                           <Icon
@@ -2828,7 +2850,7 @@ function AvatarLabMenu({
                         }
                       />
                     ))}
-                  </div>
+                  </AvatarLabOptionRail>
                   <p className="mt-3 text-[9px] leading-4 text-slate-400">
                     Both profiles share the same articulated joint rig, clothing system,
                     gear, and motion library.
@@ -2841,27 +2863,29 @@ function AvatarLabMenu({
                   <div className="mb-2 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72">
                     Facial Features
                   </div>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {avatarFaceOptions.map((option) => (
+                  <AvatarLabOptionRail label="Facial Features">
+                    {avatarFaceOptions.map((option) => {
+                      const FaceIcon = { relaxed: Smile, bright: Laugh, focused: Meh, defined: ScanFace }[option.id];
+                      return (
                       <AvatarLabChoice
                         active={appearance.face === option.id}
                         key={option.id}
                         label={option.label}
                         onClick={() => updateAppearance("face", option.id)}
                         preview={
-                          <Smile
+                          <FaceIcon
                             aria-hidden="true"
                             className="h-5 w-5 text-cyan-100"
                             strokeWidth={2.2}
                           />
                         }
                       />
-                    ))}
-                  </div>
+                    );})}
+                  </AvatarLabOptionRail>
                   <div className="mb-2 mt-3 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72">
                     Eyes
                   </div>
-                  <div className="grid grid-cols-2 gap-1.5">
+                  <AvatarLabOptionRail label="Eyes">
                     {avatarEyeOptions.map((option) => (
                       <AvatarLabChoice
                         active={appearance.eyes === option.id}
@@ -2876,7 +2900,7 @@ function AvatarLabMenu({
                         }
                       />
                     ))}
-                  </div>
+                  </AvatarLabOptionRail>
                   <p className="mt-3 text-[9px] leading-4 text-slate-400">
                     Expressions set the smile, cheeks and pupils; the figure keeps its idle sway.
                   </p>
@@ -2889,41 +2913,27 @@ function AvatarLabMenu({
                     className="mb-2 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72"
                     id={`${outfitSectionId}-shirt`}
                   >
-                    Sound Fitness Tee
+                    Shirt Style
                   </div>
-                  <div
-                    aria-labelledby={`${outfitSectionId}-shirt`}
-                    className="grid grid-cols-2 gap-1.5"
-                    role="group"
-                  >
+                  <AvatarLabOptionRail label="Shirt Style">
                     {avatarShirtOptions.map((option) => (
                       <AvatarLabChoice
                         active={appearance.shirt === option.id}
                         key={option.id}
                         label={option.label}
                         onClick={() => updateAppearance("shirt", option.id)}
-                        preview={
-                          <span
-                            className="h-5 w-5 rounded-[6px] border border-white/20"
-                            style={{
-                              background: `linear-gradient(135deg, ${option.colors[0]}, ${option.colors[1]})`,
-                            }}
-                          />
-                        }
+                        preview={<Shirt aria-hidden="true" className="h-5 w-5 text-cyan-100"/>}
                       />
                     ))}
-                  </div>
+                  </AvatarLabOptionRail>
+                  <AvatarClothingColors label="Shirt Color" value={appearance.shirtColor} onChange={(color)=>updateAppearance("shirtColor",color)}/>
                   <div
                     className="mb-2 mt-3 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72"
                     id={`${outfitSectionId}-pants`}
                   >
-                    Joggers
+                    Jogger Color
                   </div>
-                  <div
-                    aria-labelledby={`${outfitSectionId}-pants`}
-                    className="grid grid-cols-2 gap-1.5"
-                    role="group"
-                  >
+                  <AvatarLabOptionRail label="Jogger Color">
                     {avatarPantsOptions.map((option) => (
                       <AvatarLabChoice
                         active={appearance.pants === option.id}
@@ -2940,18 +2950,14 @@ function AvatarLabMenu({
                         }
                       />
                     ))}
-                  </div>
+                  </AvatarLabOptionRail>
                   <div
                     className="mb-2 mt-3 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72"
                     id={`${outfitSectionId}-shoes`}
                   >
-                    Trainers
+                    Shoe Color
                   </div>
-                  <div
-                    aria-labelledby={`${outfitSectionId}-shoes`}
-                    className="grid grid-cols-2 gap-1.5"
-                    role="group"
-                  >
+                  <AvatarLabOptionRail label="Shoe Color">
                     {avatarShoeOptions.map((option) => (
                       <AvatarLabChoice
                         active={appearance.shoes === option.id}
@@ -2968,7 +2974,7 @@ function AvatarLabMenu({
                         }
                       />
                     ))}
-                  </div>
+                  </AvatarLabOptionRail>
                 </>
               ) : null}
 
@@ -2977,7 +2983,7 @@ function AvatarLabMenu({
                   <div className="mb-2 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72">
                     Skin Tone
                   </div>
-                  <div className="grid grid-cols-2 gap-1.5">
+                  <AvatarLabOptionRail label="Skin Tone">
                     {avatarSkinOptions.map((option) => (
                       <AvatarLabChoice
                         active={appearance.skin === option.id}
@@ -2992,7 +2998,7 @@ function AvatarLabMenu({
                         }
                       />
                     ))}
-                  </div>
+                  </AvatarLabOptionRail>
                 </>
               ) : null}
 
@@ -3001,8 +3007,8 @@ function AvatarLabMenu({
                   <div className="mb-2 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72">
                     Hair Style
                   </div>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {avatarHairOptions.map((option) => (
+                  <AvatarLabOptionRail label="Hair Style">
+                    {avatarHairOptions.filter(option => soundFitnessAvatarHairByBody[appearance.body].includes(option.id)).map((option) => (
                       <AvatarLabChoice
                         active={appearance.hair === option.id}
                         key={option.id}
@@ -3017,11 +3023,11 @@ function AvatarLabMenu({
                         }
                       />
                     ))}
-                  </div>
+                  </AvatarLabOptionRail>
                   <div className="mb-2 mt-3 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72">
                     Hair Colour
                   </div>
-                  <div className="grid grid-cols-2 gap-1.5">
+                  <AvatarLabOptionRail label="Hair Color">
                     {avatarHairColorOptions.map((option) => (
                       <AvatarLabChoice
                         active={appearance.hairColor === option.id}
@@ -3036,16 +3042,16 @@ function AvatarLabMenu({
                         }
                       />
                     ))}
-                  </div>
+                  </AvatarLabOptionRail>
                 </>
               ) : null}
 
               {activeTab === "gear" ? (
                 <>
                   <div className="mb-2 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72">
-                    Training Gear
+                    Gear Style
                   </div>
-                  <div className="grid grid-cols-2 gap-1.5">
+                  <AvatarLabOptionRail label="Gear Style">
                     {avatarGearOptions.map((option) => (
                       <AvatarLabChoice
                         active={appearance.gear === option.id}
@@ -3061,7 +3067,8 @@ function AvatarLabMenu({
                         }
                       />
                     ))}
-                  </div>
+                  </AvatarLabOptionRail>
+                  {appearance.gear !== "none" ? <AvatarClothingColors label="Gear Color" value={appearance.gearColor} onChange={(color)=>updateAppearance("gearColor",color)}/> : null}
                 </>
               ) : null}
 
@@ -3070,7 +3077,7 @@ function AvatarLabMenu({
                   <div className="mb-2 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72">
                     Emote Loop
                   </div>
-                  <div className="grid grid-cols-2 gap-1.5">
+                  <div role="group" aria-label="Emote Loop" className="grid grid-cols-2 gap-1.5">
                     {avatarMotionOptions.map((option) => (
                       <AvatarLabChoice
                         active={emotePreset === option.id}
@@ -3344,6 +3351,11 @@ function TrainingCategorySelector({
     // between rings and the swap plays on its own.
     const showGlyph = variant === "center" ? centerShowsGlyph : active;
     const groupTone = statToneClasses[group.tone];
+    const categoryColorGroups: Record<string, string> = {
+      legs: "Lower Body Compound", back: "Back", chest: "Chest",
+      shoulders: "Shoulders", arms: "Arms", core: "Core", neck: "Neck/Traps",
+    };
+    const categoryColors = exerciseAnatomyRegionVisuals[categoryColorGroups[group.id]];
     // Already the sum of every muscle in the group, so the ring shows the
     // category's combined sets for the last 7 days.
     const groupLoad = getBodyPartGroupLoad(group);
@@ -3372,6 +3384,14 @@ function TrainingCategorySelector({
             ? `${statusTheme.shadow}`
             : "shadow-[0_0_18px_rgba(34,211,238,0.09),inset_0_1px_0_rgba(255,255,255,0.08)]"
         }`}
+        style={{
+          "--body-muscle-color": categoryColors.selectedFill,
+          "--body-muscle-light": categoryColors.stroke,
+          color: categoryColors.selectedFill,
+          borderColor: categoryColors.stroke,
+          background: categoryColors.baseFill,
+          boxShadow: active ? `0 0 24px ${categoryColors.glow}, inset 0 0 12px ${categoryColors.glow}` : undefined,
+        } as CSSProperties}
         data-dashboard-tooltip={
           opensBreakdown
             ? `${group.label}: ${describeTrainingLoad(groupLoad)}. Open breakdown.`
@@ -3407,7 +3427,7 @@ function TrainingCategorySelector({
         <SegmentedRing
           fill={fill}
           segments={groupLoad.target}
-          stroke={statusTheme.ring}
+          stroke={categoryColors.selectedFill}
         />
         <span className="relative flex max-w-[66px] flex-col items-center text-center leading-none min-[520px]:max-w-[62px]">
           <BodyCommandRingFace
@@ -3418,12 +3438,12 @@ function TrainingCategorySelector({
                 : "h-[46px] w-[46px] translate-y-[8px] min-[520px]:h-10 min-[520px]:w-10"
             }
             caption={group.label}
-            captionClassName={`${groupTone.text} text-[10px] min-[520px]:text-[9px]`}
+            captionClassName="text-inherit text-[10px] min-[520px]:text-[9px]"
             showGlyph={showGlyph}
             tone={group.tone}
           >
             <span
-              className={`block max-w-full truncate font-black uppercase leading-tight tracking-normal ${groupTone.text} text-[10px] min-[520px]:text-[9px]`}
+              className={`block max-w-full truncate font-black uppercase leading-tight tracking-normal text-inherit text-[10px] min-[520px]:text-[9px]`}
             >
               {group.label}
             </span>
@@ -4374,8 +4394,8 @@ export default function BodyCommandCenterCard({
     useState<BodyCommandMuscleSlug | null>(null);
   // The avatar glow stays dark on load: the default group and the panel's
   // first mount-time report are not the user choosing anything. A choice the
-  // user makes lights the matching category briefly. An explicitly selected
-  // muscle stays lit while it is being inspected; hover remains a preview.
+  // user makes lights the matching category or muscle briefly. Keeping a
+  // selection or resting the pointer on a control must not leave it lit.
   const [avatarSelectionPulseToken, setAvatarSelectionPulseToken] = useState(0);
   const pulseAvatarSelection = useCallback(() => {
     setAvatarSelectionPulseToken((token) => token + 1);
@@ -4407,19 +4427,17 @@ export default function BodyCommandCenterCard({
   const [avatarHoveredBodyPart, setAvatarHoveredBodyPart] =
     useState<SoundFitnessAvatarBodyPart | null>(null);
   useEffect(() => {
-    if (!avatarSelectionPulseToken) return;
+    if (!avatarSelectionPulseToken && !avatarHoveredBodyPart && !menuHoveredGroup && !menuHoveredMuscle) {
+      setAvatarSelectionPulse(false);
+      return;
+    }
     setAvatarSelectionPulse(true);
     const timer = window.setTimeout(
       () => setAvatarSelectionPulse(false),
       avatarSelectionPulseMs,
     );
     return () => window.clearTimeout(timer);
-  }, [avatarSelectionPulseToken]);
-  // Glow in the same seven-day status colors the legend under the avatar and
-  // the muscle rings already use — green when cool/on target, amber under,
-  // orange prime, rose over. Back and chest pass per-muscle colors so their
-  // specific regions (traps, upper/lower back, upper/mid/lower chest) each
-  // reflect their own status; the other groups glow with their aggregate.
+  }, [avatarSelectionPulseToken, avatarHoveredBodyPart, menuHoveredGroup, menuHoveredMuscle]);
   const muscleStatusRing = (slug: BodyCommandMuscleSlug) =>
     sevenDayStatusTheme[getSevenDayTrainingStatus(muscleMeta[slug].load)].ring;
   const groupStatusRing = (groupId: string) => {
@@ -4565,8 +4583,10 @@ export default function BodyCommandCenterCard({
   const [avatarStorageReady, setAvatarStorageReady] = useState(false);
   const [avatarAppearance, setAvatarAppearance] =
     useState<SoundFitnessAvatarAppearance>(defaultSoundFitnessAvatarAppearance);
+  const [emoteReplay, setEmoteReplay] = useState(0);
   const [avatarEmotePreset, setAvatarEmotePreset] =
     useState<SoundFitnessAvatarEmotePreset>("calm");
+  const [backgroundPickerOpen, setBackgroundPickerOpen] = useState(false);
   const [avatarSceneId, setAvatarSceneId] =
     useState<AvatarScenePreset>("command");
 
@@ -4640,9 +4660,9 @@ export default function BodyCommandCenterCard({
 
   useEffect(() => {
     if (avatarEmotePreset === "calm") return;
-    const restTimer = window.setTimeout(() => setAvatarEmotePreset("calm"), 4200);
+    const restTimer = window.setTimeout(() => setAvatarEmotePreset("calm"), avatarEmotePreset === "stretch" ? 6500 : avatarEmotePreset === "focus" ? 5500 : avatarEmotePreset === "salute" ? 5700 : 4200);
     return () => window.clearTimeout(restTimer);
-  }, [avatarEmotePreset]);
+  }, [avatarEmotePreset, emoteReplay]);
 
   useEffect(() => {
     if (!avatarLabOpen) return;
@@ -4681,6 +4701,24 @@ export default function BodyCommandCenterCard({
       <div className="pointer-events-none absolute bottom-0 left-1/2 h-28 w-72 -translate-x-1/2 rounded-full bg-amber-300/8 blur-3xl" />
 
       <div className={`${layoutStyles.commandHeader} relative z-10 flex flex-wrap items-start justify-between gap-3`}>
+        <button
+          aria-expanded={backgroundPickerOpen}
+          aria-haspopup="menu"
+          aria-label="Choose avatar background"
+          className="grid h-8 w-8 place-items-center bg-transparent text-emerald-200 drop-shadow-[0_0_9px_rgba(52,211,153,0.7)] transition hover:-translate-y-0.5 hover:text-white active:scale-90"
+          data-dashboard-tooltip="Avatar background"
+          onClick={(event) => {
+            event.stopPropagation();
+            setBackgroundPickerOpen((open) => !open);
+          }}
+          onPointerCancel={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          onPointerMove={(event) => event.stopPropagation()}
+          onPointerUp={(event) => event.stopPropagation()}
+          type="button"
+        >
+          <TreePalm aria-hidden="true" className="h-4.5 w-4.5" strokeWidth={2.1} />
+        </button>
         {commandCenterSlot ? (
           <div className={`${layoutStyles.commandSummarySlot} min-w-[min(100%,18rem)] flex-1`}>{commandCenterSlot}</div>
         ) : null}
@@ -4696,9 +4734,12 @@ export default function BodyCommandCenterCard({
             <AvatarBodyPicker
               appearance={avatarAppearance}
               avatarSceneId={avatarSceneId}
+              backgroundPickerOpen={backgroundPickerOpen}
+              setBackgroundPickerOpen={setBackgroundPickerOpen}
               emotePreset={avatarEmotePreset}
               onAvatarSceneChange={setAvatarSceneId}
-              onEmoteChange={setAvatarEmotePreset}
+              emoteReplay={emoteReplay}
+              onEmoteChange={(emote) => { setAvatarEmotePreset(emote); setEmoteReplay((value) => value + 1); }}
               onHoverBodyPartChange={setAvatarHoveredBodyPart}
               onOpenAvatarLab={() => setAvatarLabOpen(true)}
               onSelectGroup={selectGroupFromUser}
@@ -4706,12 +4747,7 @@ export default function BodyCommandCenterCard({
               glowFocus={effectiveAvatarGlowFocus}
               glowMode={effectiveAvatarGlowMode}
               viewOverride={effectiveAvatarViewOverride}
-              zoneGlowActive={
-                avatarSelectionPulse ||
-                avatarMuscleFocusActive ||
-                !!hoveredBodyPart ||
-                !!menuHoveredMuscleInGroup
-              }
+              zoneGlowActive={avatarSelectionPulse}
               zoneGlowColors={avatarZoneGlowColors}
             />
             <AvatarDetailLegend />
@@ -4762,6 +4798,7 @@ export default function BodyCommandCenterCard({
       {avatarLabOpen ? (
         <AvatarLabMenu
           appearance={avatarAppearance}
+          backgroundImage={activeAvatarScene.image}
           bodyMapHref={bodyMapHref}
           emotePreset={avatarEmotePreset}
           onAppearanceChange={setAvatarAppearance}

@@ -1,7 +1,16 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { createAvatarCapDetails, createAvatarCapBadgeGeometry, createAvatarCapBrimGeometry, createAvatarCapGeometry, fitAvatarHeadgear } from "./soundFitnessAvatarHeadgear";
+import { createAvatarNecklace } from "./soundFitnessAvatarNecklace";
+import { createSaluteRig } from "./soundFitnessSaluteRig";
+
+import { useEffect, useRef, useState } from "react";
+import loadingStyles from "./DashboardLoading.module.css";
+import { exerciseAnatomyRegionVisuals } from "@/lib/anatomy/exerciseAnatomyColors";
 import { createSoundFitnessMuscleOverlays, isAvatarMuscleSelected, type AvatarMuscleOverlay } from "./soundFitnessAvatarAnatomy";
+import { soundFitnessAvatarIdleMotion } from "./soundFitnessAvatarMotion";
+import { authoredHumanRegion, createSoundFitnessHuman } from "./soundFitnessAvatarHuman";
+import { createAvatarShirtPrintTexture, createAvatarSurfaceMaterials } from "./soundFitnessAvatarMaterials";
 import type {
   BufferGeometry,
   Group,
@@ -17,11 +26,12 @@ import type {
   WebGLRenderer,
 } from "three";
 import {
-  defaultSoundFitnessAvatarAppearance,
+  sanitizeSoundFitnessAvatarAppearance,
   soundFitnessAvatarEyesPalettes,
   soundFitnessAvatarHairColorPalettes,
   soundFitnessAvatarPantsPalettes,
   soundFitnessAvatarShirtPalettes,
+  soundFitnessAvatarClothingColors,
   soundFitnessAvatarShoesPalettes,
   soundFitnessAvatarSkinPalettes,
   type SoundFitnessAvatarAppearance,
@@ -30,6 +40,7 @@ import {
   type SoundFitnessAvatarGlowRegion,
 } from "./soundFitnessAvatarAppearance";
 import {
+  clearDashboardWebGlFallback,
   createDashboardWebGlRenderer,
   loadDashboardThree,
   markDashboardWebGlFallback,
@@ -65,6 +76,9 @@ type SoundFitnessAvatar3DProps = {
   >;
   className?: string;
   emotePreset?: SoundFitnessAvatarEmotePreset;
+  emoteReplay?: number;
+  allowOverheadOverflow?: boolean;
+  portrait?: boolean;
   glowFocus?: SoundFitnessAvatarGlowRegion | null;
   glowMode?: "whole" | "pieces";
   /** Body-part hover/click on the model (plus a screen-reader button set). */
@@ -81,7 +95,7 @@ type ThreeModule = typeof import("three");
 type MaterialObject = Object3D & { material?: Material | Material[] };
 type GeometryObject = Object3D & { geometry?: BufferGeometry };
 
-const SOUND_AVATAR_MODEL_URL = "/models/sound-avatar.glb?v=athlete-anatomy-v3";
+const SOUND_AVATAR_MODEL_URL = "/models/sound-avatar.glb?v=authored-human-v60-rounded-chest";
 const SOUND_AVATAR_MODEL_SCALE = 0.79;
 const SOUND_AVATAR_BASE_Y = -1.18;
 // Highlight shells fade over this long when the glow turns off; bounded, so
@@ -92,16 +106,18 @@ const HIGHLIGHT_FADE_MS = 350;
 // pelvis come in two cuts that carry the body profile.
 type LatheProfile = Array<[number, number]>;
 const TEE_PROFILES: Record<"male" | "female", LatheProfile> = {
-  male: [[0,1.83],[.30,1.83],[.33,1.91],[.31,2.05],[.33,2.20],[.40,2.42],[.46,2.65],[.45,2.74],[.34,2.83],[.15,2.88],[0,2.88]],
-  female: [[0,1.87],[.29,1.87],[.30,1.98],[.27,2.10],[.30,2.27],[.37,2.48],[.40,2.65],[.39,2.75],[.29,2.84],[.14,2.88],[0,2.88]],
+  male: [[0,1.83],[.30,1.83],[.32,1.91],[.31,2.05],[.33,2.20],[.39,2.42],[.43,2.62],[.40,2.73],[.30,2.83],[.15,2.88],[0,2.88]],
+  female: [[0,1.87],[.29,1.87],[.30,1.98],[.27,2.10],[.30,2.27],[.36,2.48],[.38,2.63],[.35,2.74],[.27,2.84],[.14,2.88],[0,2.88]],
 };
 const PELVIS_PROFILES: Record<"male" | "female", LatheProfile> = {
-  male: [[0,1.64],[.27,1.64],[.35,1.73],[.37,1.84],[.34,1.96],[.30,2.04],[0,2.04]],
-  female: [[0,1.64],[.28,1.64],[.38,1.73],[.40,1.84],[.35,1.96],[.29,2.04],[0,2.04]],
+  male: [[0,1.57],[.14,1.63],[.26,1.70],[.33,1.81],[.32,1.93],[.30,2.04],[0,2.04]],
+  female: [[0,1.57],[.15,1.63],[.28,1.70],[.36,1.81],[.33,1.93],[.29,2.04],[0,2.04]],
 };
-const SLEEVE_PROFILE: LatheProfile = [[0,-.35],[.09,-.35],[.105,-.30],[.125,-.17],[.145,-.02],[.145,.06],[.105,.13],[0,.15]];
-const THIGH_PROFILE: LatheProfile = [[0,.97],[.09,.97],[.105,1.02],[.14,1.14],[.17,1.35],[.175,1.58],[.16,1.76],[.12,1.84],[0,1.84]];
-const SHIN_PROFILE: LatheProfile = [[0,.12],[.058,.12],[.065,.20],[.08,.36],[.115,.58],[.125,.73],[.10,.89],[.09,1.01],[0,1.01]];
+const SLEEVE_PROFILE: LatheProfile = [[0,-.33],[.076,-.33],[.085,-.28],[.10,-.16],[.108,-.04],[.095,.02],[.06,.055],[0,.08]];
+const THIGH_PROFILE: LatheProfile = [[0,.91],[.079,.95],[.085,1.02],[.112,1.14],[.145,1.35],[.16,1.58],[.15,1.76],[.115,1.86],[0,1.90]];
+const SHIN_PROFILE: LatheProfile = [[0,.12],[.047,.15],[.052,.23],[.065,.36],[.087,.55],[.099,.68],[.094,.79],[.080,.94],[.080,1.04],[0,1.09]];
+export const UPPER_ARM_PROFILE: LatheProfile = [[0,-.28],[.045,-.26],[.058,-.21],[.08,-.10],[.088,.06],[.08,.17],[.055,.25],[0,.27]];
+export const FOREARM_PROFILE: LatheProfile = [[0,-.25],[.038,-.23],[.044,-.17],[.055,-.05],[.069,.10],[.06,.20],[.045,.25],[0,.27]];
 const CREST_ONLY_SHIRT_DECORATION_NAMES = [
   "performance seam",
   "performance piping",
@@ -125,41 +141,38 @@ const bodyPartLabels: Record<SoundFitnessAvatarBodyPart, string> = {
   shoulders: "Shoulders",
 };
 
-const bodyPartDefaultColors: Record<SoundFitnessAvatarBodyPart, string> = {
-  arms: "#67e8f9",
-  back: "#a78bfa",
-  chest: "#38bdf8",
-  core: "#f59e0b",
-  legs: "#34d399",
-  neck: "#fbbf24",
-  shoulders: "#fb7185",
-};
-
-const regionDefaultColors: Partial<Record<SoundFitnessAvatarGlowRegion, string>> = {
-  abductors: "#34d399",
-  adductors: "#34d399",
-  biceps: "#67e8f9",
-  calves: "#34d399",
-  forearms: "#67e8f9",
-  frontDelt: "#fb7185",
-  glutes: "#34d399",
-  hamstrings: "#34d399",
-  hipRotators: "#34d399",
-  lats: "#a78bfa",
-  lateralDelt: "#fb7185",
-  lowerBack: "#a78bfa",
-  lowerChest: "#38bdf8",
-  midChest: "#38bdf8",
-  obliques: "#f59e0b",
-  quads: "#34d399",
-  rearDelt: "#fb7185",
-  rhomboids: "#a78bfa",
-  rotatorExternal: "#a78bfa",
-  rotatorInternal: "#fb7185",
-  tibialis: "#34d399",
-  traps: "#a78bfa",
-  triceps: "#67e8f9",
-  upperChest: "#38bdf8",
+const regionColorGroups: Record<SoundFitnessAvatarGlowRegion, string> = {
+  "arms": "Arms",
+  "back": "Back",
+  "chest": "Chest",
+  "core": "Core",
+  "legs": "Quads",
+  "neck": "Neck/Traps",
+  "shoulders": "Shoulders",
+  "abductors": "Glutes/Hips",
+  "adductors": "Glutes/Hips",
+  "biceps": "Arms",
+  "calves": "Calves/Tibialis",
+  "forearms": "Arms",
+  "frontDelt": "Shoulders",
+  "glutes": "Glutes/Hips",
+  "hamstrings": "Hamstrings",
+  "hipRotators": "Glutes/Hips",
+  "lats": "Back",
+  "lateralDelt": "Shoulders",
+  "lowerBack": "Back",
+  "lowerChest": "Chest",
+  "midChest": "Chest",
+  "obliques": "Core",
+  "quads": "Quads",
+  "rearDelt": "Shoulders",
+  "rhomboids": "Back",
+  "rotatorExternal": "Shoulders",
+  "rotatorInternal": "Shoulders",
+  "tibialis": "Calves/Tibialis",
+  "traps": "Neck/Traps",
+  "triceps": "Arms",
+  "upperChest": "Chest"
 };
 
 // ---------------------------------------------------------------- part names
@@ -265,6 +278,7 @@ const partForHit = (
   point: { x: number; y: number; z: number },
   chestFloorY: number,
 ): SoundFitnessAvatarBodyPart | null => {
+  if (name.startsWith("authored ")) return authoredHumanRegion(name,point);
   // The shirt yoke is torso, not the shoulder spheres.
   if (name.includes("shoulder") && !name.includes("yoke")) return "shoulders";
   if (includesAny(name, ["upper arm", "forearm", "hand", "wrist band", "sleeve cuff"])) return "arms";
@@ -279,14 +293,15 @@ const partForHit = (
 
 const parseColor = (THREE: ThreeModule, value: string | undefined, fallback: string) => {
   const color = new THREE.Color();
-  if (value) {
-    const rgb = value.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i);
+  const candidate = value ?? fallback;
+  if (candidate) {
+    const rgb = candidate.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i);
     if (rgb) {
-      color.setRGB(Number(rgb[1]) / 255, Number(rgb[2]) / 255, Number(rgb[3]) / 255);
+      color.setRGB(Number(rgb[1]) / 255, Number(rgb[2]) / 255, Number(rgb[3]) / 255, THREE.SRGBColorSpace);
       return color;
     }
     try {
-      color.set(value);
+      color.set(candidate);
       return color;
     } catch {
       /* fall through to the default */
@@ -302,18 +317,19 @@ type EmotePose = {
   rightArm: [number, number];
 };
 
-const restPose: EmotePose = { head: [0, 0, 0], leftArm: [0, 0], rightArm: [0, 0] };
+const restPose: EmotePose = { head: [0, 0, 0], leftArm: [0.025, 0.12], rightArm: [0.025, -0.12] };
 
 // Arm pivots sit at the shoulder joint; z rotates the arm out to the side
 // (right arm positive, left negative raises), x swings it forward.
 const emotePoses: Record<SoundFitnessAvatarEmotePreset, EmotePose> = {
   calm: restPose,
-  celebrate: { head: [-0.08, 0, 0], leftArm: [0, -2.55], rightArm: [0, 2.55] },
+  bow: { head: [.18, 0, 0], leftArm: restPose.leftArm, rightArm: restPose.rightArm },
+  celebrate: { head: [-0.07, 0, -.025], leftArm: [0.05, -1.08], rightArm: [0.05, 1.18] },
   focus: { head: [0.16, 0, 0], leftArm: [0.38, -0.12], rightArm: [0.38, 0.12] },
   nod: restPose,
-  salute: { head: [0, 0, 0], leftArm: [0, 0], rightArm: [0.95, 1.85] },
-  stretch: { head: [-0.14, 0, 0], leftArm: [0, -2.95], rightArm: [0, 2.95] },
-  wave: { head: [0, 0, 0.08], leftArm: [0, 0], rightArm: [0, 2.35] },
+  salute: { head: [0, 0, 0], leftArm: restPose.leftArm, rightArm: [0.08, 2.15] },
+  stretch: { head: [-0.06, 0, 0], leftArm: [-0.12, -2.65], rightArm: [-0.12, 2.65] },
+  wave: { head: [0, 0, 0.03], leftArm: restPose.leftArm, rightArm: [0.08, .65] },
 };
 
 export default function SoundFitnessAvatar3D({
@@ -323,6 +339,9 @@ export default function SoundFitnessAvatar3D({
   bodyPartGlowColors,
   className,
   emotePreset = "calm",
+  emoteReplay = 0,
+  allowOverheadOverflow = false,
+  portrait = false,
   glowFocus,
   glowMode = "whole",
   interactive = false,
@@ -334,7 +353,10 @@ export default function SoundFitnessAvatar3D({
   viewOverride,
 }: SoundFitnessAvatar3DProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const resolvedAppearance = { ...defaultSoundFitnessAvatarAppearance, ...appearance };
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const [sceneAttempt, setSceneAttempt] = useState(0);
+  const recoveryAttempts = useRef(0);
+  const resolvedAppearance = sanitizeSoundFitnessAvatarAppearance(appearance);
   const appearanceKey = JSON.stringify(resolvedAppearance);
   const highlightKey = JSON.stringify({
     active: bodyPartGlowActive,
@@ -352,6 +374,8 @@ export default function SoundFitnessAvatar3D({
     bodyPartGlowActive,
     bodyPartGlowColors,
     emotePreset,
+    emoteReplay,
+    portrait,
     glowFocus,
     glowMode,
     interactive,
@@ -367,6 +391,8 @@ export default function SoundFitnessAvatar3D({
     bodyPartGlowActive,
     bodyPartGlowColors,
     emotePreset,
+    emoteReplay,
+    portrait,
     glowFocus,
     glowMode,
     interactive,
@@ -380,6 +406,7 @@ export default function SoundFitnessAvatar3D({
   const updaters = useRef<{
     applyAppearance: () => void;
     applyHighlight: () => void;
+    resize: () => void;
   } | null>(null);
 
   useEffect(() => {
@@ -388,15 +415,54 @@ export default function SoundFitnessAvatar3D({
 
     let disposed = false;
     let cleanup = () => {};
+    let contextLost = false;
+    let recoveryTimer: number | undefined;
+    const onContextLost = (event: Event) => {
+      event.preventDefault();
+      contextLost = true;
+      setLoadState("loading");
+      onReadyChange?.(false);
+      // A reclaimed context may never restore in an embedded browser. Rebuild
+      // on a fresh canvas rather than keeping a permanently blank ready scene.
+      if (recoveryTimer !== undefined) window.clearTimeout(recoveryTimer);
+      recoveryTimer = window.setTimeout(() => {
+        if (disposed) return;
+        if (recoveryAttempts.current >= 3) {
+          setLoadState("error");
+          return;
+        }
+        recoveryAttempts.current += 1;
+        setSceneAttempt(attempt => attempt + 1);
+      }, 1200);
+    };
+    const onContextRestored = () => {
+      contextLost = false;
+      if (recoveryTimer !== undefined) window.clearTimeout(recoveryTimer);
+      clearDashboardWebGlFallback(canvas);
+      setDashboardWebGlCanvasActive(canvas, latest.current.active && !latest.current.paused);
+      setLoadState("ready");
+      onReadyChange?.(true);
+    };
+    canvas.addEventListener("webglcontextlost", onContextLost);
+    canvas.addEventListener("webglcontextrestored", onContextRestored);
+    canvas.dataset.soundAvatarReady = "false";
+    const loadTimeout = window.setTimeout(() => {
+      if (!disposed && canvas.dataset.soundAvatarReady !== "true") {
+        setLoadState("error");
+        markDashboardWebGlFallback(canvas);
+      }
+    }, 20000);
     onReadyChange?.(false);
 
     const start = async () => {
+      setLoadState("loading");
       try {
         await waitForDashboardWebGlStart({ canvas, priority: true });
         if (disposed) return;
-        const [THREE, { GLTFLoader }] = await Promise.all([
+        const [THREE, { GLTFLoader }, { RoomEnvironment }] = await Promise.all([
           loadDashboardThree(),
           import("three/examples/jsm/loaders/GLTFLoader.js"),
+          import("three/examples/jsm/environments/RoomEnvironment.js"),
         ]);
         if (disposed) return;
 
@@ -421,6 +487,7 @@ export default function SoundFitnessAvatar3D({
         }
         if (!renderer || disposed) {
           onReadyChange?.(false);
+          setLoadState("error");
           return;
         }
         const gl = renderer;
@@ -435,14 +502,14 @@ export default function SoundFitnessAvatar3D({
         camera.position.set(0, 0.25, 5.8);
         camera.lookAt(0, 0.16, 0);
 
-        scene.add(new THREE.HemisphereLight(0xbdefff, 0x172033, 1.25));
-        const keyLight = new THREE.DirectionalLight(0xffffff, 1.7);
+        scene.add(new THREE.HemisphereLight(0xe6efff, 0x39302a, 1.2));
+        const keyLight = new THREE.DirectionalLight(0xfff0de, 1.9);
         keyLight.position.set(-2.8, 4.2, 4.8);
         scene.add(keyLight);
-        const rimLight = new THREE.DirectionalLight(0x67e8f9, 1.15);
+        const rimLight = new THREE.DirectionalLight(0xa8d8ef, .55);
         rimLight.position.set(3.2, 2.2, -3.4);
         scene.add(rimLight);
-        const fillLight = new THREE.PointLight(0x38bdf8, 1.25, 6);
+        const fillLight = new THREE.PointLight(0xdde8ff, .65, 6);
         fillLight.position.set(0.8, 1.1, 2.1);
         scene.add(fillLight);
 
@@ -468,6 +535,7 @@ export default function SoundFitnessAvatar3D({
         // pivots re-parent the limbs; the highlight cuts read its axis signs.
         const partRestMatrices = new Map<string, Matrix4>();
         const materialsByName = new Map<string, MeshStandardMaterial>();
+        const authoredSources: Mesh<BufferGeometry, MeshStandardMaterial>[] = [];
         // The loader leaves TRS node matrices at identity until the first
         // world update, so the boxes are built from the resolved transforms.
         root.updateMatrixWorld(true);
@@ -476,6 +544,10 @@ export default function SoundFitnessAvatar3D({
           const mesh = child as Mesh;
           if (!mesh.isMesh) return;
           const key = normalizeName(mesh.name);
+          if (mesh.userData.authoredHuman) {
+            authoredSources.push(mesh as Mesh<BufferGeometry, MeshStandardMaterial>);
+            return;
+          }
           parts.set(key, mesh);
           baseScales.set(key, mesh.scale.clone());
           const rest = new THREE.Matrix4().copy(rootInverse).multiply(mesh.matrixWorld);
@@ -489,6 +561,34 @@ export default function SoundFitnessAvatar3D({
             materialsByName.set(material.name.toLowerCase(), material);
           }
         });
+        const [skinTexture,shirtPrintTexture,cottonColor,cottonNormal,cottonRoughness]=await Promise.all([
+          new THREE.TextureLoader().loadAsync("/models/textures/human-skin.webp"),
+          Promise.all([...new Set(["sound" as const,latest.current.appearance.shirt])].map(async id => [id, await createAvatarShirtPrintTexture(THREE, id)] as const)).then(entries => Object.fromEntries(entries)),
+          new THREE.TextureLoader().loadAsync("/models/textures/cotton-color.webp"),
+          new THREE.TextureLoader().loadAsync("/models/textures/cotton-normal.webp"),
+          new THREE.TextureLoader().loadAsync("/models/textures/cotton-roughness.webp"),
+        ]);
+        if(disposed){for(const texture of [skinTexture,...Object.values(shirtPrintTexture),cottonColor,cottonNormal,cottonRoughness])texture.dispose();disposeObject(scene);gl.dispose();return;}
+        const pendingShirtPrints=new Map<string,Promise<void>>();
+        const applyShirtPrint=(id:keyof typeof soundFitnessAvatarShirtPalettes)=>{
+          if(shirtPrintTexture[id]){humanRig?.setShirtPrint(shirtPrintTexture[id]);return;}
+          if(pendingShirtPrints.has(id))return;
+          const pending=createAvatarShirtPrintTexture(THREE,id).then(texture=>{
+            if(disposed){texture.dispose();return;}
+            shirtPrintTexture[id]=texture;
+            // A late download must not replace a more recently selected style.
+            if(latest.current.appearance.shirt===id)humanRig?.setShirtPrint(texture);
+          }).catch(()=>{
+            if(latest.current.appearance.shirt===id)printedShirt=null;
+          }).finally(()=>pendingShirtPrints.delete(id));
+          pendingShirtPrints.set(id,pending);
+        };
+        const disposeSurfaceMaps=createAvatarSurfaceMaterials(THREE,materialsByName,skinTexture,{color:cottonColor,normal:cottonNormal,roughness:cottonRoughness});
+        const studio=new RoomEnvironment();
+        const pmrem=new THREE.PMREMGenerator(gl);
+        const studioEnvironment=pmrem.fromScene(studio,.04,.1,100,{size:128});
+        scene.environment=studioEnvironment.texture;scene.environmentIntensity=.45;
+        studio.dispose();pmrem.dispose();
         const part = (name: string) => parts.get(name) ?? null;
         const partBox = (name: string) => partBoxes.get(name) ?? null;
         const scalePart = (name: string, x: number, y = x, z = x) => {
@@ -540,7 +640,7 @@ export default function SoundFitnessAvatar3D({
           headBaseY,
           0.02,
           Array.from(parts.keys()).filter((name) =>
-            includesAny(name, HEAD_PART_FRAGMENTS),
+            name === "neck" || includesAny(name, HEAD_PART_FRAGMENTS),
           ),
         );
 
@@ -548,11 +648,25 @@ export default function SoundFitnessAvatar3D({
         const elbows = [leftArmPivot, rightArmPivot].map((armPivot, index) => {
           const side = index === 0 ? "left" : "right";
           const forearm = partBox(side + " forearm");
-          const elbow = makePivot(side + " elbow pivot", index===0 ? -.63 : .63,
-            forearm?.max.y ?? 2.26, 0, [side+" forearm",side+" wrist band",side+" hand"]);
+          const location = new THREE.Vector3(0, .24, 0);
+          const rest = partRestMatrices.get(side + " forearm");
+          if (rest) location.applyMatrix4(rest);
+          else location.set(index === 0 ? -.55 : .55, (forearm?.max.y ?? 2.28) - .04, 0);
+          const elbow = makePivot(side + " elbow pivot", location.x, location.y, location.z, [side+" forearm",side+" wrist band",side+" hand"]);
           armPivot.attach(elbow);
           return elbow;
         });
+
+        // Independent wrist articulation makes greetings hand-led rather
+        // than swinging the shoulder or treating the whole arm as a paddle.
+        const wrists = elbows.map((elbow, index) => {
+          const side = index === 0 ? "left" : "right";
+          const wrist = makePivot(side + " wrist pivot", index === 0 ? -.60 : .60, 1.79, .015, [side + " hand"]);
+          elbow.attach(wrist);
+          return wrist;
+        });
+
+        const saluteRig = createSaluteRig(THREE, root, rightArmPivot, elbows[1], wrists[1]);
 
         // Anything worn on the head rides this group: it sits under the head
         // pivot but is offset back to the root's origin, so attachments are
@@ -709,6 +823,7 @@ export default function SoundFitnessAvatar3D({
           "right shoulder performance seam",
           "left side performance piping",
           "right side performance piping",
+          "upper chest shoulder yoke",
         ]) {
           const mesh = part(name);
           if (mesh) mesh.visible = false;
@@ -721,6 +836,9 @@ export default function SoundFitnessAvatar3D({
           refreshPartBox("hips");
           if (headSculpt && headGeometries) {
             headSculpt.geometry = female ? headGeometries.female : headGeometries.male;
+            if (headSculpt.morphTargetInfluences) headSculpt.morphTargetInfluences[0] = female ? 1 : 0;
+          const scalp=part("continuous crown hair cap");
+            if(scalp?.morphTargetInfluences)scalp.morphTargetInfluences[0]=female?1:0;
           }
         };
 
@@ -741,19 +859,44 @@ export default function SoundFitnessAvatar3D({
           if (mesh && base) mesh.position.set(base.x + x, base.y + y, base.z + z);
         };
 
+        // Soft contact shadow: a feathered alpha mask, never a solid fabric-like disc.
+        const shadowPixels = new Uint8Array(64 * 64 * 4);
+        for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) {
+          const radius = Math.hypot((x - 31.5) / 31.5, (y - 31.5) / 31.5);
+          const alpha = Math.pow(Math.max(0, 1 - radius * radius), 3);
+          const index = (y * 64 + x) * 4;
+          shadowPixels[index + 3] = Math.round(alpha * 100);
+        }
+        const shadowTexture = new THREE.DataTexture(shadowPixels, 64, 64);
+        shadowTexture.needsUpdate = true;
         const shadow = new THREE.Mesh(
-          new THREE.CircleGeometry(1.08, 64),
-          new THREE.MeshBasicMaterial({ color: 0x020617, opacity: 0.38, transparent: true }),
+          new THREE.PlaneGeometry(1.7, .75),
+          new THREE.MeshBasicMaterial({ map: shadowTexture, color: 0x000000, transparent: true, depthWrite: false }),
         );
         shadow.name = "soft floor shadow";
-        shadow.position.set(0, -1.34, 0);
+        root.updateMatrixWorld(true);
+        const shoe = part("left shoe");
+        const footPlaneY = shoe ? new THREE.Box3().setFromObject(shoe).min.y : SOUND_AVATAR_BASE_Y;
+        shadow.position.set(0, footPlaneY - .004, 0);
         shadow.rotation.x = -Math.PI / 2;
-        shadow.scale.set(1.25, 0.36, 1);
         scene.add(shadow);
+        if (!allowOverheadOverflow) {
+          const platform = new THREE.Mesh(
+            new THREE.RingGeometry(.73, .745, 64),
+            new THREE.MeshBasicMaterial({ color: 0x9ee9ff, transparent: true, opacity: .42, side: THREE.DoubleSide, depthWrite: false }),
+          );
+          platform.name = "avatar contact platform";
+          platform.rotation.x = -Math.PI / 2;
+          platform.position.y = footPlaneY - .006;
+          scene.add(platform);
+        }
 
         // ---- appearance ----
         const gearGroup: Group = new THREE.Group();
         const jointGear: Mesh[] = [];
+        let necklace: Group | undefined;
+        torsoPivot.updateMatrix();
+        const necklaceTorsoRestInverse=torsoPivot.matrix.clone().invert();
         gearGroup.name = "gear";
         root.add(gearGroup);
         const setColor = (materialName: string, hex: string, emissive?: string) => {
@@ -784,20 +927,17 @@ export default function SoundFitnessAvatar3D({
         };
         // Styles the model has no mesh for are built here from the head's own
         // box, so they sit on the scalp at whatever size the profile makes it.
-        const hairMaterial = (hex: string, sheen: string) =>
-          new THREE.MeshStandardMaterial({
-            color: hex,
-            emissive: sheen,
-            emissiveIntensity: 0.16,
-            metalness: 0.05,
-            roughness: 0.62,
-          });
+        const hairMaterial = (hex: string, sheen: string) => {
+          const material = materialsByName.get("full close-cropped hair cap")!.clone();
+          material.color.set(hex);material.emissive.set(sheen);material.emissiveIntensity=0;
+          return material;
+        };
         const buildHair = (appearanceNow: SoundFitnessAvatarAppearance) => {
           disposeObject(hairGroup);
           hairGroup.clear();
           const style = appearanceNow.hair;
           if (style !== "ponytail" && style !== "bun" && style !== "long") return;
-          const head = partBox("head sculpt");
+          const head = partBox(appearanceNow.body === "female" ? "female full hair cap" : "head sculpt");
           if (!head) return;
           const colour = soundFitnessAvatarHairColorPalettes[appearanceNow.hairColor];
           const material = hairMaterial(colour.base, colour.sheen);
@@ -813,22 +953,54 @@ export default function SoundFitnessAvatar3D({
             hairGroup.add(mesh);
           };
           if (style === "ponytail") {
-            // Tied at the back of the crown, falling down and back.
-            const tilt = 0.26;
-            const tie = new THREE.Mesh(new THREE.TorusGeometry(rx * 0.24, rx * 0.07, 10, 24), material);
-            tie.position.set(cx, cy + ry * 0.24, cz - rz * 0.86);
-            tie.rotation.x = Math.PI / 2 + tilt;
-            add("ponytail tie", tie);
-            const tail = new THREE.Mesh(
-              new THREE.CylinderGeometry(rx * 0.29, rx * 0.14, ry * 1.34, 18, 1),
-              material,
-            );
-            tail.position.set(cx, cy - ry * 0.42, cz - rz * 1.2);
-            tail.rotation.x = tilt;
-            add("ponytail tail", tail);
-            const tip = new THREE.Mesh(new THREE.SphereGeometry(rx * 0.14, 16, 12), material);
-            tip.position.set(cx, cy - ry * 1.06, cz - rz * 1.38);
-            add("ponytail tip", tip);
+            // Start inside the actual scalp shell and curve continuously down the back.
+            const anchor = new THREE.Vector3(cx, head.max.y - .095, head.min.z + .025);
+            const path = new THREE.CatmullRomCurve3([
+              anchor,
+              anchor.clone().add(new THREE.Vector3(0,-.035,-.09)),
+              anchor.clone().add(new THREE.Vector3(.035,-.22,-.15)),
+              anchor.clone().add(new THREE.Vector3(.015,-.48,-.08)),
+            ]);
+            // A bundle of overlapping locks supplies the volume; there is no
+            // solid central tube hiding their contours or joining their tips.
+            for(let lock=0;lock<38;lock++) {
+              const angle=lock*2.399963;
+              const radius=Math.sqrt((lock+.5)/38);
+              const spreadX=Math.cos(angle)*radius;
+              const spreadZ=Math.sin(angle)*radius;
+              const length=.43+.065*Math.sin(lock*1.73)+.025*Math.cos(lock*.8);
+              const strandPath=new THREE.CatmullRomCurve3([
+                anchor.clone().add(new THREE.Vector3(spreadX*.012,0,spreadZ*.010)),
+                anchor.clone().add(new THREE.Vector3(spreadX*.050,-.065,-.095+spreadZ*.035)),
+                anchor.clone().add(new THREE.Vector3(.025+spreadX*.078,-.22,-.16+spreadZ*.055)),
+                anchor.clone().add(new THREE.Vector3(.018+spreadX*.055,-length*.78,-.14+spreadZ*.046)),
+                anchor.clone().add(new THREE.Vector3(.004+spreadX*.045,-length,-.07+spreadZ*.034)),
+              ]);
+              const radialSegments=8,segments=40;
+              const strandGeometry=new THREE.TubeGeometry(strandPath,segments,.014+(1-radius)*.007,radialSegments,false);
+              const positions=strandGeometry.attributes.position;
+              for(let ring=0;ring<=segments;ring++) {
+                const t=ring/segments,center=strandPath.getPointAt(t);
+                const taper=(.025+.975*Math.pow(1-t,.65))*(.65+.35*Math.sin(Math.min(1,t*4)*Math.PI/2));
+                for(let j=0;j<=radialSegments;j++) {
+                  const index=ring*(radialSegments+1)+j;
+                  const point=new THREE.Vector3().fromBufferAttribute(positions,index).sub(center).multiplyScalar(taper);
+                  point.z*=.65;point.add(center);
+                  positions.setXYZ(index,point.x,point.y,point.z);
+                  strandGeometry.attributes.uv.setXY(index,j/radialSegments+lock*.137,t);
+                }
+              }
+              strandGeometry.computeVertexNormals();
+              const strandMesh=new THREE.Mesh(strandGeometry,material);
+              add(`ponytail flowing lock ${lock}`,strandMesh);
+              const strandMaterial=material.clone();
+              strandMaterial.color.multiplyScalar(.88+.22*(.5+.5*Math.sin(lock*2.7)));
+              strandMaterial.roughness=.72;
+              strandMesh.material=strandMaterial;
+            }
+            const tie=new THREE.Mesh(new THREE.TorusGeometry(.036,.006,12,32),material);
+            tie.position.copy(path.getPoint(.12));tie.rotation.x=Math.PI/2;
+            add("ponytail tie",tie);
           } else if (style === "bun") {
             const bun = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), material);
             bun.position.set(cx, cy + ry * 0.68, cz - rz * 0.72);
@@ -851,43 +1023,39 @@ export default function SoundFitnessAvatar3D({
               add(`${name} hair curtain`, curtain);
             }
           }
-          if (style === "ponytail" || style === "bun") {
-            // Tied back, but a little hair still frames the temples so the
-            // style reads from the front as well as the back.
-            for (const [name, side] of [["left", -1], ["right", 1]] as const) {
-              const sweep = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), material);
-              sweep.position.set(cx + side * rx * 0.84, cy - ry * 0.08, cz - rz * 0.12);
-              sweep.scale.set(rx * 0.2, ry * 0.46, rz * 0.5);
-              add(`${name} hair sweep`, sweep);
-            }
-          }
+
         };
         const faceDetailGroup: Group = new THREE.Group();
         faceDetailGroup.name = "face details";
         headAttachGroup.add(faceDetailGroup);
+        // Skin-coloured upper lids cover the actual eye geometry during a blink.
+        // They share the skin material and head pivot, including all appearance changes.
+        const eyelids = ["left", "right"].flatMap((side) => {
+          const eye = partBox(`${side} eye white`);
+          if (!eye || !headSculpt) return [];
+          const lid = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 32), new THREE.MeshStandardMaterial({color:(headSculpt.material as MeshStandardMaterial).color,roughness:.72}));
+          const height = (eye.max.y - eye.min.y) * 0.58;
+          const centerY = (eye.min.y + eye.max.y) / 2;
+          lid.name = `${side} blinking eyelid`;
+          lid.position.set((eye.min.x + eye.max.x) / 2, centerY, eye.max.z + 0.007);
+          lid.scale.set((eye.max.x - eye.min.x) * 0.57, height, 0.009);
+          lid.visible = false;
+          headAttachGroup.add(lid);
+          const lowerLid=lid.clone();lowerLid.material=lid.material.clone();lowerLid.name=`${side} lower eyelid`;
+          headAttachGroup.add(lowerLid);
+          return [
+            { lid, height, centerY, side, centerX: lid.position.x, centerZ: lid.position.z, lower:false },
+            { lid:lowerLid, height, centerY, side, centerX: lid.position.x, centerZ: lid.position.z, lower:true },
+          ];
+        });
+        const eyeOffsets: Record<string, [number, number, number]> = { left: [0,0,0], right: [0,0,0] };
         const buildFaceDetails = (appearanceNow: SoundFitnessAvatarAppearance) => {
           disposeObject(faceDetailGroup);
           faceDetailGroup.clear();
           if (appearanceNow.body !== "female") return;
-          // A lash line arched over each eye; the eyes are model parts.
-          const lashMaterial = new THREE.MeshStandardMaterial({ color: "#1c1917", roughness: 0.7 });
-          for (const side of ["left", "right"] as const) {
-            const eye = partBox(`${side} eye white`);
-            if (!eye) continue;
-            const half = (eye.max.x - eye.min.x) / 2;
-            const lash = new THREE.Mesh(
-              new THREE.TorusGeometry(half * 1.08, half * 0.17, 6, 14, Math.PI),
-              lashMaterial,
-            );
-            lash.position.set(
-              (eye.min.x + eye.max.x) / 2,
-              (eye.min.y + eye.max.y) / 2 + half * 0.1,
-              eye.max.z + 0.012,
-            );
-            lash.scale.set(1, 0.6, 1);
-            lash.name = `${side} lash`;
-            faceDetailGroup.add(lash);
-          }
+          // Keep the actual eyelid/sclera contour; the old floating torus
+          // lashes sat in front of the sockets and made the eyes look detached.
+
         };
         const smileBaseMaterial = part("smile")?.material ?? null;
         const lipMaterial = new THREE.MeshStandardMaterial({ color: "#c2606c", roughness: 0.5 });
@@ -898,9 +1066,10 @@ export default function SoundFitnessAvatar3D({
           jointGear.length = 0;
           disposeObject(gearGroup);
           gearGroup.clear();
+          necklace=undefined;
           disposeObject(headGearGroup);
           headGearGroup.clear();
-          const shirt = soundFitnessAvatarShirtPalettes[appearanceNow.shirt];
+          const shirt = soundFitnessAvatarClothingColors[appearanceNow.gearColor];
           const head = partBox("head sculpt");
           const neck = partBox("neck");
           const hips = partBox("hips");
@@ -908,70 +1077,74 @@ export default function SoundFitnessAvatar3D({
           const leftShin = partBox("left shin");
           const rightShin = partBox("right shin");
           const accent = shirt.accent;
-          const dark = "#0b1220";
+          const dark = shirt.base;
           const gear = appearanceNow.gear;
+          const capFabricMaterial = (color: string) => {
+            const material=gearMaterial(color, "#000000", 0);
+            material.roughness=.96;
+            material.normalMap=cottonNormal;
+            material.normalScale.set(.22,.22);
+            material.roughnessMap=cottonRoughness;
+            return material;
+          };
           const wristbands = gear === "wristbands" || gear === "gloves";
           setVisible(WRIST_BANDS, wristbands);
           if (head && (gear === "headband" || gear === "visor" || gear === "cap")) {
-            const cx = (head.min.x + head.max.x) / 2;
-            const cz = (head.min.z + head.max.z) / 2;
-            const radius = (head.max.x - head.min.x) / 2 + 0.02;
-            const bandY = head.min.y + (head.max.y - head.min.y) * 0.7;
+            const fit = fitAvatarHeadgear(THREE, headSculpt!.geometry, partRestMatrices.get("head sculpt")!, appearanceNow.body === "female", gear === "cap");
+            const {cx, cz, radius, depth, bandY, crownHeight} = fit;
+            const capGeometry = gear === "cap" ? createAvatarCapGeometry(THREE, headSculpt!.geometry, partRestMatrices.get("head sculpt")!, appearanceNow.body === "female", bandY) : undefined;
+
             if (gear !== "cap") {
               const band = new THREE.Mesh(
-                new THREE.TorusGeometry(radius, radius * .1, 12, 48),
-                gearMaterial(accent, accent, 0.05),
+                new THREE.TorusGeometry(radius, .006, 12, 64),
+                gearMaterial(shirt.base, "#000000", 0),
               );
               band.position.set(cx, bandY, cz);
-              band.rotation.x = Math.PI / 2 + 0.16;
-              band.scale.set(1, 1.02, 1);
+              band.rotation.x = Math.PI / 2;
+              band.scale.set(1, depth / radius, 1);
               addGear(`${gear} band`, band, true);
             }
             if (gear === "visor" || gear === "cap") {
               // A flattened half dome: the camera sits nearly level with
               // the head, where a flat plate vanishes edge-on.
-              const brimMaterial = gearMaterial(accent, accent, 0.1);
+              const brimMaterial = capFabricMaterial(shirt.base);
               brimMaterial.side = THREE.DoubleSide;
               const brim = new THREE.Mesh(
-                new THREE.SphereGeometry(radius * 1.3, 32, 12, 0, Math.PI),
+                createAvatarCapBrimGeometry(THREE, fit, capGeometry),
                 brimMaterial,
               );
-              brim.position.set(cx, bandY - 0.03, cz + 0.02);
-              brim.scale.set(1, 0.07, 1);
-              brim.rotation.x = 0.3;
+              // Curved bill geometry is already fitted in root coordinates.
               addGear(`${gear} brim`, brim, true);
             }
             if (gear === "cap") {
               const crown = new THREE.Mesh(
-                new THREE.SphereGeometry(radius + 0.01, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.5),
-                gearMaterial(dark, "#000000", 0.05),
+                capGeometry!,
+                capFabricMaterial(dark),
               );
-              crown.position.set(cx, bandY - 0.02, cz);
-              crown.scale.set(1, 0.95, 1.02);
+              // Crown vertices already follow the morphed scalp in root space.
               addGear("cap crown", crown, true);
+              const bill=headGearGroup.getObjectByName("cap brim") as Mesh<BufferGeometry>;
+              if(bill) headGearGroup.add(createAvatarCapDetails(THREE,crown.geometry,bill.geometry,fit));
+              const badgeMaterial=gearMaterial("#ffffff", "#000000", 0);
+              badgeMaterial.map=shirtPrintTexture.sound;
+              badgeMaterial.transparent=true;
+              badgeMaterial.alphaTest=.04;
+              badgeMaterial.depthWrite=false;
+              badgeMaterial.roughness=.95;
               const badge = new THREE.Mesh(
-                new THREE.CircleGeometry(radius * .26, 24),
-                gearMaterial(accent, accent, 0),
+                createAvatarCapBadgeGeometry(THREE, crown.geometry, fit),
+                badgeMaterial,
               );
-              // Just proud of the crown's front surface at this height.
-              const badgeY = bandY + 0.12;
-              const crownDy = (badgeY - (bandY - 0.02)) / ((radius + 0.01) * 0.95);
-              badge.position.set(
-                cx,
-                badgeY,
-                cz + (radius + 0.01) * 1.02 * Math.sqrt(Math.max(0, 1 - crownDy * crownDy)) + 0.012,
-              );
-              badge.rotation.x = -0.34;
               addGear("cap badge", badge, true);
             }
           }
           if (head && gear === "shades") {
             const y = head.min.y + (head.max.y - head.min.y) * 0.55;
-            const z = head.max.z + 0.02;
-            const faceWidth = head.max.x - head.min.x;
+            const z = head.max.z + 0.006;
+            const faceWidth = (head.max.x - head.min.x) * .78;
             const lens = () =>
               new THREE.Mesh(
-                new THREE.BoxGeometry(faceWidth * .32, faceWidth * .17, .02),
+                new THREE.BoxGeometry(faceWidth * .32, faceWidth * .17, .008),
                 gearMaterial("#06090f", "#0f172a", 0.6),
               );
             const left = lens();
@@ -981,28 +1154,15 @@ export default function SoundFitnessAvatar3D({
             right.position.set(faceWidth * .19, y, z);
             addGear("right lens", right, true);
             const bridge = new THREE.Mesh(
-              new THREE.BoxGeometry(faceWidth * .74, .014, .015),
+              new THREE.BoxGeometry(faceWidth * .74, .008, .008),
               gearMaterial(accent, accent, 0.3),
             );
             bridge.position.set(0, y + faceWidth * .07, z);
             addGear("shades bridge", bridge, true);
           }
-          if (neck && gear === "chain") {
-            const chain = new THREE.Mesh(
-              new THREE.TorusGeometry((neck.max.x - neck.min.x) * 1.25, 0.012, 10, 48),
-              gearMaterial("#facc15", "#7c5a06", 0.85),
-            );
-            // Lies around the collar with the front hanging onto the chest.
-            chain.position.set(0, neck.min.y + 0.16, 0.06);
-            chain.rotation.x = Math.PI / 2 + 0.35;
-            chain.scale.set(1.2, 1.25, 1);
-            addGear("chain", chain);
-            const pendant = new THREE.Mesh(
-              new THREE.CircleGeometry(0.07, 24),
-              gearMaterial(accent, accent, 0.2),
-            );
-            pendant.position.set(0, neck.min.y - 0.1, (torso?.max.z ?? 0.34) + 0.03);
-            addGear("chain pendant", pendant);
+          if (neck && gear === "chain" && humanRig) {
+            necklace = createAvatarNecklace(THREE,humanRig.meshes,appearanceNow.body === "female",neck,shirtPrintTexture.sound,shirt.base);
+            gearGroup.add(necklace);
           }
           if (hips && gear === "belt") {
             const belt = new THREE.Mesh(
@@ -1045,7 +1205,8 @@ export default function SoundFitnessAvatar3D({
         };
         const applyAppearance = () => {
           const a = latest.current.appearance;
-          const shirt = soundFitnessAvatarShirtPalettes[a.shirt];
+          const shirt = soundFitnessAvatarClothingColors[a.shirtColor];
+          gloveMaterial.color.set(soundFitnessAvatarClothingColors[a.gearColor].base);
           const pants = soundFitnessAvatarPantsPalettes[a.pants];
           const shoes = soundFitnessAvatarShoesPalettes[a.shoes];
           const skin = soundFitnessAvatarSkinPalettes[a.skin];
@@ -1054,7 +1215,7 @@ export default function SoundFitnessAvatar3D({
           setColor("sound navy performance shirt", shirt.base);
           setColor("shirt side panel", shirt.panel);
           setColor("cyan performance shirt seams", shirt.accent, shirt.accent);
-          setColor("sound crest glow", shirt.accent, shirt.accent);
+          setColor("sound crest glow", soundFitnessAvatarClothingColors[a.gearColor].base);
           setColor("soft white shirt crest ink", "#f8fafc", shirt.accent);
           setColor("charcoal training joggers", pants.base);
           setColor("cyan-lit training shoes", shoes.base);
@@ -1063,8 +1224,11 @@ export default function SoundFitnessAvatar3D({
           setColor("soft skin highlights", skin.highlight);
           setColor("subtle cheek warmth", skin.cheek);
           setColor("full close-cropped hair cap", hair.base);
+          setColor("female swept hair", hair.base);
           setColor("soft hair crown highlight", hair.sheen);
           setColor("amber brown iris", eyes.iris);
+          const irisMaterial = materialsByName.get("amber brown iris");
+          if (irisMaterial) irisMaterial.color.multiplyScalar(.48);
           // Hair style = which caps are visible.
           const crown = ["continuous crown hair cap"];
           const front = ["raised front hairline cap"];
@@ -1096,6 +1260,11 @@ export default function SoundFitnessAvatar3D({
             case "bald":
               break;
           }
+          const fullFemaleHair = a.body === "female" && ["ponytail", "bun", "long", "swept"].includes(a.hair);
+          setVisible(["female full hair cap", "female hairline fibers", "female swept hair sections"], fullFemaleHair);
+          if (fullFemaleHair) setVisible(all, false);
+          const scalp=part("continuous crown hair cap");
+          if(scalp?.morphTargetInfluences)scalp.morphTargetInfluences[1]=a.hair==="swept"?1:a.hair==="crop"?.25:0;
           // Face: the smile and cheek warmth carry the expression.
           const smile = part("smile");
           const cheeks = ["left cheek warmth", "right cheek warmth"];
@@ -1108,49 +1277,108 @@ export default function SoundFitnessAvatar3D({
           }
           setVisible(cheeks, a.face === "bright" || a.face === "relaxed" || a.face === "defined");
           for (const name of ["left pupil", "right pupil"]) {
-            scalePart(name, a.face === "focused" ? 1.25 : 1);
+            scalePart(name, 1);
           }
           // Body profile. Female: narrower shoulders, neck and torso, slimmer
           // arms and shins, wider hips (an hourglass step below the shirt)
           // and a bust, with the crest floated onto it.
           const female = a.body === "female";
+          const skinDetail=materialsByName.get("warm athletic skin")?.userData.detailStrength;
+          if(skinDetail) skinDetail.value=female ? .12 : .74;
           // The tee and joggers carry the torso and hip silhouette (V taper
           // for male, narrow waist over wider hips for female) and the head
           // sculpt swaps to the tapered jaw; boxes refresh so highlights and
           // gear stay fitted.
           wearGarments(female);
+          for (const name of ["left eyebrow", "right eyebrow"]) scalePart(name, female ? .90 : 1, female ? 1.05 : 1, 1);
+          for (const [index,name] of WRIST_BANDS.entries()) {
+            scalePart(name, female ? .72 : .9, female ? .8 : .9, female ? .72 : .9);
+            offsetPart(name, (index === 0 ? -1 : 1) * (female ? -.035 : 0), .025, .015);
+          }
           for (const pivot of [leftArmPivot, rightArmPivot]) {
             pivot.scale.set(female ? 0.90 : 1, 1, female ? 0.90 : 1);
           }
           for (const name of SHOULDERS) {
             scalePart(name, female ? 0.93 : 1, female ? 0.92 : 1, female ? 0.95 : 1);
           }
-          for (const name of NECK) scalePart(name, female ? 0.86 : 1, 1, female ? 0.86 : 1);
+          // The authored neck shares its upper seam with the head; independent scaling opens that seam.
+          for (const name of NECK) scalePart(name, 1);
           for (const name of SHINS) scalePart(name, female ? 0.9 : 1, 1, female ? 0.9 : 1);
           for (const name of THIGHS) scalePart(name, female ? 1.08 : 1, 1, 1);
           // A slightly wider stance carries the hip width, not just the disc.
           for (const [names, dx] of [[LEFT_LEG_PARTS, -0.03], [RIGHT_LEG_PARTS, 0.03]] as const) {
             for (const name of names) offsetPart(name, female ? dx : 0, 0, 0);
           }
-          // A slightly smaller, narrower head reads feminine at this scale
-          // without a second sculpt; the eyes stay a touch larger to match.
-          headPivot.scale.set(female ? 0.94 : 1, female ? 0.985 : 1, female ? 0.965 : 1);
+          // Keep adult head proportions balanced; avoid a squeezed face and oversized eyes.
+          headPivot.scale.set(1, 1, 1);
+          const maleEyes = headSculpt?.userData.eyePositions as number[][] | undefined;
+          const femaleEyes = headSculpt?.userData.femaleEyePositions as number[][] | undefined;
+          for (const [index, side] of ["left", "right"].entries()) {
+            const shift = [0,1,2].map(axis => female && femaleEyes && maleEyes ? femaleEyes[index][axis] - maleEyes[index][axis] : 0) as [number,number,number];
+            eyeOffsets[side] = shift;
+            for (const feature of ["eye white", "iris", "pupil", "eyebrow"]) {
+              offsetPart(`${side} ${feature}`, ...shift);
+              refreshPartBox(`${side} ${feature}`);
+            }
+          }
           for (const name of ["left eye white", "right eye white"]) {
-            scalePart(name, female ? 1.1 : 1);
+            scalePart(name, female ? .96 : 1, female ? 1.02 : 1, 1);
           }
           for (const name of ["left iris", "right iris"]) {
-            scalePart(name, female ? 1.08 : 1);
+            scalePart(name, female ? .86 : 1, female ? .78 : 1, female ? .8 : 1);
           }
+          for (const name of ["left pupil", "right pupil"]) scalePart(name, female ? .86 : 1, female ? .86 : 1, 1);
           for (const name of CREST_PARTS) offsetPart(name, 0, 0, female ? 0.07 : 0);
+          rebuildGarments(a.body);
+          if (printedShirt !== a.shirt) { applyShirtPrint(a.shirt); printedShirt = a.shirt; }
           rebuildAnatomy(a.body);
           buildHair(a);
           buildFaceDetails(a);
           buildGear(a);
+          humanRig?.setGloves(a.gear === "gloves", gloveMaterial.color);
+          for(const {lid} of eyelids)(lid.material as MeshStandardMaterial).color.copy(materialsByName.get("warm athletic skin")!.color);
+          setVisible(CREST_PARTS,false);
+          // Authored hands/neck are part of the continuous human surface.
+          setVisible(["left hand", "right hand", "neck"], false);
           canvas.dataset.soundAvatarGear = `${a.gear}:${gearGroup.children.length + headGearGroup.children.length + jointGear.length}`;
           canvas.dataset.soundAvatarWristbands = String(part("left wrist band")?.visible ?? "missing");
           canvas.dataset.soundAvatarHair = `${a.hair}:${hairGroup.children.length}`;
           // Body profile and face presets rescale parts; refit the shells.
           applyHighlight();
+        };
+
+        let humanRig: ReturnType<typeof createSoundFitnessHuman> | null = null;
+        let garments: Array<{ update: () => void; dispose: () => void; bindOverlay: (mesh: Mesh<BufferGeometry, MeshStandardMaterial>) => AvatarMuscleOverlay["mesh"] }> = [];
+        let garmentBody: string | null = null;
+        let printedShirt: string | null = null;
+        const rebuildGarments = (body: string) => {
+          if (garmentBody === body) return;
+          const female = body === "female";
+          humanRig ??= createSoundFitnessHuman(THREE, root, authoredSources, parts, partRestMatrices);
+          humanRig.setBody(female);
+          humanRig.setShirtPrint(shirtPrintTexture[latest.current.appearance.shirt]??shirtPrintTexture.sound);
+          const rig = humanRig;
+          const surface = (name: string) => rig.meshes.findIndex(mesh => normalizeName(mesh.name) === name);
+          const shirt = surface("authored performance shirt"), pants = surface("authored training pants"), skin = surface("authored human skin");
+          garments = [shirt,pants,skin,skin].map((surfaceIndex,index) => ({
+            update: index === 0 ? rig.update : () => {},
+            dispose: index === 0 ? rig.dispose : () => {},
+            bindOverlay: mesh => rig.bindOverlay(mesh,surfaceIndex),
+          }));
+          for (const name of ["torso shirt core", "hips", ...SHOULDERS, ...THIGHS, ...SHINS, "left upper arm", "right upper arm", "left forearm", "right forearm"]) {
+            const mesh = part(name)!;
+            // Keep the source's children and raycast surface available; only
+            // its own render material is hidden beneath the sewn garment.
+            if (!mesh.userData.garmentProxy) {
+              const material = (mesh.material as MeshStandardMaterial).clone();
+              material.visible = false;
+              mesh.material = material;
+              mesh.userData.garmentProxy = true;
+            }
+          }
+          garmentBody = body;
+          canvas.dataset.soundAvatarGarments = "authored-shirt:authored-pants";
+          canvas.dataset.soundAvatarBody = "makehuman-cc0";
         };
 
         // Muscle surfaces follow each parent part through every joint pose.
@@ -1163,13 +1391,23 @@ export default function SoundFitnessAvatar3D({
           if (anatomyBody !== body) {
             for (const {mesh} of anatomy) { mesh.removeFromParent(); mesh.geometry.dispose(); mesh.material.dispose(); }
             anatomy = createSoundFitnessMuscleOverlays(THREE, parts);
+            anatomy = anatomy.map(overlay => {
+              const part = overlay.definition.part;
+              const garment = part === "torso shirt core" || SHOULDERS.includes(part) ? garments[0]
+                : part === "hips" || THIGHS.includes(part) || SHINS.includes(part) ? garments[1]
+                : part.endsWith("upper arm") || part.endsWith("forearm") || part === "neck" ? garments[part.startsWith("left") ? 2 : 3] : null;
+              return garment ? { ...overlay, mesh: garment.bindOverlay(overlay.mesh) } : overlay;
+            });
             anatomyBody = body;
             highlightShells = [];
             highlightFadeStart = null;
           }
-          for (const {mesh} of anatomy) {
-            const source=mesh.parent as Mesh;
+          for (const {mesh, definition} of anatomy) {
+            const source=parts.get(definition.part)!;
             const material=source.material as MeshStandardMaterial;
+            if (source.userData.garmentProxy) material.color.copy(
+              (source.name === "hips" || source.name.includes("thigh") || source.name.includes("shin") ? joggerMaterial : source.name.endsWith("arm") ? materialsByName.get("warm athletic skin")! : shirtMaterial).color,
+            );
             mesh.userData.neutralColor=material.color.clone().lerp(new THREE.Color("#8ba2b5"),.14);
           }
           canvas.dataset.soundAvatarAnatomy = String(anatomy.length);
@@ -1178,7 +1416,7 @@ export default function SoundFitnessAvatar3D({
           for (const {mesh} of anatomy) {
             mesh.material.color.copy(mesh.userData.neutralColor);
             mesh.material.emissive.set(0x000000);
-            mesh.material.opacity=.34;
+            mesh.material.opacity=.12;
             mesh.renderOrder=2;
             mesh.visible=mesh.userData.neutralVisible;
           }
@@ -1194,13 +1432,15 @@ export default function SoundFitnessAvatar3D({
           highlightFadeStart=null;
           clearHighlight();
           const focus=state.glowMode==="pieces" ? state.glowFocus ?? null : null;
-          const key=focus ?? state.selectedBodyPart;
-          const color=parseColor(THREE,state.bodyPartGlowColors?.[key],regionDefaultColors[key] ?? bodyPartDefaultColors[state.selectedBodyPart]);
-          // The neutral unavailable-data gray is not a training status.
-          // Use cyan for selection so it reads clearly without implying one.
-          if (state.bodyPartGlowColors?.[key]?.toLowerCase() === "#94a3b8") color.set("#38bdf8");
           for (const {mesh,definition} of anatomy) {
             if (!isAvatarMuscleSelected(definition,state.selectedBodyPart,focus)) continue;
+            // Whole groups retain each muscle's exercise-library color.
+            const key = definition.region;
+            const color = parseColor(
+              THREE,
+              state.bodyPartGlowColors?.[key] ?? state.bodyPartGlowColors?.[state.selectedBodyPart],
+              exerciseAnatomyRegionVisuals[regionColorGroups[key]].selectedFill,
+            );
             mesh.visible=true;
             mesh.material.color.copy(color);
             mesh.material.emissive.copy(color);
@@ -1235,8 +1475,8 @@ export default function SoundFitnessAvatar3D({
             -((clientY - rect.top) / rect.height) * 2 + 1,
           );
           raycaster.setFromCamera(pointer, camera);
-          const hits = raycaster.intersectObjects(hitTargets, false);
-          const hit = hits.find((entry) => entry.object.visible);
+          const hits = raycaster.intersectObjects([...hitTargets,...(humanRig?.meshes??[])], false);
+          const hit = hits.find((entry) => entry.object.visible && (entry.object as Mesh<BufferGeometry,MeshStandardMaterial>).material.visible);
           if (!hit) return null;
           const local = root.worldToLocal(hit.point.clone());
           return partForHit(normalizeName(hit.object.name), local, chestFloorY());
@@ -1286,6 +1526,7 @@ export default function SoundFitnessAvatar3D({
         };
         const onPointerMove = (event: PointerEvent) => {
           if (!latest.current.interactive) return;
+          if (press?.dragged) return;
           pendingPointer = { x: event.clientX, y: event.clientY };
           if (pointerFrame) return;
           pointerFrame = window.requestAnimationFrame(() => {
@@ -1299,12 +1540,17 @@ export default function SoundFitnessAvatar3D({
         // pointer on pointerdown (it is a drag surface), which retargets
         // pointerup and click away from the canvas and fires a pointerleave
         // here mid-press. A plain click listener never saw the release.
+        let manualYaw = 0;
+        let lastView = latest.current.view;
+        let suppressClick = false;
         let press: {
           part: SoundFitnessAvatarBodyPart | null;
           pointerId: number;
           t: number;
           x: number;
           y: number;
+          yaw: number;
+          dragged: boolean;
         } | null = null;
         const onPointerLeave = () => {
           pendingPointer = null;
@@ -1313,22 +1559,40 @@ export default function SoundFitnessAvatar3D({
         };
         const onPointerDown = (event: PointerEvent) => {
           if (!latest.current.interactive || event.button !== 0) return;
+          event.stopPropagation();
+          canvas.setPointerCapture?.(event.pointerId);
           press = {
             part: hitAt(event.clientX, event.clientY),
             pointerId: event.pointerId,
             t: performance.now(),
             x: event.clientX,
             y: event.clientY,
+            yaw: manualYaw,
+            dragged: false,
           };
+        };
+        const onDragMove = (event: PointerEvent) => {
+          if (!press || event.pointerId !== press.pointerId) return;
+          const dx = event.clientX - press.x;
+          if (!press.dragged && Math.abs(dx) < 6) return;
+          press.dragged = true;
+          event.stopPropagation();
+          manualYaw = press.yaw + dx / Math.max(120, canvas.getBoundingClientRect().width) * Math.PI * 2;
+          pendingPointer = null;
+          setHover(null);
+          canvas.style.cursor = "grabbing";
         };
         // Window-level so the release still arrives when an ancestor captured
         // the pointer; only the pressed pointer counts.
         const onWindowPointerUp = (event: PointerEvent) => {
           if (!press || event.pointerId !== press.pointerId) return;
-          const { part: hit, t, x, y } = press;
+          const { part: hit, t, x, y, dragged } = press;
           press = null;
+          suppressClick = dragged;
+          if (dragged) event.stopPropagation();
+          if (canvas.hasPointerCapture?.(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
           const moved = Math.hypot(event.clientX - x, event.clientY - y);
-          if (hit && moved < 8 && performance.now() - t < 700) {
+          if (!dragged && hit && moved < 8 && performance.now() - t < 700) {
             latest.current.onBodyPartSelect?.(hit);
           }
           if (!latest.current.interactive) return;
@@ -1344,23 +1608,48 @@ export default function SoundFitnessAvatar3D({
           press = null;
           setHover(null);
         };
+        const onCanvasClick = (event: MouseEvent) => {
+          if (!suppressClick) return;
+          suppressClick = false;
+          event.preventDefault();
+          event.stopPropagation();
+        };
+        canvas.style.touchAction = "pan-y";
+        canvas.addEventListener("click", onCanvasClick);
+        window.addEventListener("pointermove", onDragMove, true);
         canvas.addEventListener("pointermove", onPointerMove);
         canvas.addEventListener("pointerleave", onPointerLeave);
         canvas.addEventListener("pointerdown", onPointerDown);
         window.addEventListener("pointerup", onWindowPointerUp, true);
         window.addEventListener("pointercancel", onWindowPointerCancel, true);
 
-        // ---- frame loop ----
+        // Camera and expression targets change in place; switching tabs never rebuilds the scene.
+        let cameraInitialized = false;
+        const cameraTarget = { y: .25, z: camera.position.z, aimY: .16 };
+        let cameraAimY = .16;
         const resize = () => {
           const rect = canvas.getBoundingClientRect();
           const width = Math.max(1, Math.round(rect.width));
           const height = Math.max(1, Math.round(rect.height));
-          camera.aspect = width / height;
+          const baseHeight = allowOverheadOverflow ? height / 1.5 : height;
+          camera.aspect = width / baseHeight;
           // Fit the full athlete using both dimensions, including narrow
           // phone canvases. A nearly level camera avoids shortening the legs.
           const halfFov = THREE.MathUtils.degToRad(camera.fov / 2);
-          camera.position.z = Math.max(2.76 / (2 * Math.tan(halfFov) * .88),
-            1.38 / (2 * Math.tan(halfFov) * camera.aspect * .88));
+          const poseWidth = 1.38;
+          const closeUp = latest.current.portrait;
+          const showNecklace = closeUp && latest.current.appearance.gear === "chain";
+          cameraTarget.y = closeUp ? (showNecklace ? 1.29 : 1.39) : .25;
+          cameraTarget.z = Math.max((closeUp ? (showNecklace ? 1.08 : .8) : allowOverheadOverflow ? 2.72 : 3.5) / (2 * Math.tan(halfFov) * .91),
+            (closeUp ? .65 : poseWidth) / (2 * Math.tan(halfFov) * camera.aspect * .88));
+          cameraTarget.aimY = closeUp ? (showNecklace ? 1.17 : 1.30) : .16;
+          if (!cameraInitialized) {
+            camera.position.set(0, cameraTarget.y, cameraTarget.z);
+            cameraAimY = cameraTarget.aimY;
+            camera.lookAt(0, cameraAimY, 0);
+            cameraInitialized = true;
+          }
+          if (allowOverheadOverflow) camera.setViewOffset(width, baseHeight, 0, -baseHeight * .5, width, height);
           camera.updateProjectionMatrix();
           gl.setSize(width, height, false);
           gl.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.45));
@@ -1371,72 +1660,213 @@ export default function SoundFitnessAvatar3D({
         const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
         let animationFrame = 0;
+        let readyReported = false;
+        let avatarInViewport = typeof IntersectionObserver === "undefined";
+        let canvasActive: boolean | null = null;
+        const viewportObserver = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver(([entry]) => {
+          avatarInViewport = entry.isIntersecting;
+        });
+        viewportObserver?.observe(canvas);
         let lastTime = performance.now();
         let yaw = latest.current.view === "back" ? Math.PI - 0.08 : -0.08;
-        const pose = { head: [0, 0, 0], leftArm: [0, 0], rightArm: [0, 0] };
+        const pose = { head: [...restPose.head], leftArm: [...restPose.leftArm], rightArm: [...restPose.rightArm] };
+        let idleSeconds = 0;
+        let emoteSeconds = 0;
+        let currentEmote = latest.current.emotePreset;
+        let currentReplay = latest.current.emoteReplay;
+        const upperBodyJoints = [headPivot, leftArmPivot, rightArmPivot].map(joint => ({ joint, restX: joint.position.x, restY: joint.position.y, restZ: joint.position.z }));
+        const expressionSmile = part("smile");
+        const smileRestScale = baseScales.get("smile");
+        const facialFeatures = ["left", "right"].flatMap(side =>
+          ["iris", "pupil", "eyebrow"].map(feature => {
+            const name = `${side} ${feature}`;
+            return { mesh: part(name), base: basePositions.get(name), side, eyebrow: feature === "eyebrow" };
+          }),
+        );
         const render = (time: number) => {
           if (disposed) return;
           const state = latest.current;
+          const visible = avatarInViewport && !document.hidden;
+          const live = visible && state.active && !state.paused;
+          if (canvasActive !== live) {
+            canvasActive = live;
+            setDashboardWebGlCanvasActive(canvas, live);
+            canvas.dataset.soundAvatarAnimating = String(live);
+          }
+          // The shared renderer skips hidden GPU draws, but the rig and
+          // clothing deformation are CPU work too. Skip both offscreen.
+          if (!visible || contextLost) {
+            lastTime = time;
+            animationFrame = window.requestAnimationFrame(render);
+            return;
+          }
           const dt = Math.min(0.05, Math.max(0, (time - lastTime) / 1000));
           lastTime = time;
-          const live = state.active && !state.paused;
-          setDashboardWebGlCanvasActive(canvas, live);
-          const seconds = time / 1000;
           const still = reducedMotion.matches || !live;
+          if (!still) idleSeconds += dt;
+          if (state.emotePreset !== currentEmote || state.emoteReplay !== currentReplay) {
+            currentReplay = state.emoteReplay;
+            currentEmote = state.emotePreset;
+            emoteSeconds = 0;
+          }
+          if (!still) emoteSeconds += dt;
+          const seconds = emoteSeconds;
+          const idle = soundFitnessAvatarIdleMotion(idleSeconds, !still);
           const ease = still ? 1 : 1 - Math.exp(-dt * 7);
 
-          const targetYaw = state.view === "back" ? Math.PI - 0.08 : -0.08;
+          if (state.view !== lastView) {
+            manualYaw = 0;
+            lastView = state.view;
+          }
+          const targetYaw = (state.view === "back" ? Math.PI - 0.08 : -0.08) + manualYaw;
           yaw += (targetYaw - yaw) * (still ? 1 : 1 - Math.exp(-dt * 5));
-          const sway = still ? 0 : Math.sin(seconds * 0.7) * 0.045;
+          const sway = idle.weightShift * 0.65;
           root.rotation.y = yaw + sway;
 
-          const target = emotePoses[state.emotePreset] ?? restPose;
-          let bob = still ? 0 : Math.sin(seconds * 1.45) * 0.014;
+          // Each gesture has an anticipation, readable hold and soft release.
+          // A completed gesture returns to breathing idle rather than cycling forever.
+          const duration = state.emotePreset === "stretch" ? 6 : state.emotePreset === "focus" ? 5 : state.emotePreset === "salute" ? 5.2 : 3.8;
+          const smooth = (value: number) => {
+            const t = Math.max(0, Math.min(1, value));
+            return t * t * (3 - 2 * t);
+          };
+          const gesture = still ? 1 : smooth(seconds / .7) * (1 - smooth((seconds - duration + .9) / .9));
+          // Bow leads with the gaze, then hinges at the hips, pauses and
+          // releases slowly. The head and shoulders follow the same hinge.
+          const bowAmount = state.emotePreset === "bow"
+            ? (still ? 1 : smooth((seconds - .15) / .9) * (1 - smooth((seconds - 2.2) / 1.4))) : 0;
+          const bowPitch = .42 * bowAmount;
+          const waveEnergy = state.emotePreset === "wave" && !still ? gesture : 0;
+          const wavePhase = Math.max(0, seconds - .65) * 4.4;
+          const waveFollow = Math.sin(wavePhase - .35) * waveEnergy;
+          const cheer = state.emotePreset === "celebrate" ? gesture : 0;
+          const cheerPhase = Math.max(0, Math.min(1, (seconds - .8) / 1.8)) * Math.PI * 4;
+          const cheerPump = still ? 0 : Math.sin(cheerPhase) * cheer;
+          const requested = emotePoses[state.emotePreset] ?? restPose;
+          const target: EmotePose = {
+            head: restPose.head.map((v, i) => v + (requested.head[i] - v) * gesture) as EmotePose["head"],
+            leftArm: restPose.leftArm.map((v, i) => v + (requested.leftArm[i] - v) * gesture) as EmotePose["leftArm"],
+            rightArm: restPose.rightArm.map((v, i) => v + (requested.rightArm[i] - v) * gesture) as EmotePose["rightArm"],
+          };
           let leftZ = target.leftArm[1];
           let rightZ = target.rightArm[1];
-          let headX = target.head[0];
+          let headX = target.head[0] + idle.headPitch;
           if (!still) {
             switch (state.emotePreset) {
               case "wave":
-                rightZ += Math.sin(seconds * 6) * 0.28;
+                rightZ += Math.sin(wavePhase - .65) * .025 * waveEnergy;
                 break;
               case "nod":
-                headX = 0.16 * (0.5 + 0.5 * Math.sin(seconds * 5));
+                headX += .16 * Math.pow(Math.sin(seconds * 2.8), 2) * gesture;
                 break;
               case "celebrate":
-                bob += Math.abs(Math.sin(seconds * 4)) * 0.06;
-                leftZ += Math.sin(seconds * 4) * 0.12;
-                rightZ -= Math.sin(seconds * 4) * 0.12;
+                leftZ -= .10 * cheerPump;
+                rightZ += .13 * cheerPump;
+                headX -= .025 * cheerPump;
                 break;
               case "stretch":
-                leftZ += Math.sin(seconds * 1.5) * 0.14;
-                rightZ -= Math.sin(seconds * 1.5) * 0.14;
-                bob += 0.02;
+                leftZ += Math.sin(seconds * 1.2) * 0.04 * gesture;
+                rightZ -= Math.sin(seconds * 1.2) * 0.04 * gesture;
                 break;
               default:
                 break;
             }
           }
-          pose.leftArm[0] += (target.leftArm[0] - pose.leftArm[0]) * ease;
+          pose.leftArm[0] += (target.leftArm[0] + idle.armSwing - pose.leftArm[0]) * ease;
           pose.leftArm[1] += (leftZ - pose.leftArm[1]) * ease;
-          pose.rightArm[0] += (target.rightArm[0] - pose.rightArm[0]) * ease;
+          pose.rightArm[0] += (target.rightArm[0] - idle.armSwing * 0.7 - pose.rightArm[0]) * ease;
           pose.rightArm[1] += (rightZ - pose.rightArm[1]) * ease;
           pose.head[0] += (headX - pose.head[0]) * ease;
-          pose.head[1] += (target.head[1] - pose.head[1]) * ease;
-          pose.head[2] += (target.head[2] - pose.head[2]) * ease;
-          leftArmPivot.rotation.set(pose.leftArm[0], 0, pose.leftArm[1]);
-          rightArmPivot.rotation.set(pose.rightArm[0], 0, pose.rightArm[1]);
-          headPivot.rotation.set(pose.head[0], pose.head[1], pose.head[2]);
-          const elbowBend=state.emotePreset==="focus" ? -.65 : state.emotePreset==="stretch" ? -.2 : -.08;
+          pose.head[1] += (target.head[1] + idle.headYaw + .045 * waveEnergy - pose.head[1]) * ease;
+          pose.head[2] += (target.head[2] + idle.headRoll + .025 * waveFollow - pose.head[2]) * ease;
+          // Rotate the humerus outward as the arms rise, then bring the
+          // hands toward each other overhead instead of lifting rigid paddles.
+          const stretchTurn = state.emotePreset === "stretch" ? Math.PI * .65 * gesture : 0;
+          // Apply elevation first, then twist around the arm's own long axis.
+          // XYZ made the yaw act in the wrong frame as the arm rose overhead.
+          leftArmPivot.rotation.order = state.emotePreset === "stretch" ? "ZXY" : "XYZ";
+          rightArmPivot.rotation.order = state.emotePreset === "stretch" ? "ZXY" : "XYZ";
+          leftArmPivot.rotation.set(pose.leftArm[0], stretchTurn, pose.leftArm[1]);
+          rightArmPivot.rotation.set(pose.rightArm[0], -stretchTurn, pose.rightArm[1]);
+          headPivot.rotation.set(pose.head[0] + bowPitch, pose.head[1], pose.head[2]);
+          // Breathe through the chest instead of floating the entire athlete.
+          torsoPivot.scale.set(1 + idle.breath * 0.003, 1 + idle.breath * 0.004, 1 + idle.breath * 0.015);
+          torsoPivot.rotation.x = bowPitch;
+          const hipHeight = 1.78;
+          const torsoHeight = torsoCentre[1] - hipHeight;
+          torsoPivot.position.y = hipHeight + Math.cos(bowPitch) * torsoHeight;
+          torsoPivot.position.z = Math.sin(bowPitch) * torsoHeight;
+          torsoPivot.rotation.z = idle.weightShift + .015 * waveFollow + .018 * cheerPump;
+          if (necklace) {
+            torsoPivot.updateMatrix();
+            necklace.matrixAutoUpdate=false;
+            necklace.matrix.multiplyMatrices(torsoPivot.matrix,necklaceTorsoRestInverse);
+          }
+          hipsPivot.rotation.z = -idle.weightShift * 0.25;
+          for (const { joint, restX, restY, restZ } of upperBodyJoints) {
+            joint.position.x = restX - idle.weightShift * Math.max(0, restY - torsoCentre[1]);
+            joint.position.y = hipHeight + Math.cos(bowPitch) * (restY - hipHeight) - Math.sin(bowPitch) * restZ + idle.breath * 0.007;
+            joint.position.z = Math.sin(bowPitch) * (restY - hipHeight) + Math.cos(bowPitch) * restZ;
+          }
+          const stretchExpression = state.emotePreset === "stretch" ? gesture * .32 : state.emotePreset === "bow" ? bowAmount * .42 : state.emotePreset === "wave" ? gesture * .12 : state.emotePreset === "celebrate" ? gesture * .30 : 0;
+          if (expressionSmile && smileRestScale) {
+            const warmth = state.emotePreset === "bow" ? bowAmount : state.emotePreset === "stretch" ? gesture * .65 : state.emotePreset === "wave" ? gesture : state.emotePreset === "celebrate" ? gesture * 1.6 : 0;
+            const faceScale = state.appearance.face === "bright" ? 1.3 : 1;
+            expressionSmile.scale.set(smileRestScale.x * faceScale * (1 + .12 * warmth), smileRestScale.y * faceScale * (1 + .14 * warmth), smileRestScale.z * faceScale);
+          }
+          for (const { lid, height, centerY, side, centerX, centerZ, lower } of eyelids) {
+            const eyeScale = state.appearance.body === "female" ? 1.12 : 1;
+            const blink = lower ? (state.appearance.body === "female" ? .16 : .06) : Math.max(state.appearance.body === "female" ? .17 : .08, idle.blink, stretchExpression);
+            lid.visible = blink > 0.001;
+            lid.scale.y = height * eyeScale * Math.max(0.001, blink);
+            const shift = eyeOffsets[side] ?? [0,0,0];
+            if (side) { lid.position.x = centerX + shift[0]; lid.position.z = centerZ + shift[2]; }
+            lid.position.y = centerY + shift[1] + (lower ? -1 : 1) * height * eyeScale * (1 - blink);
+          }
+          for (const { mesh, base, eyebrow, side } of facialFeatures) {
+            if (mesh && base) {
+              const shift = eyeOffsets[side] ?? [0,0,0];
+              mesh.position.x = base.x + shift[0] + (eyebrow ? 0 : idle.gaze);
+              mesh.position.z = base.z + shift[2];
+              mesh.position.y = base.y + shift[1] + (eyebrow ? idle.brow + stretchExpression * .045 : 0);
+            }
+          }
+          const requestedElbow=state.emotePreset==="focus" ? -.65 : state.emotePreset==="stretch" ? -.12 : state.emotePreset==="celebrate" ? -.16 : -.08;
+          const elbowBend = -.08 + (requestedElbow + .08) * gesture;
           elbows[0].rotation.x += (elbowBend-elbows[0].rotation.x)*ease;
-          const rightBend=state.emotePreset==="wave" || state.emotePreset==="salute" ? -1.0 : elbowBend;
+          const rightBend = state.emotePreset === "wave" ? -.08 - .12 * gesture : state.emotePreset === "salute" ? -.08 - .2 * gesture : elbowBend;
           elbows[1].rotation.x += (rightBend-elbows[1].rotation.x)*ease;
+          // Bend toward the brow in the shoulder plane, rather than pointing
+          // the forearm straight at the camera.
+          const rightFold = state.emotePreset === "salute" ? 2.15 * gesture : state.emotePreset === "wave" ? 1.9 * gesture + .075 * waveFollow : state.emotePreset === "celebrate" ? 1.35 * cheer - .12 * cheerPump : 0;
+          elbows[1].rotation.z += (rightFold - elbows[1].rotation.z) * ease;
+          elbows[0].rotation.z += (-1.25 * cheer + .10 * cheerPump - elbows[0].rotation.z) * ease;
+          // Share the rotation between shoulder and forearm, keeping the
+          // wrists straight and palms facing each other at the overhead hold.
+          const forearmTurn = state.emotePreset === "stretch" ? Math.PI * .35 * gesture : 0;
+          elbows[0].rotation.order = cheer > 0 ? "ZXY" : "XYZ";
+          elbows[0].rotation.y += (forearmTurn - .9 * cheer - elbows[0].rotation.y) * ease;
+          elbows[1].rotation.order = state.emotePreset === "wave" || state.emotePreset === "celebrate" || state.emotePreset === "salute" ? "ZXY" : "XYZ";
+          const salutePalm = 0;
+          const wavePalm = state.emotePreset === "wave" ? Math.PI / 2 * gesture : 0;
+          elbows[1].rotation.y += (wavePalm + salutePalm - forearmTurn + .9 * cheer - elbows[1].rotation.y) * ease;
+          const waveBeat = state.emotePreset === "wave" && !still
+            ? (Math.sin(wavePhase) + .12 * Math.sin(wavePhase * 2)) * .18 * gesture : 0;
+          wrists[0].rotation.z += (0 - wrists[0].rotation.z) * ease;
+          const saluteHandTurn = state.emotePreset === "salute" ? Math.PI * gesture : 0;
+          wrists[1].rotation.y += (saluteHandTurn - wrists[1].rotation.y) * ease;
+          const saluteWrist = 0;
+          wrists[1].rotation.z += (waveBeat + saluteWrist - wrists[1].rotation.z) * ease;
+          // Small delayed wrist flex prevents a rigid, single-axis metronome.
+          const wristFlex = .055 * Math.sin(wavePhase - .5) * waveEnergy;
+          wrists[1].rotation.x += (wristFlex - wrists[1].rotation.x) * ease;
+          saluteRig(state.emotePreset === "salute" ? gesture : 0);
           for (const {hip,knee} of legPivots) {
-            const bend=!still && state.emotePreset==="celebrate" ? Math.abs(Math.sin(seconds*4))*.12 : 0;
+            const bend=0;
             hip.rotation.x=-bend*.5;
             knee.rotation.x=bend;
           }
-          root.position.y = SOUND_AVATAR_BASE_Y + bob;
+          root.position.y = SOUND_AVATAR_BASE_Y;
 
           if (highlightFadeStart !== null) {
             // rAF stamps can trail performance.now(); never brighten first.
@@ -1451,16 +1881,36 @@ export default function SoundFitnessAvatar3D({
               }
             }
           }
+          const transition = reducedMotion.matches ? 1 : 1 - Math.exp(-dt * 8);
+          camera.position.y += (cameraTarget.y - camera.position.y) * transition;
+          camera.position.z += (cameraTarget.z - camera.position.z) * transition;
+          cameraAimY += (cameraTarget.aimY - cameraAimY) * transition;
+          camera.lookAt(0, cameraAimY, 0);
+          const expressionWeights = headSculpt?.morphTargetInfluences;
+          if (expressionWeights) {
+            for (const [index, preset] of [[1, "bright"], [2, "focused"], [3, "defined"]] as const) {
+              expressionWeights[index] += ((state.appearance.face === preset ? 1 : 0) - expressionWeights[index]) * transition;
+            }
+          }
+          for (const garment of garments) garment.update();
           gl.render(scene, camera);
+          if (!readyReported) {
+            readyReported = true;
+            clearDashboardWebGlFallback(canvas);
+            setDashboardWebGlCanvasActive(canvas, live);
+            canvas.dataset.soundAvatarReady = "true";
+            window.clearTimeout(loadTimeout);
+            setLoadState("ready");
+            onReadyChange?.(true);
+          }
           animationFrame = window.requestAnimationFrame(render);
         };
 
-        updaters.current = { applyAppearance, applyHighlight };
+        updaters.current = { applyAppearance, applyHighlight, resize };
         applyAppearance();
         applyHighlight();
         // Test hooks: what the scene currently carries.
         canvas.dataset.soundAvatarParts = String(parts.size);
-        onReadyChange?.(true);
         animationFrame = window.requestAnimationFrame(render);
 
         cleanup = () => {
@@ -1470,12 +1920,19 @@ export default function SoundFitnessAvatar3D({
           canvas.removeEventListener("pointermove", onPointerMove);
           canvas.removeEventListener("pointerleave", onPointerLeave);
           canvas.removeEventListener("pointerdown", onPointerDown);
+          canvas.removeEventListener("click", onCanvasClick);
+          window.removeEventListener("pointermove", onDragMove, true);
           window.removeEventListener("pointerup", onWindowPointerUp, true);
           window.removeEventListener("pointercancel", onWindowPointerCancel, true);
           canvas.style.cursor = "";
           resizeObserver.disconnect();
+          viewportObserver?.disconnect();
           setDashboardWebGlCanvasActive(canvas, false);
+          shadowTexture.dispose();
+          garments.forEach(garment => garment.dispose());
           disposeObject(scene);
+          disposeSurfaceMaps();Object.values(shirtPrintTexture).forEach(texture => texture.dispose());
+          studioEnvironment.dispose();
           gl.dispose();
           onReadyChange?.(false);
         };
@@ -1483,6 +1940,7 @@ export default function SoundFitnessAvatar3D({
         if (!disposed) {
           markDashboardWebGlFallback(canvas);
           onReadyChange?.(false);
+          setLoadState("error");
         }
       }
     };
@@ -1490,15 +1948,23 @@ export default function SoundFitnessAvatar3D({
     void start();
     return () => {
       disposed = true;
+      if (recoveryTimer !== undefined) window.clearTimeout(recoveryTimer);
+      canvas.removeEventListener("webglcontextlost", onContextLost);
+      canvas.removeEventListener("webglcontextrestored", onContextRestored);
+      window.clearTimeout(loadTimeout);
       cleanup();
     };
     // The scene is built once; everything below updates it in place.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onReadyChange]);
+  }, [onReadyChange, sceneAttempt]);
 
   useEffect(() => {
     updaters.current?.applyAppearance();
   }, [appearanceKey]);
+
+  useEffect(() => {
+    updaters.current?.resize();
+  }, [emotePreset, portrait, resolvedAppearance.gear]);
 
   useEffect(() => {
     updaters.current?.applyHighlight();
@@ -1507,13 +1973,24 @@ export default function SoundFitnessAvatar3D({
   }, [highlightKey]);
 
   return (
-    <>
+    <div className={`${loadingStyles.avatarHost} ${className || ""}`} data-avatar-load-state={loadState} aria-busy={loadState === "loading"}>
       <canvas
+        key={sceneAttempt}
         aria-hidden="true"
-        className={className}
+        className={`${loadingStyles.canvas} ${allowOverheadOverflow ? loadingStyles.overheadCanvas : ""}`}
         data-sound-avatar-renderer="three"
         ref={canvasRef}
       />
+      <div className={`${loadingStyles.avatar} ${loadState === "ready" ? loadingStyles.complete : ""}`}
+        role={loadState === "ready" ? undefined : "status"} aria-hidden={loadState === "ready"}>
+        {loadState === "loading" ? <span className={loadingStyles.spinner} aria-hidden="true" /> : null}
+        <span className={loadingStyles.label}>{loadState === "error" ? "Avatar unavailable" : "Preparing your avatar"}</span>
+        {loadState === "error" ? <button type="button" onClick={() => {
+          recoveryAttempts.current = 0;
+          setLoadState("loading");
+          setSceneAttempt(attempt => attempt + 1);
+        }}>Retry avatar</button> : null}
+      </div>
       {interactive ? (
         <div className="sr-only">
           {(Object.keys(bodyPartLabels) as SoundFitnessAvatarBodyPart[]).map((bodyPart) => (
@@ -1530,6 +2007,6 @@ export default function SoundFitnessAvatar3D({
           ))}
         </div>
       ) : null}
-    </>
+    </div>
   );
 }

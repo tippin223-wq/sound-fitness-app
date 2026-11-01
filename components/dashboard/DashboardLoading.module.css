@@ -1,0 +1,71 @@
+.page,
+.avatar {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  color: #cffafe;
+  background: radial-gradient(ellipse at 50% 42%, #102f43 0%, #061321 42%, #020713 75%);
+  transition: opacity 320ms ease, visibility 320ms;
+}
+/* The shared WebGL canvas paints header controls at z-index 430 outside
+   their normal DOM stacking contexts. Cover that stage during startup too. */
+.page { position: fixed; inset: 0; z-index: 1000; }
+.avatar {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  gap: 12px;
+  background: radial-gradient(ellipse 48% 42% at 50% 48%,
+    rgba(8, 47, 73, .92), rgba(8, 47, 73, .4) 48%, transparent 100%);
+}
+.avatar .spinner {
+  position: relative;
+  width: clamp(28px, 22%, 48px);
+  height: auto;
+  aspect-ratio: 1;
+  border-width: 1px;
+  border-color: rgba(125, 211, 252, .18);
+  border-top-color: #cffafe;
+  border-right-color: rgba(56, 189, 248, .65);
+  box-shadow: 0 0 22px rgba(56, 189, 248, .18), inset 0 0 16px rgba(56, 189, 248, .1);
+}
+.avatar .spinner::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border: 1px solid rgba(165, 243, 252, .24);
+  border-bottom-color: transparent;
+  border-radius: 50%;
+}
+.avatar .label {
+  max-width: 11em;
+  font-size: 8px;
+  line-height: 1.6;
+  letter-spacing: .16em;
+  color: #bae6fd;
+  text-shadow: 0 0 12px rgba(56, 189, 248, .5);
+}
+.complete { opacity: 0; visibility: hidden; pointer-events: none; }
+.complete .spinner { animation: none; }
+.spinner {
+  width: 34px;
+  height: 34px;
+  border: 2px solid rgba(103, 232, 249, .16);
+  border-top-color: #a5f3fc;
+  border-radius: 50%;
+  animation: orbit 1.2s linear infinite;
+}
+.label { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-align: center; text-transform: uppercase; }
+.avatarHost { isolation: isolate; }
+.avatarHost:not(:global(.absolute)) { position: relative; }
+.canvas { display: block; width: 100%; height: 100%; transition: opacity 320ms ease; }
+.avatarHost[data-avatar-load-state="loading"] .canvas,
+.avatarHost[data-avatar-load-state="error"] .canvas { opacity: 0; }
+@keyframes orbit { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation: none; }
+  .page, .avatar, .canvas { transition: none; }
+}
+
+.overheadCanvas { position: absolute; left: 0; top: -50%; height: 150%; }

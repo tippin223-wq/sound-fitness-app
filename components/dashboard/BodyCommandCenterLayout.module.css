@@ -20,24 +20,50 @@
 
 .avatarViewport {
   min-width: 0;
+  border-radius: 0;
+  background:
+    radial-gradient(ellipse 28% 3% at 50% 96%, rgba(0, 0, 0, .48), transparent 100%),
+    radial-gradient(ellipse 38% 5% at 50% 97%, rgba(125, 211, 252, .14), transparent 100%),
+    radial-gradient(ellipse 46% 48% at 50% 40%, rgba(125, 211, 252, .11), transparent 100%) !important;
+  box-shadow: none;
 }
 
 .coolnessLegend {
   overflow: visible;
+  margin-left: 36px;
+  width: calc(100% - 36px);
+  justify-content: center;
 }
 
 .coolnessRail {
+  position: relative;
+  scroll-snap-type: x mandatory;
   /* The longest active status is "Overworked" (~83px at this size). Keep the
      active slot wider than that even when the avatar column gets pinched. */
   flex: 0 1 auto;
   max-width: 100%;
   min-width: min(100%, 96px);
-  overflow-y: visible;
+  /* Horizontal scrollers also clip the cross axis. Reserve real paint room
+     inside the scroller, then offset it without moving the legend row. */
+  padding-block: 7px;
+  margin-block: -7px;
+  overflow-y: hidden;
   width: max-content;
 }
 
 .coolnessItem {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
   white-space: nowrap;
+  padding-inline: 6px;
+}
+
+.coolnessItem[aria-current="true"] {
+  border-radius: 5px;
+  background: rgba(207, 250, 254, .1);
+  box-shadow: inset 0 -1px 0 rgba(207, 250, 254, .65);
+  filter: none;
+  text-shadow: 0 0 4px rgba(224, 250, 255, .35);
 }
 
 .coolnessDot {}
@@ -57,7 +83,7 @@
     font-size: 6px !important;
     gap: 0.2rem !important;
     letter-spacing: 0.045em !important;
-    padding-inline: 1px !important;
+    padding-inline: 6px !important;
   }
 
   .coolnessDot {
@@ -134,8 +160,20 @@
 
 .supportSignalStatus {}
 
+/* Reserve a slim left rail, leaving the full stage height for the athlete. */
+.avatarPicker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 4px;
+}
+
 .avatarActions {
-  transform-origin: 50% 50%;
+  position: absolute;
+  inset: 8px 0 auto;
+  min-width: 0;
+  justify-content: space-between;
+  pointer-events: none;
 }
 
 .commandHeader,
@@ -175,7 +213,7 @@
   .avatarViewport {
     height: 100% !important;
     min-height: 0 !important;
-    padding-top: clamp(0.5rem, 3cqw, 1.25rem) !important;
+    padding-top: 0 !important;
   }
 
   .categoryRing {
@@ -232,18 +270,9 @@
 
 @container body-card (min-width: 520px) and (max-width: 699px) {
   .avatarViewport {
-    padding-top: 0.15rem !important;
+    padding-top: 0 !important;
   }
 
-  .avatarActions {
-    align-items: center !important;
-    flex-direction: column !important;
-    gap: 0 !important;
-    inset-inline: auto !important;
-    left: calc(50% - clamp(70px, 19cqw, 92px)) !important;
-    top: 50% !important;
-    transform: translateY(-50%);
-  }
 }
 
 @media (min-height: 620px) {
@@ -285,18 +314,9 @@
 
 @media (min-width: 640px) and (max-height: 700px) {
   .avatarViewport {
-    padding-top: 0.15rem !important;
+    padding-top: 0 !important;
   }
 
-  .avatarActions {
-    align-items: center !important;
-    flex-direction: column !important;
-    gap: 0 !important;
-    inset-inline: auto !important;
-    left: calc(50% - clamp(70px, 19vw, 92px)) !important;
-    top: 50% !important;
-    transform: translateY(-50%);
-  }
 }
 
 /* Keep the short phone layout's heading and support strip from consuming
@@ -345,18 +365,9 @@
   }
 
   .avatarViewport {
-    padding-top: 0.15rem !important;
+    padding-top: 0 !important;
   }
 
-  .avatarActions {
-    align-items: center !important;
-    flex-direction: column !important;
-    gap: 0 !important;
-    inset-inline: auto !important;
-    left: calc(50% - clamp(70px, 19cqw, 92px)) !important;
-    top: 50% !important;
-    transform: translateY(-50%);
-  }
 
   .controlsHost {
     min-width: 0 !important;
@@ -398,7 +409,7 @@
   }
 }
 
-@container body-card (min-width: 520px) and (max-height: 560px) {
+@container body-card (min-width: 440px) and (max-height: 560px) {
   .contentGrid {
     --body-control-ring-size: clamp(66px, min(16cqh, 15cqw), 74px);
     --body-control-slot-size: calc(var(--body-control-ring-size) + 8px);
@@ -475,19 +486,9 @@
   .avatarViewport {
     height: 100% !important;
     min-height: 0 !important;
-    padding-top: 0.15rem !important;
+    padding-top: 0 !important;
   }
 
-  .avatarActions {
-    align-items: center !important;
-    flex-direction: column !important;
-    gap: 0 !important;
-    inset-inline: auto !important;
-    left: calc(50% - clamp(70px, 19cqw, 92px)) !important;
-    top: 50% !important;
-    transform: translateY(-50%);
-    transform-origin: 50% 50%;
-  }
 
   .controlsHost {
     grid-column: 2 !important;
@@ -777,3 +778,84 @@
   .categorySelector > :first-child,
   .compactMuscles > div > :first-child { margin-bottom: 2px; }
 }
+
+/* A small illuminated environment, contained within the existing stage. */
+.avatarEnvironment {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 54% 55% at 50% 43%, rgba(56,189,248,.28), transparent 85%),
+    linear-gradient(100deg, transparent 18%, rgba(165,243,252,.1) 23%, transparent 29%),
+    linear-gradient(80deg, transparent 68%, rgba(56,189,248,.12) 75%, transparent 82%);
+  mask-image: linear-gradient(transparent, black 14%, black 92%, transparent);
+}
+.avatarEnvironment::before {
+  content: "";
+  position: absolute;
+  inset: 8% 12% 9%;
+  border: 1px solid rgba(125,211,252,.24);
+  border-bottom-color: transparent;
+  border-radius: 50% 50% 18% 18%;
+  box-shadow: inset 0 0 22px rgba(56,189,248,.12), 0 0 16px rgba(56,189,248,.09);
+}
+.avatarEnvironment::after {
+  content: "";
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: 2%;
+  height: 8%;
+  border-radius: 50%;
+  border: 1px solid rgba(165,243,252,.48);
+  background: radial-gradient(ellipse, rgba(125,211,252,.24), rgba(8,47,73,.32) 60%, transparent 72%);
+  box-shadow: 0 0 18px rgba(56,189,248,.23), inset 0 0 10px rgba(165,243,252,.18);
+}
+
+/* Body portal: the wheel never changes the avatar/card layout. */
+.emotePicker {
+  position: fixed;
+  right: 12px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  width: min(230px, calc(100vw - 24px), calc(100dvh - 140px));
+  aspect-ratio: 1;
+  overflow: visible;
+  border: 1px solid rgba(165,243,252,.26);
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(165,243,252,.12), rgba(15,23,42,.32));
+  backdrop-filter: blur(18px) saturate(135%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 6px 18px rgba(0,0,0,.18);
+  z-index: 1500;
+  color: #cffafe;
+}
+.emoteOption {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 48px;
+  width: 48px;
+  min-width: 48px;
+  padding: 6px 2px;
+  border-radius: 50%;
+  line-height: 1.2;
+  white-space: nowrap;
+  font-size: 8px;
+}
+
+.avatarActions > button { pointer-events: auto; }
+.emoteTrigger { margin-left: auto; }
+
+.commandHeader { flex-direction: column; gap: 2px; }
+.commandSummarySlot { width: 100%; }
+
+/* Raised hands may paint above the stage without resizing the athlete. */
+.avatarStage, .avatarViewport, .avatarPicker { overflow: visible; }
+
+/* Lab floor is rendered in 3D at the feet rather than pinned to the image edge. */
+:global([data-avatar-lab-preview]) .avatarEnvironment::after { display: none; }

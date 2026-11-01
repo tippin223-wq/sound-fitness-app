@@ -1,0 +1,4 @@
+# Preserve upstream CC0 asset bytes for the pinned SHA-256 provenance checks.
+scripts/assets/makehuman-head/*.obj -text -whitespace
+scripts/assets/makehuman-head/*.target -text -whitespace
+scripts/assets/makehuman-head/*.mhclo -text -whitespace

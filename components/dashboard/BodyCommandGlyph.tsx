@@ -60,8 +60,8 @@ export type BodyCommandGlyphTone =
 const SKIN = "#F3AC80";
 const SKIN_SHADE = "#CE8055";
 const SKIN_LINE = "#A85F3B";
-const MUSCLE = "#FF6F45";
-const MUSCLE_LIGHT = "#FFA277";
+const MUSCLE = "var(--body-muscle-color, #FF6F45)";
+const MUSCLE_LIGHT = "var(--body-muscle-light, #FFA277)";
 const HAIR = "#6E4428";
 
 // Neck, sloping traps, both arms hanging past an armpit notch, and a trunk

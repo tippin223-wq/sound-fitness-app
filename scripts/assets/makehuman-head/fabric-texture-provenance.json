@@ -1,0 +1,19 @@
+{
+  "source": "https://polyhaven.com/a/cotton_jersey",
+  "license": "CC0-1.0",
+  "author": "Rico Cilliers / colormass",
+  "files": {
+    "cotton-color": {
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/cotton_jersey/cotton_jersey_diff_1k.jpg",
+      "md5": "d2f4493fdd48634b50d40f810ce9deb7"
+    },
+    "cotton-normal": {
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/cotton_jersey/cotton_jersey_nor_gl_1k.jpg",
+      "md5": "2dcc9dda3b726477f607c808e52f1833"
+    },
+    "cotton-roughness": {
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/cotton_jersey/cotton_jersey_rough_1k.jpg",
+      "md5": "ac691d215d3aca34dcd6ea2d03937286"
+    }
+  }
+}
