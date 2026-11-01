@@ -1,5 +1,8 @@
 "use client";
 
+import WeeklyRewardSpin from "./WeeklyRewardSpin";
+import { WEEKLY_REWARDS } from "@/lib/weeklyRewardRarity";
+
 import { dashboardChallengeEvidence } from "@/lib/planning/dashboardChallengeEvidence";
 import { achievementMilestones } from "@/lib/planning/achievementEvidence";
 import { dashboardCategoryEvidence } from "@/lib/planning/dashboardCategoryEvidence";
@@ -13282,7 +13285,7 @@ export default function DashboardExperience({
     // Portal events follow the React tree, including this capture handler.
     // Track-filter scrolling must not rotate the hero behind its dropdown.
     const target = event.target;
-    if (target instanceof Element && target.closest("[data-training-track-filter]")) return;
+    if (target instanceof Element && target.closest("[data-training-track-filter], dialog")) return;
 
     const horizontalDelta =
       Math.abs(event.deltaX) >= Math.abs(event.deltaY)
@@ -19628,7 +19631,7 @@ export default function DashboardExperience({
       id: "sound",
       label: "Sapphire",
       tone: "blue",
-      valueLabel: dashboardRewardEvidence.pointsLabel,
+      valueLabel: dashboardRewardEvidence.sapphireLabel,
     },
     {
       id: "emerald",
@@ -19640,13 +19643,13 @@ export default function DashboardExperience({
       id: "coin",
       label: "Topaz",
       tone: "yellow",
-      valueLabel: dashboardRewardEvidence.tokensLabel,
+      valueLabel: dashboardRewardEvidence.topazLabel,
     },
     {
       id: "charge",
       label: "Ruby",
       tone: "red",
-      valueLabel: "Unavailable",
+      valueLabel: dashboardRewardEvidence.rubyLabel,
     },
   ];
   const dashboardSafeProminentGemItem =
@@ -28509,7 +28512,7 @@ export default function DashboardExperience({
                 </button>
 
                 {dashboardClaimRewardsDropdownOpen ? (
-                  <div id="dashboard-claim-rewards-dropdown" role="region" aria-label="Reward status" className="dashboard-profile-claim-dropdown"><p>Reward ledger unavailable</p><p>{dashboardRewardEvidence.description}</p><p>Recorded Profile points: {dashboardRewardEvidence.pointsLabel}</p><p>Claims unavailable until an award ledger is connected.</p></div>
+                  <div id="dashboard-claim-rewards-dropdown" role="region" aria-label="Reward status" className="dashboard-profile-claim-dropdown"><p>{dashboardRewardEvidence.canClaim ? "Weekly rewards" : "Account rewards"}</p><p>{dashboardRewardEvidence.description}</p><p>Coins: {dashboardRewardEvidence.tokensLabel} · Bolts: {dashboardRewardEvidence.pointsLabel}</p><p>Sapphire: {dashboardRewardEvidence.sapphireLabel} · Topaz: {dashboardRewardEvidence.topazLabel}</p><p>Ruby: {dashboardRewardEvidence.rubyLabel} · Emerald: {dashboardRewardEvidence.emeraldsLabel}</p><p>Claim earned weekly spins on the Consistency card.</p></div>
                 ) : null}
 
                 {/* Latched-but-closed: kept mounted (scenes stay registered
@@ -32231,7 +32234,7 @@ export default function DashboardExperience({
                 dashboardSummary.weeklySessionGoal,
               ) : undefined}
               className="dashboard-hero-space-needle-meter dashboard-header-week-sessions isolate order-2 relative flex h-[214px] w-[372px] max-w-full shrink-0 flex-col items-center justify-end text-center text-emerald-50 sm:h-[222px] sm:w-[404px]"
-              data-dashboard-tooltip={`${dashboardWeeklySessionGoal.description}. Reward ledger unavailable. Resets ${dashboardWeeklySessionResetFullLabel}`}
+              data-dashboard-tooltip={`${dashboardWeeklySessionGoal.description}. Weekly spins unlock Monday. Resets ${dashboardWeeklySessionResetFullLabel}`}
               role={dashboardWeeklySessionGoal.available ? "meter" : "img"}
               style={
                 {
@@ -32246,7 +32249,22 @@ export default function DashboardExperience({
                 aria-hidden="true"
                 className="dashboard-hero-space-needle-meter__aura"
               />
-              <span className="dashboard-hero-space-needle-meter__roulette"><span>Rewards unavailable</span></span>
+              <span className="dashboard-hero-space-needle-meter__roulette" aria-label="Weekly reward roulette. Complete workout days to improve prize rarity. Earned spins unlock after the week ends.">
+                <span aria-hidden="true" className="dashboard-hero-space-needle-meter__roulette-crown" />
+                <span aria-hidden="true" className="dashboard-hero-space-needle-meter__roulette-window">
+                  <span className="dashboard-hero-space-needle-meter__roulette-track">
+                    {Array.from({ length: 8 }, () => WEEKLY_REWARDS).flat().map((slot,index)=>(
+                      <span className="dashboard-hero-space-needle-meter__roulette-slot" title={`${slot.label} · ${slot.tier} · unlocks at ${slot.minimum + 1} workout day${slot.minimum ? "s" : ""}`} data-reward-id={slot.id} data-reward-tier={slot.tier} key={`${slot.id}-${index}`}>
+                        <span className="dashboard-hero-space-needle-meter__roulette-slot-icon" />
+                      </span>
+                    ))}
+                  </span>
+                </span>
+                <span aria-hidden="true" className="dashboard-hero-space-needle-meter__roulette-marker" />
+                <span className="dashboard-hero-space-needle-meter__roulette-result">
+                  <span>Account bolts</span><span>{dashboardRewardEvidence.pointsLabel}</span>
+                </span>
+              </span>
               <span
                 aria-hidden="true"
                 className="dashboard-header-week-sessions__graph"
@@ -32315,39 +32333,8 @@ export default function DashboardExperience({
               <span className="dashboard-hero-space-needle-meter__readout">
                 {dashboardWeeklySessionGoal.count}
               </span>
-              <span
-                aria-hidden="true"
-                className="dashboard-hero-space-needle-meter__battery"
-              >
-                <span className="dashboard-hero-space-needle-meter__battery-fill" />
-                <span className="dashboard-hero-space-needle-meter__battery-cells">
-                  {dashboardSummary.weeklySessionDays.map(
-                    (sessionDay, chargeIndex) => (
-                      <span
-                        className={`dashboard-hero-space-needle-meter__battery-cell ${
-                          sessionDay.trained
-                            ? "dashboard-hero-space-needle-meter__battery-cell--filled"
-                            : ""
-                        } ${
-                          sessionDay.missed
-                            ? "dashboard-hero-space-needle-meter__battery-cell--missed"
-                            : ""
-                        } ${
-                          sessionDay.today
-                            ? "dashboard-hero-space-needle-meter__battery-cell--today"
-                            : ""
-                        }`}
-                        data-session-day={sessionDay.label}
-                        key={`hero-needle-battery-cell-${sessionDay.dateKey}-${chargeIndex + 1}`}
-                      />
-                    ),
-                  )}
-                </span>
-              </span>
-              <span className="dashboard-header-week-sessions__label">
-                Sessions / Week
-              </span>
             </div>
+            <WeeklyRewardSpin />
             </div>
             <dl className={meterCardStyles.stats}>
               <div><dt>Goal reached</dt><dd>{dashboardWeeklySessionGoal.available ? Math.round(dashboardSummary.weeklySessionProgress) + "%" : "Not set"}</dd></div>

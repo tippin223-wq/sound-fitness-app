@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { publishWeeklyRewards } from "@/lib/planning/weeklyRewardBalances";
 import { initializePlanning, subscribePlanning, planningStatus, legacyAvailable, importLegacyPlanning, dismissLegacy, syncPlanning, resolvePlanningConflict, refreshPlanningFromStorage, planningAccountGeneration, exportPlanningBackup } from "@/lib/planning/store";
 import { readWorkoutBuilderTemplates } from "@/lib/localData/workoutBuilderData";
 import { readPlanningLogs, planningLogUploadConfirmed } from "@/lib/planning/logs";
@@ -21,6 +22,16 @@ export default function PlanningProvider({ children }: { children: ReactNode }) 
   const [startupError, setStartupError] = useState("");
   const [bookingStatus, setBookingStatus] = useState("");
   const [exportMessage, setExportMessage] = useState<{ account: string; generation: number | null; text: string } | null>(null);
+  useEffect(() => {
+    let live = true;
+    publishWeeklyRewards(null, null);
+    if (account && account !== "local-preview") {
+      void supabase.rpc("weekly_reward_spin_status").then(({ data, error }) => {
+        if (live && !error) publishWeeklyRewards(account, data?.balances ?? null);
+      });
+    }
+    return () => { live = false; };
+  }, [account]);
   const downloadPlanning = () => {
     try {
       const backup = exportPlanningBackup(account, new Date(), accountGeneration);

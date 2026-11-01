@@ -7963,11 +7963,11 @@ test('actual dashboard foundation ignores profile goal defaults and visit flags 
 
 test('dashboard reward evidence distinguishes recorded profile points from unavailable redeemable balances', () => {
   const helper=load('lib/planning/dashboardRewardEvidence.ts');for(const value of [null,{},[],{soundPoints:true},{soundPoints:-1},{soundPoints:'bad'},{soundPoints:1.5}]){const result=helper.dashboardRewardEvidence(value);assert.equal(result.points,null);assert.equal(result.pointsLabel,'Unavailable');assert.equal(result.canClaim,false);assert.match(result.description,/ledger unavailable/);}
-  for(const value of [0,'50']){const result=helper.dashboardRewardEvidence({soundPoints:value,soundTokens:800,emeralds:50,level:30});assert.equal(result.points,Number(value));assert.equal(result.pointsLabel,Number(value).toLocaleString()+' recorded');assert.equal(result.tokensLabel,'Unavailable');assert.equal(result.emeraldsLabel,'Unavailable');assert.equal(result.levelLabel,'Unavailable');assert.equal(result.canClaim,false);assert.match(result.description,/Recorded Profile points only/);}
+  for(const value of [0,'50']){const result=helper.dashboardRewardEvidence({soundPoints:value,soundTokens:800,emeralds:50,level:30});assert.equal(result.points,Number(value));assert.equal(result.pointsLabel,Number(value).toLocaleString());assert.equal(result.tokensLabel,'Unavailable');assert.equal(result.emeraldsLabel,'Unavailable');assert.equal(result.levelLabel,'Unavailable');assert.equal(result.canClaim,false);assert.match(result.description,/Recorded Profile points only/);}
 });
 
 test('dashboard reward snapshots follow account ownership without creating awards from workouts', async () => {
-  const helper=load('lib/planning/dashboardRewardEvidence.ts');await store.initializePlanning('wallet-first');store.writePlanning(store.planningKeys.profile,{soundPoints:'25'});store.writePlanning(store.planningKeys.logs,[dashboardCompletionFixture('wallet-workout')]);const before=store.planningSnapshot(),snapshot=JSON.parse(helper.dashboardRewardEvidenceSnapshot());assert.equal(snapshot.points,25);assert.equal(snapshot.canClaim,false);assert.equal(store.planningSnapshot(),before);await store.initializePlanning('wallet-second');assert.equal(JSON.parse(helper.dashboardRewardEvidenceSnapshot()).points,null);assert.equal(JSON.parse(helper.serverDashboardRewardEvidence()).points,null);
+  const helper=load('lib/planning/dashboardRewardEvidence.ts');await store.initializePlanning('wallet-first');store.writePlanning(store.planningKeys.profile,{soundPoints:'25'});store.writePlanning(store.planningKeys.logs,[dashboardCompletionFixture('wallet-workout')]);const before=store.planningSnapshot(),snapshot=JSON.parse(helper.dashboardRewardEvidenceSnapshot());assert.equal(snapshot.points,25);assert.equal(snapshot.canClaim,false);assert.equal(store.planningSnapshot(),before);await store.initializePlanning('wallet-second');assert.equal(JSON.parse(helper.dashboardRewardEvidenceSnapshot()).points,0);assert.equal(JSON.parse(helper.serverDashboardRewardEvidence()).points,null);
 });
 
 function actualDashboardRewardAdapters(evidence, meter = {}) {
@@ -7975,7 +7975,7 @@ function actualDashboardRewardAdapters(evidence, meter = {}) {
 }
 
 test('actual member level, reward panel and claim panel show unverified status without generated awards or Claim actions', () => {
-  const helper=load('lib/planning/dashboardRewardEvidence.ts');for(const profile of [null,{soundPoints:1200}]){const {api,render}=actualDashboardRewardAdapters(helper.dashboardRewardEvidence(profile));const level=render(api.level);assert.match(level,/Level unavailable/);assert.doesNotMatch(level,/level 3|level 4|aria-valuenow|500|300/);for(const panel of [api.panel,api.claim]){const html=render(panel);assert.match(html,/ledger unavailable/);assert.match(html,/not verified/);assert.doesNotMatch(html,/Ready to claim|Claimed|>Claim<|80|3 emeralds|rewardEarned|threshold/);}if(profile)assert.match(render(api.panel),/1,200 recorded/);}
+  const helper=load('lib/planning/dashboardRewardEvidence.ts');for(const profile of [null,{soundPoints:1200}]){const {api,render}=actualDashboardRewardAdapters(helper.dashboardRewardEvidence(profile));const level=render(api.level);assert.match(level,/Level unavailable/);assert.doesNotMatch(level,/level 3|level 4|aria-valuenow|500|300/);for(const panel of [api.panel,api.claim]){const html=render(panel);assert.match(html,/ledger unavailable|Account rewards/);assert.match(html,/not verified/);assert.doesNotMatch(html,/Ready to claim|Claimed|>Claim<|80|3 emeralds|rewardEarned|threshold/);}if(profile)assert.match(render(api.panel),/1,200/);}
 });
 
 function actualDashboardControlHandlers(names, environment) {
@@ -10505,4 +10505,22 @@ test('meal drafts removal snapshots and failed atomic completion remain detached
 
 test('workout backup receipt results cannot mutate stored confirmation or bypass revision guards',async()=>{
  authUser={id:'member'};await store.initializePlanning('member');const helper=load('lib/planning/workoutSyncReceipt.ts'),operation=helper.createWorkoutSyncOperation(),ticket=operation.begin(),counts={syncedTemplates:1,syncedLogs:2,skippedItems:0},saved=operation.record(ticket,counts,'2026-10-13T18:05:00Z'),expected={schemaVersion:1,completedAt:'2026-10-13T18:05:00Z',...counts},canonical=store.readPlanning(helper.WORKOUT_SYNC_RECEIPT_KEY,null),before=store.planningSnapshot();assert.notEqual(saved,canonical);saved.syncedLogs=999;saved.completedAt='invalid';counts.syncedTemplates=999;assert.deepEqual(store.readPlanning(helper.WORKOUT_SYNC_RECEIPT_KEY,null),expected);const read=helper.readWorkoutSyncReceipt();assert.notEqual(read,canonical);read.syncedLogs=888;assert.deepEqual(helper.readWorkoutSyncReceipt(),expected);assert.equal(store.planningSnapshot(),before);assert.throws(()=>operation.record(ticket,counts),/receipt changed/);assert.equal(operation.finish(ticket),true);const retry=operation.begin();failure=true;try{assert.throws(()=>operation.record(retry,{syncedTemplates:3,syncedLogs:4,skippedItems:0}));}finally{failure=false;}assert.equal(store.planningSnapshot(),before);assert.deepEqual(helper.readWorkoutSyncReceipt(),expected);assert.equal(operation.finish(retry),true);
+});
+
+
+test('weekly reward balances override editable caches only for the verified owner', async () => {
+ const helper=load('lib/planning/dashboardRewardEvidence.ts'), wallet=load('lib/planning/weeklyRewardBalances.ts');
+ await store.initializePlanning('weekly-first');
+ store.writePlanning(store.planningKeys.profile,{soundPoints:999,soundTokens:999,emeralds:999});
+ const before=store.planningSnapshot();
+ wallet.publishWeeklyRewards('weekly-first',{coins:25,bolts:2,sapphire:3,topaz:4,ruby:5,emerald:1});
+ let result=JSON.parse(helper.dashboardRewardEvidenceSnapshot());
+ assert.equal(result.canClaim,true);assert.equal(result.points,2);assert.equal(result.tokensLabel,'25');
+ assert.equal(result.sapphireLabel,'3');assert.equal(result.topazLabel,'4');assert.equal(result.rubyLabel,'5');assert.equal(result.emeraldsLabel,'1');
+ assert.equal(store.planningSnapshot(),before);
+ await store.initializePlanning('weekly-second');
+ result=JSON.parse(helper.dashboardRewardEvidenceSnapshot());assert.equal(result.canClaim,false);assert.equal(result.points,0);assert.equal(result.sapphireLabel,'Unavailable');
+ wallet.publishWeeklyRewards('weekly-second',{coins:-1,bolts:2,sapphire:0,topaz:0,ruby:0,emerald:0});
+ assert.equal(JSON.parse(helper.dashboardRewardEvidenceSnapshot()).canClaim,false);
+ wallet.publishWeeklyRewards(null,null);
 });

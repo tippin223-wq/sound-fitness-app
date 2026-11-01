@@ -11,6 +11,7 @@
   padding: 48px 14px 14px;
   overflow: hidden;
   container-type: size;
+  container-name: challenge-card;
   background: radial-gradient(ellipse at 15% 0%, #fbbf2421, transparent 48%), radial-gradient(ellipse at 90% 90%, #22d3ee13, transparent 48%), linear-gradient(145deg, #101b2be8, #020617eb);
 }
 .content.challengeContent { --meter-accent: #fde68a; grid-template-rows: auto auto minmax(0, 1fr) auto auto; }
@@ -19,7 +20,7 @@
 .challengeCategories button:hover { background: #ffffff12; }
 .challengeCategories button:focus-visible { outline: 2px solid #a5f3fc; outline-offset: 2px; }
 .challengeCategories svg { height: 17px; width: 17px; }
-.challengeList { display: grid; grid-template-rows: auto repeat(3, minmax(min-content, 1fr)); gap: 8px; min-height: 0; }
+.challengeList { display: grid; grid-template-rows: auto; grid-auto-rows: minmax(min-content, 1fr); gap: 8px; min-height: 0; overflow-y: auto; scrollbar-width: thin; padding-right: 2px; }
 .challengeCategoryTitle, .challengeCategoryTitle h3 { display: flex; align-items: center; gap: 6px; }
 .challengeCategoryTitle { justify-content: space-between; }
 .challengeCategoryTitle h3 { font-size: 13px; font-weight: 800; }
@@ -29,6 +30,10 @@
 .challengeItem h4 { display: flex; gap: 8px; color: #f1f5f9; font-size: 14px; font-weight: 800; line-height: 1.25; }
 .challengeItem h4 > span { color: var(--challenge-color); font-size: 11px; padding-top: 2px; }
 .challengeProgress { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px; font-size: 11px; color: var(--challenge-color); }
+.challengeProgress a { display: inline-flex; align-items: center; gap: 2px; width: fit-content; text-decoration: underline; text-underline-offset: 3px; }
+.challengeProgress a svg { width: 12px; height: 12px; }
+.challengeProgress strong { text-align: right; }
+.challengeItem p { color: #b8c5d6; font-size: 12px; line-height: 1.4; }
 .challengeProgress progress { grid-column: 1 / -1; width: 100%; height: 4px; border: 0; border-radius: 3px; appearance: none; overflow: hidden; background: #ffffff12; }
 .challengeProgress progress::-webkit-progress-bar { background: #ffffff12; }
 .challengeProgress progress::-webkit-progress-value { background: var(--challenge-color); }
@@ -92,6 +97,7 @@
 }
 
 .needleStage {
+  position: relative;
   display: grid;
   min-height: 0;
   place-items: center;
@@ -106,6 +112,22 @@
   padding-bottom: 0;
 }
 
+.needleStage :global(.dashboard-hero-space-needle-meter__roulette) {
+  top: -.5rem;
+}
+
+.needleStage :global(.dashboard-header-week-sessions__graph) {
+  height: 10rem;
+}
+
+/* Keep the animated antenna above the roulette, with the tower roof tucked
+   directly beneath the reel rather than leaving a second gap for the tip. */
+.needleStage :global(.dashboard-header-week-sessions__graph)::before {
+  top: -3.5rem;
+  animation: none;
+  transform: translateX(-50%);
+}
+
 .stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -113,6 +135,137 @@
   padding-block: 9px;
   text-align: center;
 }
+
+.spinControl {
+  position: absolute;
+  left: calc(50% + 145px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 76px;
+  z-index: 20;
+  display: grid;
+  justify-items: center;
+  gap: .35rem;
+  font-size: 10px;
+  line-height: 1.3;
+  color: #b8d9da;
+}
+.spinControl > button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 1px;
+  padding: 4px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1px solid #5eead480;
+  background: radial-gradient(circle at 35% 25%, #5eead42b, #071522e8 75%);
+  box-shadow: 0 0 20px #2dd4bf25, inset 0 0 12px #5eead415;
+  color: #99f6e4;
+  cursor: pointer;
+}
+.spinControl > button > span { font-size: 19px; line-height: 19px; animation: none !important; }
+.spinControl > button > strong { font-size: 9px; line-height: 11px; white-space: nowrap; }
+.spinControl > button > .spinBadge { position: absolute; top: -.25rem; right: -.3rem; min-width: 1.35rem; height: 1.35rem; padding: .2rem; border-radius: 1rem; background: #fde68a; color: #10202b; font-size: .8rem; font-weight: 900; }
+.spinControl > button:disabled { opacity: .45; cursor: default; box-shadow: none; }
+.spinControl button:focus-visible { outline: 2px solid #fde68a; outline-offset: 3px; }
+.spinControl > div button { text-decoration: underline; }
+.spinControl small { font-size: 9px; }
+.spinRules { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.spinControl > .rarityLink { width: auto; height: auto; min-height: 22px; border: 0; border-radius: 0; padding: 2px; font-size: 10px; text-decoration: underline; background: none; box-shadow: none; }
+.rarityPill { display: inline-block; border: 1px solid; border-radius: 99px; padding: 5px 14px; font-weight: 800; background: color-mix(in srgb, var(--reward-rarity, #cbd5e1) 25%, #071322); box-shadow: 0 0 14px color-mix(in srgb, var(--reward-rarity, #cbd5e1) 18%, transparent); }
+.needleStage :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="common"]) { background: color-mix(in srgb, #cbd5e1 50%, #071322); border-color: #cbd5e1; }
+.needleStage :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="uncommon"]) { background: color-mix(in srgb, #4ade80 50%, #071322); border-color: #4ade80; }
+.needleStage :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="rare"]) { background: color-mix(in srgb, #60a5fa 50%, #071322); border-color: #60a5fa; }
+.needleStage :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="epic"]) { background: color-mix(in srgb, #c084fc 50%, #071322); border-color: #c084fc; }
+.needleStage :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="legendary"]) { background: color-mix(in srgb, #fbbf24 50%, #071322); border-color: #fbbf24; }
+.needleStage:has(.spinControl[data-unlocked-tier="-1"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="common"]) { opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="-1"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="uncommon"]) { opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="-1"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="rare"]) { opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="-1"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="epic"]) { opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="-1"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="legendary"]) { opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="0"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="uncommon"]) { opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="0"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="rare"]) { opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="0"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="epic"]) { opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="0"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="legendary"]) { opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="1"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="rare"]) { opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="1"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="epic"]) { opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="1"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="legendary"]) { opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="2"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="epic"]) { opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="2"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="legendary"]) { opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="3"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="legendary"]) { opacity: .25; filter: saturate(.45); }
+.rarityTable { overflow: auto; margin: 18px -15px; }
+.rarityTable table { width: 100%; border-collapse: collapse; font-size: 9px; }
+.rarityTable caption { margin-bottom: 10px; color: #b8d9da; font-size: 12px; }
+.rarityTable th, .rarityTable td { padding: 7px 3px; border-bottom: 1px solid #ffffff15; }
+.rarityTable tr[data-current="true"] { background: #5eead425; outline: 1px solid #5eead450; }
+.needleStage :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="common"]) { border-color: #cbd5e1; }
+.needleStage :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="uncommon"]) { border-color: #4ade80; }
+.needleStage :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="rare"]) { border-color: #60a5fa; }
+.needleStage :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="epic"]) { border-color: #c084fc; }
+:is(.needleStage, .rewardIcon) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-id="clothing"] .dashboard-hero-space-needle-meter__roulette-slot-icon)::before { content: "👕"; font-size: .8rem; }
+:is(.needleStage, .rewardIcon) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-id="accessory"] .dashboard-hero-space-needle-meter__roulette-slot-icon)::before { content: "📿"; font-size: .8rem; }
+.needleStage:has(.spinControl[data-rarity="common"]) { --winning-rarity: #cbd5e1; }
+.needleStage:has(.spinControl[data-rarity="uncommon"]) { --winning-rarity: #4ade80; }
+.needleStage:has(.spinControl[data-rarity="rare"]) { --winning-rarity: #60a5fa; }
+.needleStage:has(.spinControl[data-rarity="epic"]) { --winning-rarity: #c084fc; }
+.needleStage:has(.spinControl[data-rarity="legendary"]) { --winning-rarity: #fbbf24; }
+.needleStage:has(.spinControl[data-spin-result="0"]) :global(.dashboard-hero-space-needle-meter__roulette-slot:nth-child(46)) { background: color-mix(in srgb, var(--winning-rarity) 25%, #071322); border-color: var(--winning-rarity); filter: brightness(1.5); box-shadow: 0 0 12px var(--winning-rarity); }
+.needleStage:has(.spinControl[data-spin-result="1"]) :global(.dashboard-hero-space-needle-meter__roulette-slot:nth-child(47)) { background: color-mix(in srgb, var(--winning-rarity) 25%, #071322); border-color: var(--winning-rarity); filter: brightness(1.5); box-shadow: 0 0 12px var(--winning-rarity); }
+.needleStage:has(.spinControl[data-spin-result="2"]) :global(.dashboard-hero-space-needle-meter__roulette-slot:nth-child(48)) { background: color-mix(in srgb, var(--winning-rarity) 25%, #071322); border-color: var(--winning-rarity); filter: brightness(1.5); box-shadow: 0 0 12px var(--winning-rarity); }
+.needleStage:has(.spinControl[data-spin-result="3"]) :global(.dashboard-hero-space-needle-meter__roulette-slot:nth-child(49)) { background: color-mix(in srgb, var(--winning-rarity) 25%, #071322); border-color: var(--winning-rarity); filter: brightness(1.5); box-shadow: 0 0 12px var(--winning-rarity); }
+.needleStage:has(.spinControl[data-spin-result="4"]) :global(.dashboard-hero-space-needle-meter__roulette-slot:nth-child(50)) { background: color-mix(in srgb, var(--winning-rarity) 25%, #071322); border-color: var(--winning-rarity); filter: brightness(1.5); box-shadow: 0 0 12px var(--winning-rarity); }
+.needleStage:has(.spinControl[data-spin-result="5"]) :global(.dashboard-hero-space-needle-meter__roulette-slot:nth-child(51)) { background: color-mix(in srgb, var(--winning-rarity) 25%, #071322); border-color: var(--winning-rarity); filter: brightness(1.5); box-shadow: 0 0 12px var(--winning-rarity); }
+.needleStage:has(.spinControl[data-spin-result="6"]) :global(.dashboard-hero-space-needle-meter__roulette-slot:nth-child(52)) { background: color-mix(in srgb, var(--winning-rarity) 25%, #071322); border-color: var(--winning-rarity); filter: brightness(1.5); box-shadow: 0 0 12px var(--winning-rarity); }
+.needleStage:has(.spinControl[data-spin-result="7"]) :global(.dashboard-hero-space-needle-meter__roulette-slot:nth-child(53)) { background: color-mix(in srgb, var(--winning-rarity) 25%, #071322); border-color: var(--winning-rarity); filter: brightness(1.5); box-shadow: 0 0 12px var(--winning-rarity); }
+.needleStage:has(.spinControl[data-spin-result="8"]) :global(.dashboard-hero-space-needle-meter__roulette-slot:nth-child(54)) { background: color-mix(in srgb, var(--winning-rarity) 25%, #071322); border-color: var(--winning-rarity); filter: brightness(1.5); box-shadow: 0 0 12px var(--winning-rarity); }
+.needleStage:has(.spinControl[data-spin-result]) :global(.dashboard-hero-space-needle-meter__roulette-window) { animation: reward-landing .8s ease-out; }
+@keyframes reward-landing { 25% { box-shadow: 0 0 26px #fde68a, 0 0 45px #5eead4; filter: brightness(1.8); } }
+.rewardDialog { position: fixed; inset: 0; margin: auto; width: min(360px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); overflow: auto; padding: 28px 24px; border: 1px solid #99f6e45c; border-radius: 26px; background: radial-gradient(ellipse at 50% 0, #174b56, transparent 65%), #071322f5; color: #e2f8f5; box-shadow: 0 20px 90px #000c, 0 0 50px #2dd4bf25; text-align: center; }
+.rewardDialog { overscroll-behavior: contain; scroll-behavior: auto; touch-action: pan-y; }
+.rewardDialog::backdrop { background: #020617e8; }
+:global(body:has(dialog[open])) .needleStage *,
+:global(body:has(dialog[open])) .needleStage *::before,
+:global(body:has(dialog[open])) .needleStage *::after { animation-play-state: paused !important; }
+.rewardDialog h2 { font-size: 25px; font-weight: 900; margin: 10px 0; color: #fde68a; }
+.rewardDialog p { font-size: 13px; line-height: 1.5; }
+.rewardDialog .rewardEyebrow { text-transform: uppercase; letter-spacing: .14em; font-size: 10px; font-weight: 800; color: #99f6e4; }
+.rewardIcon { display: grid; place-items: center; margin: 24px auto 16px; width: 80px; height: 80px; border-radius: 50%; background: color-mix(in srgb, var(--reward-rarity, #5eead4) 32%, #071322); border: 1px solid color-mix(in srgb, var(--reward-rarity, #5eead4) 65%, transparent); box-shadow: 0 0 35px color-mix(in srgb, var(--reward-rarity, #5eead4) 30%, transparent); }
+.rewardIcon :global(.dashboard-hero-space-needle-meter__roulette-slot) { transform: scale(2.5); border: 0; background: transparent; box-shadow: none; clip-path: none; }
+.rewardArtwork { width: 68px; height: 68px; object-fit: contain; filter: drop-shadow(0 3px 5px #0008); }
+.rewardCoinArtwork { clip-path: circle(43% at 50% 50%); }
+.rewardDialog dl { display: grid; gap: 12px; padding: 18px 0; margin: 16px 0; border-block: 1px solid #ffffff20; }
+.rewardDialog dt { color: #93b6bb; font-size: 11px; }
+.rewardDialog dd { font-size: 14px; font-weight: 800; margin-top: 3px; }
+.rewardDialog .rewardNote { color: #a9becb; font-size: 12px; }
+.rewardDialog > button { margin-top: 22px; padding: 11px 28px; border: 1px solid #5eead480; border-radius: 14px; background: #134e4a; font-weight: 800; color: #ecfdf5; }
+.rewardDialog > button:focus-visible { outline: 2px solid #fde68a; outline-offset: 4px; }
+.rewardDialog > .rewardClose { position: sticky; top: -16px; z-index: 5; display: grid; place-items: center; margin: -14px -10px 0 auto; padding: 0; width: 36px; height: 36px; min-height: 36px; border-radius: 50%; background: #102733; border: 1px solid #9ce8df70; color: #fff; font-size: 26px; line-height: 1; }
+.rewardConfetti { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.rewardConfetti > span { position: absolute; left: 50%; top: 31%; width: 5px; height: 9px; border-radius: 1px; background: #fde047; opacity: 0; animation: reward-confetti var(--confetti-duration) cubic-bezier(.16,.6,.3,1) both; animation-delay: var(--confetti-delay); }
+.rewardConfetti > span:nth-child(5n) { background: #2dd4bf; }
+.rewardConfetti > span:nth-child(5n + 1) { background: #fb7185; }
+.rewardConfetti > span:nth-child(5n + 2) { background: #a78bfa; }
+.rewardConfetti > span:nth-child(5n + 3) { background: #38bdf8; }
+.rewardConfetti > span:nth-child(3n) { width: 7px; height: 4px; }
+.rewardConfetti > span:nth-child(4n) { width: 5px; height: 5px; border-radius: 50%; }
+@keyframes reward-confetti {
+  0% { opacity: 0; transform: translate(0, 10px) rotate3d(1,1,0,0deg); }
+  8% { opacity: 1; }
+  45% { opacity: 1; transform: translate(calc(var(--confetti-x) * .7), var(--confetti-y)) rotate3d(1,1,1,calc(var(--confetti-turn) * .45)); }
+  75% { opacity: .8; }
+  100% { opacity: 0; transform: translate(var(--confetti-x), calc(var(--confetti-y) + 95px)) rotate3d(1,.4,1,var(--confetti-turn)); }
+}
+@media (prefers-reduced-motion: reduce) { .rewardConfetti { display: none; } .needleStage:has(.spinControl[data-spin-result]) :global(.dashboard-hero-space-needle-meter__roulette-window) { animation: none; } }
+.needleStage :global(.dashboard-hero-space-needle-meter__roulette-track) { animation: reward-idle-scroll 20s linear infinite; }
+.needleStage:has(.spinControl[data-spinning="true"], .spinControl[data-spin-result]) :global(.dashboard-hero-space-needle-meter__roulette-track) { animation: none; }
+@keyframes reward-idle-scroll { to { transform: translateX(-17.64rem); } }
+@media (prefers-reduced-motion: reduce) { .needleStage :global(.dashboard-hero-space-needle-meter__roulette-track) { animation: none; } }
+@container hero-meter (max-height: 570px) { .spinControl { left: calc(50% + 95px); } }
+@container hero-meter (max-height: 490px) { .spinControl { left: calc(50% + 55px); } }
+@container hero-meter (max-height: 420px) { .spinControl { left: calc(50% + 45px); } }
 
 .stats > div {
   display: flex;
@@ -125,6 +278,8 @@
 .stats > div + div { border-left: 1px solid #ffffff12; }
 .stats dt { color: #a8b9cc; font-size: 12px; line-height: 1.2; }
 .stats dd { color: var(--meter-accent); font-size: 23px; font-weight: 900; line-height: 1.1; }
+.stats dd { overflow-wrap: anywhere; }
+.challengeContent .stats dd { font-size: clamp(12px, 4.5cqw, 21px); }
 .stats small { color: #bdd0dc; font-size: 12px; font-weight: 600; }
 
 .week {
@@ -297,3 +452,19 @@
   .favoriteActions a { min-height: 42px; padding: 6px 10px; }
   .favoriteStart { min-height: 34px; }
 }
+
+/* Keep the active card's list inside its own grid slot on short displays. */
+@container challenge-card (max-height: 480px) {
+  .content.challengeContent { gap: 6px; }
+  .challengeCategories button { height: 27px; }
+  .challengeItem { padding: 7px 8px; gap: 4px; }
+  .challengeItem p { font-size: 11px; line-height: 1.35; }
+  .challengeContent .stats { padding-block: 6px; }
+  .challengeContent .stats dt { font-size: 10px; }
+  .challengeContent .footer a { min-height: 32px; font-size: 11px; }
+}
+
+/* Unfinished inventory prizes never enter the real-user draw. */
+.needleStage:has(.spinControl[data-live-prizes="currencies"]) :global(.dashboard-hero-space-needle-meter__roulette-slot:is([data-reward-id="clothing"], [data-reward-id="accessory"], [data-reward-id="sonic-surge"], [data-reward-id="streak-shield"], [data-reward-id="boost-chip"])) { opacity: .18; filter: grayscale(1); }
+
+.needleStage:has(.spinControl[data-unlocked-tier="-1"]:not([data-spin-result])) :global(.dashboard-hero-space-needle-meter__roulette-slot) { opacity: .2; filter: saturate(.35); }
