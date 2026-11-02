@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
-import Link from "next/link";
 import { publishWeeklyRewards } from "@/lib/planning/weeklyRewardBalances";
 import { supabase } from "@/lib/supabaseClient";
 import styles from "./HeroMeterCards.module.css";
@@ -88,7 +87,6 @@ export default function WeeklyRewardSpin() {
   const [status, setStatus] = useState<SpinStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [signedOut, setSignedOut] = useState(false);
   const [prize, setPrize] = useState<ClaimedReward | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [rarityOpen, setRarityOpen] = useState(false);
@@ -102,34 +100,39 @@ export default function WeeklyRewardSpin() {
   const refresh = useCallback(async () => {
     const version = generation.current;
     try {
-      const { data: auth, error: authError } = await supabase.auth.getUser();
+      // The dashboard provider already initializes this session. The reward
+      // RPC verifies its JWT server-side; avoid a second getUser round-trip.
+      const { data: auth, error: authError } = await supabase.auth.getSession();
       if (version !== generation.current) return;
-      if (authError && authError.name !== "AuthSessionMissingError") throw authError;
-      if (!auth.user) {
-        setStatus(null); setSignedOut(true); setError(""); publishWeeklyRewards(null, null); return;
+      if (authError) throw authError;
+      if (!auth.session?.user) {
+        publishWeeklyRewards(null, null);
+        throw new Error("Account session unavailable");
       }
-      setSignedOut(false);
       const { data, error: failure } = await supabase.rpc("weekly_reward_spin_status");
       if (version !== generation.current) return;
       if (failure) throw failure;
       const next = data as SpinStatus;
       setStatus(next); setError("");
-      publishWeeklyRewards(auth.user?.id ?? null, next.balances);
+      publishWeeklyRewards(auth.session.user.id, next.balances);
       if (next.pendingReveal && !pending.current) {
         setRequestWeek(null);
         setPrize(next.pendingReveal); setRevealed(true);
       }
     } catch {
-      if (version === generation.current) { setStatus(null); setError("Rewards could not connect. Retry."); }
+      if (version === generation.current) { setStatus(null); }
     }
   }, []);
   useEffect(() => {
     const initialRefresh = window.setTimeout(() => void refresh(), 0);
     const timer = window.setInterval(() => { if (!document.hidden && !pending.current) void refresh(); }, 60000);
     const { data: listener } = supabase.auth.onAuthStateChange(event => {
-      if (event === "TOKEN_REFRESHED") return;
+      if (event === "TOKEN_REFRESHED") {
+        if (!pending.current) window.setTimeout(() => void refresh(), 0);
+        return;
+      }
       generation.current++; pending.current = false; setRequestWeek(null);
-      setStatus(null); setBusy(false); setPrize(null); setRevealed(false);
+      setStatus(null); setError(""); setBusy(false); setPrize(null); setRevealed(false);
       publishWeeklyRewards(null, null); reelAnimation.current?.cancel();
       setRarityOpen(false); setAmountsOpen(false);
       if (spinTimer.current) clearTimeout(spinTimer.current);
@@ -197,11 +200,10 @@ export default function WeeklyRewardSpin() {
   return <aside ref={control} className={styles.spinControl} data-live-prizes="currencies" data-unlocked-tier={unlockedTier} data-rarity={prize ? REWARD_RARITIES[prize.tier].id : undefined} data-spinning={busy} data-spin-result={result >= 0 ? result : undefined} aria-label="Weekly reward spin">
     <button type="button" disabled={busy || !!prize || (!requestWeek && (!status?.weekStart || !status.rewardsReady))} onClick={() => void spin()} aria-label={busy ? "Spinning" : requestWeek ? "Retry saved weekly spin" : status?.weekStart ? `Spin. ${status.availableSpins} saved spins` : "Weekly spin locked"}>
       {!!status?.availableSpins && <span className={styles.spinBadge}>{status.availableSpins}</span>}
-      <span aria-hidden="true">▶</span><strong>{busy ? "Spin…" : requestWeek ? "Retry" : status?.weekStart ? "Spin" : status ? "Locked" : "—"}</strong>
+      <span aria-hidden="true">▶</span><strong>{busy ? "Spin…" : requestWeek ? "Retry" : status?.weekStart ? "Spin" : "Locked"}</strong>
     </button>
-    <p>{signedOut ? "Sign in to earn weekly spins" : !status ? error ? "Connect to check spins" : "Checking spins…" : status.weekStart ? `${days} workout days · spin ready` : days ? `${days} / 7 days · unlocks Monday` : "Train at least one day per week to earn a spin"}</p>
-    {signedOut && <Link className={styles.rarityLink} href="/login">Sign in</Link>}
-    <div role="status" aria-live="polite">{error ? <><p>{error}</p><button type="button" onClick={() => void (requestWeek ? spin() : refresh())}>Retry connection</button></> : null}</div>
+    <p>{status?.availableSpins ?? 0} {(status?.availableSpins ?? 0) === 1 ? "spin" : "spins"}</p>
+    <div role="status" aria-live="polite">{error ? <><p>{error}</p></> : null}</div>
     <button className={styles.rarityLink} type="button" onClick={() => setRarityOpen(true)}>Rarity & odds</button>
     <button className={styles.rarityLink} type="button" onClick={() => setAmountsOpen(true)}>Prize amounts</button>
     {amountsOpen && <RewardAmounts onClose={() => setAmountsOpen(false)} />}

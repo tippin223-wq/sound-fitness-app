@@ -238,6 +238,11 @@ const avatarShirtOptions: Array<{
   label,
 }));
 
+// Seven of twelve shirt designs are preview-only until the wardrobe shop opens.
+const avatarShirtUnlockCosts: Partial<Record<SoundFitnessAvatarShirtPreset, number>> = {
+  waves: 5, orbit: 8, echo: 10, waterline: 12, mountain: 15, trainer: 20, energy: 25,
+};
+
 const avatarPantsOptions: Array<{
   colors: [string, string];
   id: SoundFitnessAvatarPantsPreset;
@@ -2639,30 +2644,47 @@ function AvatarLabChoice({
   label,
   onClick,
   preview,
+  sapphireCost,
+  onPreviewEnd,
+  previewItem,
 }: {
   active: boolean;
   label: string;
   onClick: () => void;
   preview: ReactNode;
+  sapphireCost?: number;
+  onPreviewEnd?: (event: ReactFocusEvent<HTMLButtonElement>) => void;
+  previewItem?: string;
 }) {
   return (
     <button
       aria-pressed={active}
+      aria-label={sapphireCost ? `${label}. Locked. ${sapphireCost} Sapphires to unlock. Preview only.` : undefined}
+      data-wardrobe-preview-item={previewItem}
+      onBlur={onPreviewEnd}
       className={`relative flex min-h-14 min-w-0 items-center gap-2 overflow-hidden rounded-[10px] border px-2.5 py-2 text-left transition ${
         active
           ? "border-cyan-200/72 bg-cyan-300/16 text-white shadow-[0_0_18px_rgba(34,211,238,0.22),inset_0_1px_0_rgba(255,255,255,0.1)]"
           : "border-white/10 bg-white/[0.035] text-slate-300 hover:border-cyan-200/34 hover:bg-cyan-300/8"
-      }`}
+      } ${sapphireCost ? "min-h-20 pt-7" : ""}`}
       onClick={onClick}
       type="button"
     >
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] border border-white/10 bg-slate-950/54">
+      <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-[8px] border border-white/10 bg-slate-950/54 ${sapphireCost ? "opacity-50 saturate-50" : ""}`}>
         {preview}
       </span>
-      <span className="min-w-0 flex-1 text-[9px] font-black uppercase tracking-[0.08em]">
+      <span className={`min-w-0 flex-1 text-[9px] font-black uppercase tracking-[0.08em] ${sapphireCost ? "opacity-60" : ""}`}>
         {label}
       </span>
-      {active ? (
+      {sapphireCost ? <span aria-hidden="true" className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded-md border border-sky-200/25 bg-slate-950/85 px-1.5 py-0.5 text-[10px] font-black tabular-nums text-sky-100 shadow-[0_1px_8px_rgba(56,189,248,0.16)]">
+        <svg viewBox="0 0 40 36" className="h-4 w-4 shrink-0 drop-shadow-[0_0_3px_rgba(56,189,248,0.45)]">
+          <path d="M8 1h24l7 10-19 24L1 11Z" fill="#38bdf8" stroke="#bae6fd" strokeWidth="1.2" strokeLinejoin="round" />
+          <path d="m8 1 3 10H1Zm24 0 7 10H29Z" fill="#e0f2fe" />
+          <path d="m1 11 19 24-9-24Zm38 0L20 35l9-24Z" fill="#075985" />
+          <path d="m8 1 3 10h18l3-10Z" fill="#7dd3fc" /><path d="m11 11 9 24 9-24Z" fill="#0ea5e9" />
+        </svg>{sapphireCost}
+      </span> : null}
+      {active && !sapphireCost ? (
         <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-cyan-200 text-slate-950 shadow-[0_0_14px_rgba(103,232,249,0.54)]">
           <Check aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={3} />
         </span>
@@ -2740,6 +2762,7 @@ function AvatarLabMenu({
   onReset: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<AvatarLabTab>("body");
+  const [previewShirt, setPreviewShirt] = useState<SoundFitnessAvatarShirtPreset | null>(null);
   // The outfit tab is the only one with several option groups; without
   // programmatic group labels a screen reader hears twelve bare color names
   // (two of them literally "Ember") with no clue which garment each changes.
@@ -2749,11 +2772,15 @@ function AvatarLabMenu({
     key: Key,
     value: SoundFitnessAvatarAppearance[Key],
   ) {
+    setPreviewShirt(null);
     onAppearanceChange({ ...appearance, [key]: value });
   }
 
   return createPortal(
-    <div data-dashboard-wheel-lock="true" className="fixed inset-0 z-[99999] flex min-h-0 items-center justify-center bg-slate-950/84 p-[clamp(8px,2vw,18px)] backdrop-blur-md">
+    <div data-dashboard-wheel-lock="true" onPointerDownCapture={(event) => {
+      if (event.target instanceof Element && event.target.closest('[aria-label="Previous Shirt Style option"], [aria-label="Next Shirt Style option"]')) return;
+      if (previewShirt && (!(event.target instanceof Element) || event.target.closest("[data-wardrobe-preview-item]")?.getAttribute("data-wardrobe-preview-item") !== previewShirt)) setPreviewShirt(null);
+    }} className="fixed inset-0 z-[99999] flex min-h-0 items-center justify-center bg-slate-950/84 p-[clamp(8px,2vw,18px)] backdrop-blur-md">
       <section
         aria-label="Avatar Lab"
         aria-modal="true"
@@ -2789,12 +2816,13 @@ function AvatarLabMenu({
             <div data-avatar-lab-preview="true" className="relative isolate min-h-0 w-full flex-1 overflow-hidden rounded-[14px] bg-cover bg-center" style={{ backgroundImage: `linear-gradient(rgba(2,6,23,.30),rgba(2,6,23,.42)),url("${backgroundImage}")` }}>
               <div className={layoutStyles.avatarEnvironment} aria-hidden="true" />
               <SoundFitnessAvatar3D
-                appearance={appearance}
+                appearance={previewShirt ? { ...appearance, shirt: previewShirt } : appearance}
                 className="absolute inset-0 z-10 h-full w-full rounded-[14px]"
                 emotePreset={emotePreset}
                 portrait={activeTab === "face"}
                 interactive
               />
+              {previewShirt ? <p role="status" className="absolute inset-x-2 bottom-2 z-20 rounded-lg border border-sky-200/30 bg-slate-950/90 px-2 py-1.5 text-center text-[10px] text-sky-100">Try-on only · outfit not saved</p> : null}
             </div>
           </div>
 
@@ -2815,7 +2843,7 @@ function AvatarLabMenu({
                         : "text-slate-500 hover:bg-white/[0.04] hover:text-slate-200"
                     }`}
                     key={id}
-                    onClick={() => setActiveTab(id)}
+                    onClick={() => { setPreviewShirt(null); setActiveTab(id); }}
                     role="tab"
                     type="button"
                   >
@@ -2918,10 +2946,19 @@ function AvatarLabMenu({
                   <AvatarLabOptionRail label="Shirt Style">
                     {avatarShirtOptions.map((option) => (
                       <AvatarLabChoice
-                        active={appearance.shirt === option.id}
+                        active={(previewShirt ?? appearance.shirt) === option.id}
                         key={option.id}
                         label={option.label}
-                        onClick={() => updateAppearance("shirt", option.id)}
+                        sapphireCost={avatarShirtUnlockCosts[option.id]}
+                        previewItem={option.id}
+                        onPreviewEnd={(event) => {
+                          const next = event.relatedTarget as HTMLElement | null;
+                          if (!next?.getAttribute("aria-label")?.includes("Shirt Style option")) setPreviewShirt(null);
+                        }}
+                        onClick={() => {
+                          if (avatarShirtUnlockCosts[option.id]) setPreviewShirt(option.id);
+                          else updateAppearance("shirt", option.id);
+                        }}
                         preview={<Shirt aria-hidden="true" className="h-5 w-5 text-cyan-100"/>}
                       />
                     ))}

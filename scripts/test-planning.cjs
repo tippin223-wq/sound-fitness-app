@@ -44,6 +44,7 @@ function load(file) {
   instance.require = name => {
     // Rendering checks use the client snapshot without mounting effects or subscriptions.
     if (name === 'react') return { ...require('react'), useSyncExternalStore: (_subscribe, snapshot) => snapshot(), useState: initial => require('react').useState(file === path.join(root, 'app/dashboard/stats/page.tsx') ? initial === 'overview' && statsRenderTab ? statsRenderTab : typeof initial === 'function' && statsRenderSnapshot ? statsRenderSnapshot : initial : initial) };
+    if (name.endsWith('.module.css')) return { default: {} };
     if (name === 'next/navigation') return { useRouter: () => ({ push: () => { throw new Error('Unexpected navigation during isolated render'); } }) };
     // Review-screen tests do not render images; avoid Next Image's browser-document bootstrap in this isolated harness.
     if (name === 'next/image') return { default: () => null };
@@ -8205,21 +8206,42 @@ test('challenge tracking preserves missing, invalid and review states instead of
 });
 
 function actualRecordedChallengePanel(category, goals, sessions, plan) {
-  const source=fs.readFileSync(path.join(root,'components/dashboard/DashboardExperience.tsx'),'utf8'),ast=ts.createSourceFile('dashboard.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),names=['dashboardChallengeCategories','activeDashboardChallengeCategory','dashboardTrainingConstellationChallenges','ActiveDashboardChallengeCategoryIcon','dashboardTrackedChallenges','dashboardChallengeAverageProgress','renderDashboardChallengesPanel','dashboardTrophyObjectiveGroups','dashboardTrophyObjectiveProgress'],nodes=[];
+  const source=fs.readFileSync(path.join(root,'components/dashboard/DashboardExperience.tsx'),'utf8'),ast=ts.createSourceFile('dashboard.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),names=['dashboardChallengeCategories','activeDashboardChallengeCategory','ActiveDashboardChallengeCategoryIcon','renderDashboardChallengesPanel','dashboardTrophyObjectiveGroups','dashboardTrophyObjectiveProgress'],nodes=[];
   function visit(node){if(ts.isVariableDeclaration(node)&&names.includes(node.name.getText(ast)))nodes.push('const '+node.getText(ast)+';');ts.forEachChild(node,visit);}visit(ast);assert.equal(nodes.length,names.length);
-  const React=require('react'),stub=()=>null,context={exports:{},require,dashboardChallengeEvidence:load('lib/planning/dashboardChallengeEvidence.ts').dashboardChallengeEvidence,dashboardGoalTargets:goals,dashboardSessionEvidence:sessions,dashboardPlanEvidence:plan,activeDashboardChallengeCategoryId:category,headerAchievementItems:load('lib/planning/achievementEvidence.ts').achievementMilestones({goals:false,plan:false,planIssue:'',workouts:0,historyIssue:''}),clampDashboardPercent:value=>Math.max(0,Math.min(100,value)),meterCardStyles:{},Link:props=>React.createElement('a',{href:props.href},props.children),ROUTES:load('lib/routes.ts').ROUTES};
+  const React=require('react'),stub=()=>null,context={exports:{},require,ChallengeSetProgress:load('components/dashboard/ChallengeSetProgress.tsx').default,dashboardChallengeEvidence:load('lib/planning/dashboardChallengeEvidence.ts').dashboardChallengeEvidence,dashboardGoalTargets:goals,dashboardSessionEvidence:sessions,dashboardPlanEvidence:plan,dashboardHealthEvidence:{nutritionIssue:"",nutritionRows:[{label:"Protein",days:0},{label:"Hydration",days:0},{label:"Meals",days:0}],recoveryIssue:"",recoveryRows:[]},dashboardTrainingConstellationSessions:[],activeDashboardChallengeCategoryId:category,headerAchievementItems:load('lib/planning/achievementEvidence.ts').achievementMilestones({goals:false,plan:false,planIssue:'',workouts:0,historyIssue:''}),clampDashboardPercent:value=>Math.max(0,Math.min(100,value)),meterCardStyles:{},Link:props=>React.createElement('a',{href:props.href},props.children),ROUTES:load('lib/routes.ts').ROUTES};
   for(const name of ['Dumbbell','Activity','PersonStanding','HeartPulse','CalendarCheck','Apple','Gauge','BookOpen','Users','ChevronRight'])context[name]=stub;
   const code=ts.transpileModule(nodes.join('\n')+'\nexports.result={panel:renderDashboardChallengesPanel(),groups:dashboardTrophyObjectiveGroups,progress:dashboardTrophyObjectiveProgress};',{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;new Function(...Object.keys(context),code)(...Object.values(context));return {...context.exports.result,render:require('react-dom/server').renderToStaticMarkup};
 }
 
-test('actual challenge panel renders unavailable categories without progress meters or reward promises', () => {
-  const actual=actualRecordedChallengePanel('strength',{sessions:null,sets:null},{weekly:0,issue:''},emptyJourneyInput().plan),html=actual.render(actual.panel);assert.match(html,/Not tracked/);assert.match(html,/Rewards unavailable/);assert.doesNotMatch(html,/<progress|50%|120 SP|Open rewards/);assert.match(html,/0 tracked/);assert.ok(actual.groups.flatMap(group=>group.items).every(item=>item.reward==='Unavailable'&&item.status==='Not yet recorded'&&item.progress===0));assert.equal(actual.progress,0);
+test('actual challenge panel displays three automatic targets without manual completion or reward promises', () => {
+  const actual=actualRecordedChallengePanel('strength',{sessions:null,sets:null},{weekly:0,issue:''},emptyJourneyInput().plan),html=actual.render(actual.panel);
+  assert.equal((html.match(/<h4>/g)||[]).length,3);assert.match(html,/0 of 3/);assert.doesNotMatch(html,/of 10|\/ 30|Lifetime totals|harder targets/);assert.match(html,/Log 3 strength sets/);assert.match(html,/0 \/ 3/);assert.doesNotMatch(html,/Mark complete|120 SP|Open rewards|0 planned/);
+  assert.ok(actual.groups.flatMap(group=>group.items).every(item=>item.reward==='Unavailable'&&item.status==='Not yet recorded'&&item.progress===0));assert.equal(actual.progress,0);
 });
 
-test('actual consistency challenge panel renders only current saved weekly and assignment targets', () => {
-  const actual=actualRecordedChallengePanel('consistency',{sessions:3,sets:36},{weekly:2,issue:''},{...emptyJourneyInput().plan,title:'Saved plan',target:4,completed:1,progress:99}),html=actual.render(actual.panel);assert.equal((html.match(/<progress/g)||[]).length,2);assert.match(html,/2 of 3 sessions recorded this week/);assert.match(html,/1 of 4 assignments completed in Saved plan/);assert.match(html,/67%/);assert.match(html,/25%/);assert.doesNotMatch(html,/Claimed|130 SP|Streak badge/);
+test('actual consistency panel does not accept manual completion records', () => {
+  store.writePlanning('soundFitnessChallengeProgressV1',{'consistency:0:0':'2026-11-01T00:00:00Z','consistency:0:1':'2026-11-01T00:00:00Z','consistency:0:2':'2026-11-01T00:00:00Z'});
+  const actual=actualRecordedChallengePanel('consistency',{sessions:3,sets:36},{weekly:2,issue:''},{...emptyJourneyInput().plan,title:'Saved plan',target:4,completed:1,progress:99}),html=actual.render(actual.panel);
+  assert.equal((html.match(/<h4>/g)||[]).length,3);assert.match(html,/0 of 3/);assert.doesNotMatch(html,/of 10|\/ 30|Lifetime totals|harder targets/);assert.match(html,/Complete 1 logged workout/);assert.doesNotMatch(html,/Mark complete|Claimed|130 SP/);
 });
 
+test('challenge activity counts completed recorded sets and days, excludes future and duplicate sessions',()=>{
+  const helper=load('lib/planning/challengeActivity.ts'),now=new Date('2026-11-01T20:00:00Z');
+  const log={id:'challenge-session',title:'Training',completedAt:'2026-10-30T18:00:00Z',entries:[{exerciseId:'squat',exerciseName:'Squat',pattern:'squat',sets:'3',reps:'8',weight:'20',date:'2026-10-30'}]};
+  const evidence=helper.projectChallengeActivity([log],{},now);assert.equal(evidence['training.sessions'].value,1);assert.equal(evidence['strength.sets'].value,3);assert.equal(evidence['strength.reps'].value,24);assert.equal(evidence['training.days'].value,1);assert.equal(evidence['mobility.sessions'].value,0);assert.equal(evidence['cardio.sessions'],undefined);
+  const duplicate=helper.projectChallengeActivity([log,log],{},now);assert.equal(duplicate['training.sessions'].value,null);
+  const future=helper.projectChallengeActivity([{...log,id:'future',completedAt:'2026-11-02T18:00:00Z'}],{},now);assert.equal(future['training.sessions'].value,0);
+  const unclassified=helper.projectChallengeActivity([{...log,entries:log.entries.map(e=>({...e,pattern:undefined}))}],{},now);assert.equal(unclassified['training.sessions'].value,1);assert.equal(unclassified['strength.sets'].value,0);
+});
+
+test('challenge nutrition and check-in milestones use lifetime saved records without target adherence assumptions',()=>{
+  const helper=load('lib/planning/challengeActivity.ts'),now=new Date('2026-11-01T20:00:00Z');
+  const meal={id:'meal',date:'2026-10-10',time:'',title:'Lunch',kind:'Lunch',notes:'',calories:null,protein:12,carbs:null,fat:null,recordedAt:'2026-10-10T18:00:00Z',updatedAt:'2026-10-10T18:00:00Z'};
+  const check={id:'check',weekStart:'2026-10-05',savedAt:'2026-10-10T18:00:00Z',energy:5,sleep:5,stress:5,soreness:5,habits:[],notes:'Rested'};
+  const values={[store.planningKeys.meals]:[meal,{...meal,id:'second'}],soundFitnessWeeklyCheckIns:[check]};
+  const evidence=helper.projectChallengeActivity([],values,now);assert.equal(evidence['nutrition.meals'].value,1);assert.equal(evidence['nutrition.protein'].value,1);assert.equal(evidence['recovery.weeks'].value,1);assert.equal(evidence['recovery.notes'].value,1);
+  assert.equal(helper.projectChallengeActivity([],{[store.planningKeys.meals]:{}},now)['nutrition.meals'].value,null);
+});
 
 async function withDeferredTemplateRefresh(run) {
   await withCloudRefreshFixture(async(local,rows)=>{

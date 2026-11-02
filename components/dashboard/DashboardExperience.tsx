@@ -3,7 +3,7 @@
 import WeeklyRewardSpin from "./WeeklyRewardSpin";
 import { WEEKLY_REWARDS } from "@/lib/weeklyRewardRarity";
 
-import { dashboardChallengeEvidence } from "@/lib/planning/dashboardChallengeEvidence";
+import ChallengeSetProgress from "./ChallengeSetProgress";
 import { achievementMilestones } from "@/lib/planning/achievementEvidence";
 import { dashboardCategoryEvidence } from "@/lib/planning/dashboardCategoryEvidence";
 import { dashboardCompoundEvidence } from "@/lib/planning/dashboardCompoundEvidence";
@@ -15663,6 +15663,9 @@ export default function DashboardExperience({
         };
   const dashboardWeeklySessionResetDate =
     getDashboardWeekResetDate(dashboardToday);
+  const dashboardWeeklySessionWeekLabel = dashboardClockLive
+    ? addDashboardDays(dashboardWeeklySessionResetDate, -6).toLocaleDateString("en-US", { month: "long", day: "numeric" })
+    : "…";
   const dashboardWeeklySessionResetLabel = dashboardClockLive
     ? formatHeaderMeterDeadline(dashboardWeeklySessionResetDate)
     : "soon";
@@ -17795,10 +17798,8 @@ export default function DashboardExperience({
     setDashboardContentFocused(false);
     stopDashboardHeaderIdleMode();
   };
-  // Hover-driven wakes are deferred behind a dwell: the first hover arms a
-  // timer, later hovers while it runs are no-ops, and any close path cancels
-  // it. Only when the cursor has stayed on the band for the full dwell does
-  // the header actually open. Clicks and keyboard focus bypass this.
+  // Header opening requires pointer activation or a click (including keyboard
+  // activation). Legacy hover routes only cancel any pending dwell.
   // The arming cue (glow + charge bar) is keyed off this attribute, written
   // straight to the DOM like data-header-focus so it never costs a render.
   const setDashboardHeaderArming = (arming: boolean) => {
@@ -17825,22 +17826,9 @@ export default function DashboardExperience({
     }
   };
   const requestDashboardHeaderHoverWake = () => {
-    if (typeof document === "undefined") return;
-    const shellElement = document.querySelector<HTMLElement>(
-      ".dashboard-header-vortex-shell",
-    );
-    // Already open: nothing to arm. Keeping this a no-op also means the
-    // open header never re-runs the flip from the hover paths.
-    if (shellElement && shellElement.dataset.headerFocus !== "content") {
-      return;
-    }
-    if (dashboardHeaderHoverDwellTimerRef.current !== null) return;
-    setDashboardHeaderArming(true);
-    dashboardHeaderHoverDwellTimerRef.current = window.setTimeout(() => {
-      dashboardHeaderHoverDwellTimerRef.current = null;
-      setDashboardHeaderArming(false);
-      highlightDashboardHeaderSurface();
-    }, DASHBOARD_HEADER_HOVER_OPEN_DWELL_MS);
+    // Hover may style a control, but must never expand the header or arm a
+    // delayed open. This also covers the document-level pointer router.
+    cancelDashboardHeaderHoverDwell();
   };
   const handleDashboardHeaderSurfacePointerActivity = (
     event:
@@ -17891,102 +17879,20 @@ export default function DashboardExperience({
     // Highlight commit rides the deferred focus timer; see above.
     setDashboardContentFocused(true);
   };
-  // Hover routing: pointing anywhere over the header band wakes the menu;
-  // pointing anywhere else over the app sends it idle. The per-element
-  // handlers only covered the shell and the content rows, which left gaps
-  // (rails, page margins, the header slot's dead zones) where the state
-  // never changed. pointerover only fires when the hovered element changes,
-  // and both handlers no-op unless the state actually flips.
+  // Pointer movement can dismiss the header after leaving it, but only
+  // explicit activation can open it. No document-level hover wake listener.
   useEffect(() => {
     if (typeof document === "undefined") return;
     const mainElement = document.querySelector("main");
     if (!mainElement) return;
-
-    const routeDashboardHoverFocus = (event: Event) => {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      const shellAncestor = target.closest<HTMLElement>(
-        ".dashboard-header-vortex-shell",
-      );
-      if (shellAncestor) {
-        // The shell's hover surface bleeds ~33px past its visible box in the
-        // idle state (menu-content overflows the collapsed shell), so hovering
-        // the empty band below the idle menu used to wake it. Gate the WAKE on
-        // the header's SLOT band (the fixed-height h-[6.1rem] container) —
-        // NOT the shell's own box, which animates during open/close: gating
-        // on an animated boundary made pointer-vs-edge disagree frame to
-        // frame and the header oscillated open/idle under a stationary
-        // cursor. The slot never moves, so the gate is stable. Once the
-        // header is already focused, keep hovers focused so open dropdowns
-        // hanging below the band never idle it mid-use.
-        if (
-          shellAncestor.dataset.headerFocus === "content" &&
-          event instanceof PointerEvent
-        ) {
-          // After a timeout-idle with the cursor parked on the header, the
-          // collapse itself synthesizes pointerover at the parked coordinates
-          // — waking from those would blink the header open/idle forever.
-          if (isDashboardSynthesizedParkedWake(event)) return;
-          const slot = shellAncestor.parentElement;
-          const wakeBottom = slot
-            ? slot.getBoundingClientRect().bottom
-            : shellAncestor.getBoundingClientRect().bottom;
-          if (event.clientY > wakeBottom + 2) {
-            clearDashboardHeaderSurfaceHighlight();
-            return;
-          }
-        }
-        requestDashboardHeaderHoverWake();
-      } else {
+    const dismissOutsideHeader = (event: Event) => {
+      if (event.target instanceof Element && !event.target.closest(".dashboard-header-vortex-shell")) {
         clearDashboardHeaderSurfaceHighlight();
       }
     };
-
-    mainElement.addEventListener("pointerover", routeDashboardHoverFocus, {
-      passive: true,
-    });
-
-    // pointerover only fires when the hovered ELEMENT changes, so a wake the
-    // slot-band gate rejected (entering through the shell's invisible ~33px
-    // overflow below the collapsed menu) never retried while the cursor
-    // drifted up INSIDE one large element (the gaps between icons all belong
-    // to menu-content) — hovering the visible header then did nothing until
-    // the pointer crossed an icon boundary or clicked. Retry the same gate on
-    // every pointermove over the shell while idle; the dataset check makes
-    // this a no-op the moment the header is awake, and the gate still keeps
-    // the invisible overflow band from waking it.
-    const shellElement = mainElement.querySelector<HTMLElement>(
-      ".dashboard-header-vortex-shell",
-    );
-    const wakeDashboardHeaderOnMove = (event: PointerEvent) => {
-      if (!shellElement || shellElement.dataset.headerFocus !== "content") {
-        return;
-      }
-      const slot = shellElement.parentElement;
-      if (isDashboardSynthesizedParkedWake(event)) return;
-      const wakeBottom = slot
-        ? slot.getBoundingClientRect().bottom
-        : shellElement.getBoundingClientRect().bottom;
-      if (event.clientY <= wakeBottom + 2) {
-        requestDashboardHeaderHoverWake();
-      }
-    };
-    shellElement?.addEventListener("pointermove", wakeDashboardHeaderOnMove, {
-      passive: true,
-    });
-
-    return () => {
-      mainElement.removeEventListener("pointerover", routeDashboardHoverFocus);
-      shellElement?.removeEventListener(
-        "pointermove",
-        wakeDashboardHeaderOnMove,
-      );
-    };
-  }, [
-    highlightDashboardHeaderSurface,
-    clearDashboardHeaderSurfaceHighlight,
-    requestDashboardHeaderHoverWake,
-  ]);
+    mainElement.addEventListener("pointerover", dismissOutsideHeader, { passive: true });
+    return () => mainElement.removeEventListener("pointerover", dismissOutsideHeader);
+  }, [clearDashboardHeaderSurfaceHighlight]);
   useEffect(() => {
     dashboardHeaderMeterMenuOpenRef.current = dashboardHeaderMeterMenuOpen;
   }, [dashboardHeaderMeterMenuOpen]);
@@ -25843,10 +25749,8 @@ export default function DashboardExperience({
       }
       data-header-focus="content"
       onBlurCapture={handleDashboardHeaderSurfaceBlur}
-      onFocusCapture={highlightDashboardHeaderSurface}
-      onMouseEnter={handleDashboardHeaderSurfacePointerActivity}
+      onClickCapture={highlightDashboardHeaderSurface}
       onPointerDown={handleDashboardHeaderSurfacePointerActivity}
-      onPointerEnter={handleDashboardHeaderSurfacePointerActivity}
       onPointerLeave={(event) => {
         // A touch tap always ends with pointerleave (the synthetic pointer
         // vanishes), which used to slam the menu back to idle right after the
@@ -25855,7 +25759,6 @@ export default function DashboardExperience({
           clearDashboardHeaderSurfaceHighlight();
         }
       }}
-      onPointerOver={handleDashboardHeaderSurfacePointerActivity}
     >
       <span
         aria-hidden="true"
@@ -32221,7 +32124,7 @@ export default function DashboardExperience({
         <div className="dashboard-hero-card dashboard-hero-card--needle relative flex h-full min-h-[420px] min-w-0 items-center justify-center overflow-hidden rounded-[30px] border border-white/12 bg-[radial-gradient(ellipse_at_50%_6%,rgba(45,212,191,0.16),transparent_42%),radial-gradient(ellipse_at_50%_90%,rgba(250,204,21,0.08),transparent_38%),linear-gradient(180deg,rgba(15,23,42,0.66),rgba(2,6,23,0.72))] px-2 pb-5 pt-4 shadow-[0_18px_44px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.08)]">
           <div className={meterCardStyles.content}>
             <header className={meterCardStyles.heading}>
-              <p>This week</p>
+              <p>Week of {dashboardWeeklySessionWeekLabel}</p>
               <h2>Consistency</h2>
             </header>
             <div className={meterCardStyles.needleStage}>
@@ -32426,7 +32329,7 @@ export default function DashboardExperience({
             </span>
           </div>
           <div className="sr-only">
-            Progression rewards. Recent achievements.
+            Saved milestones and recent activity.
           </div>
           <div
             aria-label="Dashboard achievement orbit"
@@ -32460,23 +32363,7 @@ export default function DashboardExperience({
             onWheel={handleHeroAchievementWheel}
             onWheelCapture={handleHeroAchievementWheel}
           >
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 left-0 z-[18] w-36 bg-gradient-to-r from-[#101927]/68 via-[#101927]/26 to-transparent"
-            />
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 right-0 z-[18] w-36 bg-gradient-to-l from-[#101927]/68 via-[#101927]/26 to-transparent"
-            />
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-x-10 top-0 z-[18] h-12 bg-gradient-to-b from-[#101927]/38 to-transparent"
-            />
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-x-10 bottom-0 z-[18] h-12 bg-gradient-to-t from-[#101927]/42 to-transparent"
-            />
-            <div className="absolute inset-x-4 inset-y-4 z-20 overflow-visible [mask-image:radial-gradient(ellipse_at_center,black_0%,black_58%,rgba(0,0,0,0.72)_76%,transparent_100%)]">
+            <div className={meterCardStyles.achievementRail}>
               {heroAchievements.map((achievement, index) => {
                 const distance = getHeroAchievementOrbitDistance(index);
                 const absDistance = Math.abs(distance);
@@ -32544,11 +32431,12 @@ export default function DashboardExperience({
                   <Link
                     aria-current={isActiveAchievement ? "step" : undefined}
                     aria-label={`Open ${achievement.label} achievements, ${achievementEstimate.fullLabel}`}
-                    className={`group/hero-achievement absolute left-1/2 top-1/2 flex cursor-pointer flex-col items-center justify-center text-center transition duration-300 ${
+                    className={`${meterCardStyles.achievementItem} group/hero-achievement absolute left-1/2 top-1/2 flex cursor-pointer flex-col items-center justify-center text-center transition duration-300 ${
                       isActiveAchievement
                         ? "h-[126px] w-[min(52vw,184px)] overflow-visible px-2.5 py-2 sm:h-[130px]"
                         : "min-h-[92px] w-[min(42vw,122px)] hover:drop-shadow-[0_14px_34px_rgba(34,211,238,0.14)]"
                     }`}
+                    data-active-achievement={isActiveAchievement}
                     draggable={false}
                     href={achievement.href || ROUTES.dashboard.achievements}
                     key={`${achievement.label}-dashboard-hero-orbit`}
@@ -32567,9 +32455,9 @@ export default function DashboardExperience({
                 filter: slot.blur ? `blur(${slot.blur}px)` : undefined,
                       opacity: slot.opacity,
                       pointerEvents: absDistance > 2 ? "none" : "auto",
-                      transform: `translate(-50%, -50%) translateX(${
-                        direction * slot.x
-                      }px) translateY(${slot.y}px) scale(${slot.scale}) rotateY(${
+                      transform: `translate(-50%, -50%) translateX(calc(${
+                        direction * slot.x / 158
+                      } * var(--achievement-orbit-step, 158px))) translateY(${slot.y}px) scale(${slot.scale}) rotateY(${
                         direction * slot.rotateY
                       }deg)`,
                       transition: isRestartingAcrossEdge
@@ -32630,7 +32518,7 @@ export default function DashboardExperience({
           </div>
           <dl className={meterCardStyles.stats}>
             <div><dt>Recorded</dt><dd>{headerAchievementsEarned}<small> / {headerAchievementTotal}</small></dd></div>
-            <div><dt>In progress</dt><dd>{heroAchievementsInProgress.length}</dd></div>
+            <div><dt>Remaining</dt><dd>{heroAchievementsInProgress.length}</dd></div>
             <div><dt>Locked</dt><dd>{headerAchievementItems.filter((achievement) => achievement.status === "locked").length}</dd></div>
           </dl>
           <div className={meterCardStyles.nextMilestone}>
@@ -33040,19 +32928,12 @@ export default function DashboardExperience({
         soft: "rgba(232, 121, 249, 0.16)",
         
       },
-    ].map(category => ({ ...category, challenges: dashboardChallengeEvidence(category.id, dashboardGoalTargets, dashboardSessionEvidence, dashboardPlanEvidence) }));
+    ];
     const activeDashboardChallengeCategory =
       dashboardChallengeCategories.find(
         (category) => category.id === activeDashboardChallengeCategoryId,
       ) ?? dashboardChallengeCategories[0];
-    const dashboardTrainingConstellationChallenges =
-      activeDashboardChallengeCategory.challenges;
-    const ActiveDashboardChallengeCategoryIcon =
-      activeDashboardChallengeCategory.icon;
-    const dashboardTrackedChallenges = dashboardTrainingConstellationChallenges.filter(challenge => challenge.progress !== null);
-    const dashboardChallengeAverageProgress = dashboardTrackedChallenges.length ? Math.round(
-      dashboardTrackedChallenges.reduce((total, challenge) => total + (challenge.progress ?? 0), 0) / dashboardTrackedChallenges.length,
-    ) : null;
+    const ActiveDashboardChallengeCategoryIcon = activeDashboardChallengeCategory.icon;
 
     const renderDashboardCommandCenterSummaryPanel = () => (
       <div className="relative min-w-0">
@@ -34100,7 +33981,7 @@ export default function DashboardExperience({
       <div className={`dashboard-hero-card dashboard-hero-card--training-challenges ${meterCardStyles.challengeCard}`}>
         <div className={`${meterCardStyles.content} ${meterCardStyles.challengeContent}`}>
           <header className={meterCardStyles.heading}>
-            <p>Saved target tracking</p>
+            <p>Your next milestones</p>
             <h2>Challenges</h2>
           </header>
           <div
@@ -34136,38 +34017,16 @@ export default function DashboardExperience({
               );
             })}
           </div>
-          <div className={meterCardStyles.challengeList}>
+          <div className={meterCardStyles.challengeList} style={{ "--challenge-color": activeDashboardChallengeCategory.color, "--challenge-soft": activeDashboardChallengeCategory.soft } as CSSProperties}>
             <div className={meterCardStyles.challengeCategoryTitle}>
               <h3 style={{ color: activeDashboardChallengeCategory.color }}>
                 <ActiveDashboardChallengeCategoryIcon aria-hidden="true" />
                 {activeDashboardChallengeCategory.label}
               </h3>
-              <span>{dashboardTrackedChallenges.length} tracked</span>
             </div>
-            {dashboardTrainingConstellationChallenges.map((challenge, index) => (
-              <div
-                className={meterCardStyles.challengeItem}
-                key={challenge.label}
-                style={{
-                  "--challenge-color": activeDashboardChallengeCategory.color,
-                  "--challenge-soft": activeDashboardChallengeCategory.soft,
-                } as CSSProperties}
-              >
-                <h4><span>{String(index + 1).padStart(2, "0")}</span>{challenge.label}</h4>
-                <p>{challenge.detail}</p>
-                <div className={meterCardStyles.challengeProgress}>
-                  <span>{challenge.reward}</span>
-                  <strong>{challenge.progress === null ? "Not tracked" : Math.round(challenge.progress) + "%"}</strong>
-                  {challenge.progress !== null ? <progress aria-label={challenge.label + ": " + challenge.detail} max={100} value={challenge.progress} /> : null}
-                </div>
-              </div>
-            ))}
+            <ChallengeSetProgress key={activeDashboardChallengeCategory.id} category={activeDashboardChallengeCategory.id} />
           </div>
-          <dl className={meterCardStyles.stats}>
-            <div><dt>Avg progress</dt><dd>{dashboardChallengeAverageProgress === null ? "Unavailable" : dashboardChallengeAverageProgress + "%"}</dd></div>
-            <div><dt>Tracked</dt><dd>{dashboardTrackedChallenges.length}</dd></div>
-            <div><dt>Categories</dt><dd>{dashboardChallengeCategories.length}</dd></div>
-          </dl>
+
           <footer className={meterCardStyles.footer}>
             <Link href={ROUTES.dashboard.progress} onClick={(event) => event.stopPropagation()}>
               Review recorded progress<ChevronRight aria-hidden="true" />
