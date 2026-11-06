@@ -33,10 +33,10 @@ test('saves are account guarded, retry safe, and preserve damaged records', () =
   assert.equal(writes, 1);
 });
 test('meter evidence uses actual daily records, keeps zero sets, and excludes future records', () => {
-  const health = { latestCheckIn: null, reportedCalories: null, recordedWaterMl: null };
+  const health = { latestCheckIn: null, nutritionIssue: '', checkInDays: [{ date: '2026-11-03', sleep: 8, core: 0 }, { date: '2026-11-04', sleep: 2 }] };
   const evidence = load('lib/planning/bodyCommandEvidence.ts', { './dashboardHealthEvidence': { readDashboardHealthEvidence: () => health }, './store': { planningSnapshot: () => ({}) }, './dates': dates, './supportSignalValidation': schema });
   const base = { date: '2026-11-03', notes: '', recordedAt: '2026-11-03T12:00:00Z' };
   const rows = [{ ...base, id: 'sleep', kind: 'sleep', value: 8 }, { ...base, id: 'core', kind: 'core', value: 0 }, { ...base, id: 'later', date: '2026-11-04', kind: 'sleep', value: 2 }];
   const actual = evidence.readBodyCommandEvidence(new Date('2026-11-03T20:00:00Z'), { [schema.SUPPORT_RECORDS_KEY]: rows });
-  assert.equal(actual.sleep.value, '8/10'); assert.equal(actual.core.value, '0'); assert.equal(actual.core.recorded, true); assert.equal(actual.fatigue.recorded, false);
+  assert.equal(actual.sleep.value, '8/10'); assert.equal(actual.core.value, '0 sets'); assert.equal(actual.core.recorded, true); assert.equal(actual.fatigue.recorded, false);
 });
