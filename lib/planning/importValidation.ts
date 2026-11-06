@@ -3,6 +3,7 @@ import { validWorkoutTargets } from "./workoutTargets";
 import { validDateOnly, activityTimestamp, localDate } from "./dates";
 import { validMealDraft, validMealEntry } from "./mealValidation";
 import { validMealTemplate } from "./mealTemplateValidation";
+import { SUPPORT_RECORDS_KEY, validSupportHistory } from "./supportSignalValidation";
 
 const record = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === "object" && !Array.isArray(value));
 const text = (value: unknown) => typeof value === "string" && Boolean(value.trim());
@@ -42,6 +43,7 @@ export function validatePlanningImport(values: Record<string, unknown>): string 
       const items = Array.isArray(value) ? value : record(value) ? value.items : null;
       valid = objects(items) && uniqueIds(items) && items.every(item => text(item.id) && text(item.title));
     }
+    else if (key === SUPPORT_RECORDS_KEY) valid = validSupportHistory(value);
     else if (key === "soundFitnessMealDraft") valid = validMealDraft(value);
     else if (key === "soundFitnessMealTemplates") valid = objects(value) && value.length <= 100 && uniqueIds(value) && value.every(validMealTemplate);
     else if (key === "soundFitnessMealEntries") valid = objects(value) && uniqueIds(value) && value.every(validMealEntry);

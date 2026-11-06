@@ -2109,6 +2109,15 @@ For visual edits, use the running app at `http://localhost:3000`, verify the aff
 - Moved PlanningProvider status, sync/retry, import and backup controls from above the member header into a closed Data & backups disclosure after page content. Kept account-keyed page state, initialization, sync operations and recovery controls intact.
 - Verified the actual return markup renders the header first, keeps details closed and retains export controls; targeted lint clean. Production build/deployment verification follows the scoped commit.
 
+
 ## Angles browser app — 2026-10-27
 
 - `/angles` is the native-inspired browser implementation, not a mock. `app/angles/` owns its UI; `lib/angles/` ports squat counting and validated account-separated browser History. `/angles-assets/` self-hosts the native videos, model and pinned MediaPipe worker runtime. See `docs/angles-web.md` for scope and verification. Native Android remains in its existing repository.
+
+## App-focused administration — 2026-10-30
+
+- `/admin` retains its shared header, row navigation, compact sizing, and embedded preview. `components/dashboard/AppAdminRows.tsx` now owns its nine app-focused panels; `lib/appAdmin.ts` defines their labels and product catalog. The old business row definitions remain in source for compatibility but are not rendered in this admin; legacy website directory loading/writing effects were removed from DashboardExperience. Website data and local legacy records were not deleted.
+- `/api/admin/app-center` is a private, no-store, read-only report gated by verified admin identity and enrolled MFA. Account evidence is limited to planning_documents identifiers/timestamps and angles_accounts enrollment, joined to profile identity; it does not read training payloads or infer app membership from website leads/Stripe customers. Requires the server service-role connection; the current local environment lacks it. Coverage excludes accounts without recorded evidence, and source failures/truncation are explicit.
+- Billing matches exact configured APP_PLANS price IDs, excluding ambiguous mappings and business/mixed checkout carts. Reports subscription statuses and paid initial checkouts by currency, not business profit, recurring revenue, refund-adjusted revenue, or in-home sales. Reads are bounded and partial results are marked. Current local billing connects Online Coaching; App Only and Hybrid price connections are missing.
+- Product/content/support cards link to existing member/coach workspaces and describe pending companion/shared admin workflows. Announcement drafts save only on this device under the current admin account; they are not sent/published. Catalog synchronization, global support inbox, shared content publishing/audit controls, and bundle fulfillment remain unconnected.
+- Business lifetime earnings and editable debt-to-income controls were removed from this app admin header. The member dashboard remains on its existing rendering path.

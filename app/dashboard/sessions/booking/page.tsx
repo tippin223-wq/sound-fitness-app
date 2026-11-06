@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { loadMemberSchedule, type MemberSession, type SessionBalances } from "@/lib/member-services";
+import SessionVideoCall from "@/components/dashboard/SessionVideoCall";
+import { onlineVideoSession } from "@/lib/videoCallPolicy";
 
 export default function BookingPage() {
   const [sessions, setSessions] = useState<MemberSession[]>([]);
@@ -18,7 +20,7 @@ export default function BookingPage() {
   useEffect(() => { void refresh(); }, [refresh]);
   const upcoming = sessions.filter(session => ["scheduled", "pending_approval"].includes(session.status) && new Date(session.starts_at).getTime() >= checkedAt).sort((a, b) => a.starts_at.localeCompare(b.starts_at));
   const history = sessions.filter(session => !upcoming.some(item => item.id === session.id));
-  const renderSession = (session: MemberSession) => <article key={session.id} className="space-y-2 rounded-2xl border border-white/10 bg-slate-950/60 p-4"><h3 className="font-bold">{session.service_type || "Coaching session"}</h3><p>{new Date(session.starts_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })} · {session.duration_minutes} minutes</p><p className="text-sm text-slate-300">{[session.coach_name, session.location, session.status.replaceAll("_", " ")].filter(Boolean).join(" · ")}</p></article>;
+  const renderSession = (session: MemberSession) => <article key={session.id} className="space-y-2 rounded-2xl border border-white/10 bg-slate-950/60 p-4"><h3 className="font-bold">{session.service_type || "Coaching session"}</h3><p>{new Date(session.starts_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })} · {session.duration_minutes} minutes</p><p className="text-sm text-slate-300">{[session.coach_name, session.location, session.status.replaceAll("_", " ")].filter(Boolean).join(" · ")}</p>{onlineVideoSession(session.service_type, session.status) && <SessionVideoCall sessionId={session.id} startsAt={session.starts_at} />}</article>;
   return <main className="min-h-screen bg-slate-950 px-5 py-8 text-white"><section className="mx-auto max-w-5xl space-y-6">
     <div className="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-6"><p className="text-xs uppercase tracking-widest text-cyan-300">Your coaching schedule</p><h1 className="text-4xl font-bold">Sessions & booking</h1><p className="text-slate-300">Your app and website use the same booked sessions and package balances. Times below are shown in your device’s timezone.</p><div className="flex flex-wrap gap-3"><a href="https://thesoundfitness.com/client-hub" target="_blank" rel="noopener noreferrer" className="rounded-xl bg-cyan-300 px-4 py-3 font-bold text-slate-950">Book or manage on website</a><button type="button" disabled={loading} onClick={() => void refresh()} className="rounded-xl border border-white/20 px-4 py-3">Refresh schedule</button></div><p className="text-sm text-slate-400">The website checks availability, package eligibility, and change policies when you book. You may need to sign in there.</p></div>
     {loading && <p role="status">Loading your sessions…</p>}{error && <p role="alert" className="text-rose-300">{error}</p>}

@@ -7,7 +7,7 @@ export default function AdminHomePage() {
         <iframe
           className="block w-full border-0 bg-[#020713]"
           src={ROUTES.admin.mainDashboardPreview}
-          style={{ height: "100dvh", minHeight: "720px" }}
+          style={{ height: "100dvh" }}
           title="Main dashboard preview"
         />
       </section>

@@ -1,5 +1,57 @@
 .card { container: body-card / size; }
 
+/* Extrude the arrow itself so existing button footprints stay unchanged. */
+.card button > :global(.lucide-chevron-left),
+.card button > :global(.lucide-chevron-right),
+.card button > :global(.lucide-chevron-up),
+.card button > :global(.lucide-chevron-down) {
+  stroke-width: 2.8;
+  overflow: visible;
+  translate: 0 -1px;
+  filter: drop-shadow(0 1px 0 #4e8192) drop-shadow(0 1px 0 #204353) drop-shadow(0 2px 2px rgba(0,0,0,.65)) drop-shadow(0 0 4px rgba(103,232,249,.25));
+  transition: translate 100ms ease-out, scale 100ms ease-out, filter 100ms ease-out;
+}
+.card button:not(:disabled):hover > :global(.lucide[class*="lucide-chevron-"]) {
+  filter: drop-shadow(0 1px 0 #76a6b4) drop-shadow(0 1px 0 #315f70) drop-shadow(0 2px 2px rgba(0,0,0,.6)) drop-shadow(0 0 6px rgba(103,232,249,.55));
+}
+.card button:not(:disabled):active > :global(.lucide[class*="lucide-chevron-"]) {
+  translate: 0 1px;
+  scale: .88;
+  filter: drop-shadow(0 1px 0 #204353) drop-shadow(0 0 3px rgba(103,232,249,.6));
+}
+@media (prefers-reduced-motion: reduce) {
+  .card button > :global(.lucide[class*="lucide-chevron-"]) { transition: none; }
+}
+
+/* Active faces gain a luminous rim and a slow glass reflection without
+   changing their size or animating costly blur/shadow properties. */
+.activeLoader::before,
+.activeLoader::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+}
+.activeLoader::before {
+  inset: 3px;
+  border: 1px solid color-mix(in srgb, var(--loader-accent, currentColor) 75%, white);
+  box-shadow: inset 0 0 8px color-mix(in srgb, var(--loader-accent, currentColor) 28%, transparent);
+  opacity: .65;
+}
+.activeLoader::after {
+  inset: 7px;
+  background: linear-gradient(140deg, rgba(255,255,255,.32), transparent 38%, transparent 70%, color-mix(in srgb, var(--loader-accent, currentColor) 25%, transparent));
+  opacity: .45;
+  animation: activeLoaderShimmer 3.6s ease-in-out infinite;
+}
+@keyframes activeLoaderShimmer {
+  0%, 100% { opacity: .25; }
+  50% { opacity: .7; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .activeLoader::after { animation: none; opacity: .4; }
+}
+
 .contentGrid,
 .bodyStageGrid,
 .supportSignalsHost {
@@ -20,44 +72,155 @@
 
 .avatarViewport {
   min-width: 0;
+  border-radius: 0;
+  background:
+    radial-gradient(ellipse 28% 3% at 50% 96%, rgba(0, 0, 0, .48), transparent 100%),
+    radial-gradient(ellipse 38% 5% at 50% 97%, rgba(125, 211, 252, .14), transparent 100%),
+    radial-gradient(ellipse 46% 48% at 50% 40%, rgba(125, 211, 252, .11), transparent 100%) !important;
+  box-shadow: none;
 }
 
 .coolnessLegend {
+  position: relative;
   overflow: visible;
+  margin-left: 0;
+  width: 100%;
+  justify-content: center;
 }
+.fatigueBarShell { position: relative; flex: 1; min-width: 0; padding: 4px 8px 2px; }
+.fatigueInfo { position: absolute; top: 0; left: 0; display: grid; place-items: center; width: 22px; height: 22px; color: #a5f3fc; border-radius: 50%; background: radial-gradient(circle, rgba(34,211,238,.16), transparent 72%); }
+.fatigueInfo:focus-visible { outline: 2px solid #67e8f9; }
+.fatigueBar { position: relative; display: flex; gap: 2px; height: 13px; margin-top: 5px; padding: 2px; border-radius: 5px; background: linear-gradient(#020617,#183544); box-shadow: inset 0 2px 4px #000, 0 2px 0 #12212e, 0 3px 0 #020617, 0 0 10px rgba(103,232,249,.12); }
+.fatigueBarSegment, .fatigueBarLabel { --fatigue-rgb: 148,163,184; }
+.fatigueBarSegment[data-status="cool"], .fatigueBarLabel[data-status="cool"] { --fatigue-rgb: 110,231,183; }
+.fatigueBarSegment[data-status="halfway"], .fatigueBarLabel[data-status="halfway"] { --fatigue-rgb: 252,211,77; }
+.fatigueBarSegment[data-status="prime"], .fatigueBarLabel[data-status="prime"] { --fatigue-rgb: 251,146,60; }
+.fatigueBarSegment[data-status="overworked"], .fatigueBarLabel[data-status="overworked"] { --fatigue-rgb: 248,113,113; }
+.fatigueBarSegment { flex: 1; border-radius: 2px; background: linear-gradient(rgba(var(--fatigue-rgb),.6),rgba(var(--fatigue-rgb),.22)); box-shadow: inset 0 1px 0 rgba(255,255,255,.25); }
+.fatigueBarSegment[data-current="true"] { background: linear-gradient(rgba(var(--fatigue-rgb),1),rgba(var(--fatigue-rgb),.55)); box-shadow: inset 0 1px 0 #ffffff80, 0 0 7px rgba(var(--fatigue-rgb),.5); }
+.fatigueBarMarker { position: absolute; top: -3px; bottom: -3px; width: 2px; translate: -50% 0; background: #e0faff; box-shadow: 0 0 4px #67e8f9; border-radius: 2px; transition: left 300ms ease; }
+.fatigueBarLabel { margin-top: 4px; text-align: center; font-size: 8px; font-weight: 900; line-height: 1; text-transform: uppercase; color: rgb(var(--fatigue-rgb)); }
+@media (prefers-reduced-motion: reduce) { .fatigueBarMarker { transition: none; } }
+.fatigueHeading { position: absolute; top: 0; left: var(--fatigue-label-center, calc(50% - 6px)); width: max-content; transform: translateX(-50%); text-align: center; font-size: 6px; font-weight: 800; line-height: 1; letter-spacing: .025em; text-transform: uppercase; color: #c8e6ed; text-shadow: 0 1px 3px #020617, 0 0 5px rgba(103,232,249,.3); pointer-events: none; white-space: nowrap; }
 
 .coolnessRail {
+  position: relative;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 6px;
   /* The longest active status is "Overworked" (~83px at this size). Keep the
      active slot wider than that even when the avatar column gets pinched. */
   flex: 0 1 auto;
   max-width: 100%;
   min-width: min(100%, 96px);
-  overflow-y: visible;
+  /* Horizontal scrollers also clip the cross axis. Reserve real paint room
+     inside the scroller, then offset it without moving the legend row. */
+  padding-block: 7px;
+  margin-block: -7px;
+  overflow-y: hidden;
   width: max-content;
 }
 
 .coolnessItem {
+  --fatigue-rgb: 148, 163, 184;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
   white-space: nowrap;
+  padding-inline: 6px;
+  color: rgb(var(--fatigue-rgb)) !important;
+}
+.coolnessItem[data-status="cool"] { --fatigue-rgb: 110, 231, 183; }
+.coolnessItem[data-status="halfway"] { --fatigue-rgb: 252, 211, 77; }
+.coolnessItem[data-status="prime"] { --fatigue-rgb: 251, 146, 60; }
+.coolnessItem[data-status="overworked"] { --fatigue-rgb: 248, 113, 113; }
+.coolnessRail[data-all-fit="false"] .coolnessItem {
+  flex: 0 0 100%;
+  min-width: 0 !important;
+  justify-content: center;
+  min-height: 22px;
+  box-sizing: border-box;
+}
+.coolnessRail[data-all-fit="false"] { flex: 1 1 0; width: 100%; }
+
+.fatigueHeading { font-size: 7px; text-decoration: none; }
+.fatigueHeading::after {
+  content: ""; position: absolute; left: 8%; right: 8%; top: calc(100% + 3px); height: 4px;
+  background: linear-gradient(90deg, transparent, #67e8f9 22%, #e0faff 50%, #67e8f9 78%, transparent);
+  clip-path: polygon(0 0, 42% 0, 50% 55%, 58% 0, 100% 0, 88% 45%, 58% 45%, 50% 100%, 42% 45%, 12% 45%);
+}
+.fatigueHeading::before {
+  content: ""; position: absolute; inset: 1px -10px -8px; z-index: -1; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 75%, rgba(34,211,238,.35), transparent 72%); filter: blur(3px);
+}
+.coolnessItem { font-size: 9px; }
+
+.coolnessItem[data-average="true"] {
+  border-radius: 5px;
+  background: linear-gradient(135deg, rgba(var(--fatigue-rgb), .3), rgba(var(--fatigue-rgb), .12));
+  box-shadow: inset 0 0 0 1px rgba(var(--fatigue-rgb), .5), 0 0 5px rgba(var(--fatigue-rgb), .2);
+  color: rgb(var(--fatigue-rgb)) !important;
+  filter: none;
+  text-shadow: 0 0 4px rgba(224, 250, 255, .35);
 }
 
-.coolnessDot {}
+.coolnessDot {
+  --readiness-light: 251, 191, 36;
+  background: rgb(var(--readiness-light)) !important;
+  box-shadow: 0 0 6px rgba(var(--readiness-light), .65) !important;
+}
+.coolnessItem:not([data-average="true"]) { background: transparent; box-shadow: none; border-color: transparent; text-shadow: none; filter: none; }
+.coolnessItem:not([data-average="true"]) .coolnessDot { visibility: hidden; }
+.coolnessItem[data-status="halfway"] .coolnessDot { --readiness-light: 163, 230, 53; }
+.coolnessItem[data-status="prime"] .coolnessDot { --readiness-light: 74, 222, 128; }
+.coolnessItem[data-status="untrained"] .coolnessDot {
+  --readiness-light: 251, 113, 133;
+  background: transparent !important;
+  border: 1.5px solid rgb(var(--readiness-light));
+  box-sizing: border-box;
+}
+.coolnessItem[data-status="overworked"] .coolnessDot { --readiness-light: 239, 68, 68; }
+.coolnessItem[data-status="untrained"][data-average="true"] .coolnessDot {
+  animation: untrainedReminder 2s ease-in-out infinite;
+}
+.coolnessItem[data-status="overworked"][data-average="true"] .coolnessDot {
+  animation: overworkedReminder 2.4s ease-in-out infinite;
+}
+@keyframes untrainedReminder {
+  0%, 100% { opacity: .35; }
+  50% { opacity: 1; }
+}
+@keyframes overworkedReminder {
+  0%, 36%, 100% { opacity: .3; }
+  12%, 25% { opacity: 1; }
+  19% { opacity: .45; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .coolnessItem[data-average="true"] .coolnessDot { animation: none; opacity: 1; }
+}
+
+/* Keep the status whole between the two controls; neighboring statuses must
+   not leave stray clipped dots or letters at the edge of the viewport. */
+.coolnessLegend > .avatarAction { width: 36px; min-width: 36px; }
+.coolnessRail[data-all-fit="false"] .coolnessItem:not([aria-current="true"]) { opacity: 0; pointer-events: none; }
 
 @container body-card (max-width: 520px) {
   .coolnessLegend {
     gap: 0.25rem !important;
     padding-right: 0 !important;
+    width: calc(100% + 16px);
+    margin-inline: -8px;
   }
 
   .coolnessRail {
     gap: 0.25rem !important;
-    min-width: 0;
+    min-width: 88px;
   }
 
   .coolnessItem {
-    font-size: 6px !important;
+    font-size: 8px !important;
+    min-width: 76px;
     gap: 0.2rem !important;
     letter-spacing: 0.045em !important;
-    padding-inline: 1px !important;
+    padding-inline: 6px !important;
   }
 
   .coolnessDot {
@@ -100,6 +263,7 @@
   overflow-x: auto !important;
   overflow-y: visible;
   padding-top: calc(var(--body-support-cap-clearance) + 4px) !important;
+  padding-bottom: 12px;
 }
 
 .supportSignalCard {
@@ -134,8 +298,20 @@
 
 .supportSignalStatus {}
 
+/* Reserve a slim left rail, leaving the full stage height for the athlete. */
+.avatarPicker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 4px;
+}
+
 .avatarActions {
-  transform-origin: 50% 50%;
+  position: absolute;
+  inset: 8px 0 auto;
+  min-width: 0;
+  justify-content: space-between;
+  pointer-events: none;
 }
 
 .commandHeader,
@@ -175,7 +351,7 @@
   .avatarViewport {
     height: 100% !important;
     min-height: 0 !important;
-    padding-top: clamp(0.5rem, 3cqw, 1.25rem) !important;
+    padding-top: 0 !important;
   }
 
   .categoryRing {
@@ -232,18 +408,9 @@
 
 @container body-card (min-width: 520px) and (max-width: 699px) {
   .avatarViewport {
-    padding-top: 0.15rem !important;
+    padding-top: 0 !important;
   }
 
-  .avatarActions {
-    align-items: center !important;
-    flex-direction: column !important;
-    gap: 0 !important;
-    inset-inline: auto !important;
-    left: calc(50% - clamp(70px, 19cqw, 92px)) !important;
-    top: 50% !important;
-    transform: translateY(-50%);
-  }
 }
 
 @media (min-height: 620px) {
@@ -285,18 +452,9 @@
 
 @media (min-width: 640px) and (max-height: 700px) {
   .avatarViewport {
-    padding-top: 0.15rem !important;
+    padding-top: 0 !important;
   }
 
-  .avatarActions {
-    align-items: center !important;
-    flex-direction: column !important;
-    gap: 0 !important;
-    inset-inline: auto !important;
-    left: calc(50% - clamp(70px, 19vw, 92px)) !important;
-    top: 50% !important;
-    transform: translateY(-50%);
-  }
 }
 
 /* Keep the short phone layout's heading and support strip from consuming
@@ -345,18 +503,9 @@
   }
 
   .avatarViewport {
-    padding-top: 0.15rem !important;
+    padding-top: 0 !important;
   }
 
-  .avatarActions {
-    align-items: center !important;
-    flex-direction: column !important;
-    gap: 0 !important;
-    inset-inline: auto !important;
-    left: calc(50% - clamp(70px, 19cqw, 92px)) !important;
-    top: 50% !important;
-    transform: translateY(-50%);
-  }
 
   .controlsHost {
     min-width: 0 !important;
@@ -398,7 +547,7 @@
   }
 }
 
-@container body-card (min-width: 520px) and (max-height: 560px) {
+@container body-card (min-width: 440px) and (max-height: 560px) {
   .contentGrid {
     --body-control-ring-size: clamp(66px, min(16cqh, 15cqw), 74px);
     --body-control-slot-size: calc(var(--body-control-ring-size) + 8px);
@@ -475,19 +624,9 @@
   .avatarViewport {
     height: 100% !important;
     min-height: 0 !important;
-    padding-top: 0.15rem !important;
+    padding-top: 0 !important;
   }
 
-  .avatarActions {
-    align-items: center !important;
-    flex-direction: column !important;
-    gap: 0 !important;
-    inset-inline: auto !important;
-    left: calc(50% - clamp(70px, 19cqw, 92px)) !important;
-    top: 50% !important;
-    transform: translateY(-50%);
-    transform-origin: 50% 50%;
-  }
 
   .controlsHost {
     grid-column: 2 !important;
@@ -571,7 +710,9 @@
   }
 
   .supportSignalStatus span {
-    display: none;
+    display: block;
+    margin-top: 2px;
+    white-space: nowrap;
   }
 }
 
@@ -616,6 +757,46 @@
 
 .categorySelector {
   flex-shrink: 0;
+}
+.categoryTrio { position: relative; display: grid !important; grid-template-columns: minmax(0,1fr); width: 100%; box-sizing: border-box; transform: none !important; }
+.categoryTrio > .categoryRing { grid-column: 1; grid-row: 1; justify-self: center; }
+.categoryRing { min-width: 0; }
+.categoryRing > span { min-width: 0; width: 100%; }
+.categoryTrio > .categoryPreview { position: absolute; top: 50%; translate: 0 -50%; }
+.categoryTrio > .categoryPreview:first-child { right: calc(50% + var(--control-ring-size, var(--body-control-ring-size, 72px)) / 2 + 6px); }
+.categoryTrio > .categoryPreview:last-child { left: calc(50% + var(--control-ring-size, var(--body-control-ring-size, 72px)) / 2 + 6px); }
+.categoryBody { overflow-x: clip; overflow-y: visible; }
+.compactMuscleRail { overflow: clip !important; }
+
+.musclePortalStage { display: flex; flex: 1; min-width: 0; min-height: 0; }
+.muscleLoaderBody::after {
+  content: ""; position: absolute; pointer-events: none; z-index: 4;
+  top: calc(var(--body-control-ring-size, 72px) + 10px); left: 50%;
+  width: min(90%, 110px); height: 15px; border-radius: 50%;
+  background: radial-gradient(ellipse, #000 35%, #02040b 55%, rgba(103,232,249,.65) 65%, transparent 75%);
+  box-shadow: 0 0 15px rgba(56,189,248,.3);
+  transform: translateX(-50%) scale(.2); opacity: 0;
+  transition: opacity 220ms ease, transform 260ms ease;
+}
+.musclePortalStage:not([data-muscle-transition="idle"]) .muscleLoaderBody::after { opacity: 1; transform: translateX(-50%) scale(1); }
+.muscleLoaderBody > div { animation: none !important; transform-origin: 50% calc(var(--body-control-ring-size, 72px) + 16px); transition: transform 600ms cubic-bezier(.4,0,.25,1), opacity 600ms ease; transform: translate3d(0,0,0) scale(1); }
+.musclePortalStage:not([data-muscle-transition="idle"]) .muscleLoaderBody > div { will-change: transform, opacity; }
+.musclePortalStage[data-muscle-transition="exiting"] .muscleLoaderBody > div,
+.musclePortalStage[data-muscle-transition="hidden"] .muscleLoaderBody > div { transform: translate3d(0,24px,0) scale(.08,.035); opacity: 0; pointer-events: none; }
+.musclePortalStage[data-muscle-transition="entering"] .muscleLoaderBody > div { transition-duration: 750ms; }
+@keyframes musclePortalExit { to { transform: translateY(45px) scale(.12,.05); opacity: 0; } }
+@keyframes musclePortalEnter { from { transform: translateY(45px) scale(.12,.05); opacity: 0; } to { transform: none; opacity: 1; } }
+.portalParticles { position: absolute; left: 50%; top: calc(var(--body-control-ring-size, 72px) + 2px); width: 72px; height: 32px; transform: translateX(-50%); overflow: clip; z-index: 5; pointer-events: none; }
+.portalParticles > span { position: absolute; left: 50%; top: 50%; width: 2px; height: 2px; border-radius: 50%; background: #a5f3fc; box-shadow: 0 0 3px #22d3ee; opacity: 0; }
+.musclePortalStage[data-muscle-transition="exiting"] .portalParticles > span { animation: portalParticleIn 550ms ease-in both; animation-delay: var(--particle-delay); }
+.musclePortalStage[data-muscle-transition="entering"] .portalParticles > span { animation: portalParticleOut 650ms ease-out both; animation-delay: var(--particle-delay); }
+@keyframes portalParticleIn { from { opacity: .9; transform: translate(var(--particle-x), var(--particle-y)) scale(1); } to { opacity: 0; transform: translate(0,0) scale(.1); } }
+@keyframes portalParticleOut { from { opacity: 1; transform: translate(0,0) scale(.3); } to { opacity: 0; transform: translate(var(--particle-x), var(--particle-y)) scale(.1); } }
+@media (prefers-reduced-motion: reduce) {
+  .muscleLoaderBody::after { display: none; }
+  .portalParticles { display: none; }
+  .musclePortalStage .muscleLoaderBody > div { animation: none !important; }
+  .muscleLoaderBody > div { transition: none; }
 }
 
 .compactMuscles,
@@ -674,7 +855,7 @@
 @keyframes bodyControlScrollLeft {
   0% {
     opacity: 0.72;
-    transform: translateX(18px) scale(0.985);
+    transform: scale(0.97);
   }
   100% {
     opacity: 1;
@@ -685,7 +866,7 @@
 @keyframes bodyControlScrollRight {
   0% {
     opacity: 0.72;
-    transform: translateX(-18px) scale(0.985);
+    transform: scale(0.97);
   }
   100% {
     opacity: 1;
@@ -762,10 +943,14 @@
 
   .categorySelector > :first-child { flex-shrink: 0; }
   .categoryBody { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-  .categoryTrio { flex: 1; min-height: 0; padding: 4px 0; }
+  .categoryTrio { flex: 0 0 auto; min-height: 0; padding: 4px 0; }
   .categoryPreview { display: none; }
   .categoryRing { width: var(--control-ring-size) !important; height: var(--control-ring-size) !important; }
-  .compactMuscleRail { grid-template-columns: var(--body-control-slot-size) !important; }
+  .compactMuscleRail {
+    grid-template-columns: var(--body-control-slot-size) !important;
+    grid-auto-rows: var(--body-control-slot-size);
+    align-content: start !important;
+  }
   .compactMuscles button[aria-haspopup="dialog"] {
     width: var(--control-ring-size) !important;
     height: var(--control-ring-size) !important;
@@ -777,3 +962,192 @@
   .categorySelector > :first-child,
   .compactMuscles > div > :first-child { margin-bottom: 2px; }
 }
+
+/* A small illuminated environment, contained within the existing stage. */
+.avatarEnvironment {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 54% 55% at 50% 43%, rgba(56,189,248,.28), transparent 85%),
+    linear-gradient(100deg, transparent 18%, rgba(165,243,252,.1) 23%, transparent 29%),
+    linear-gradient(80deg, transparent 68%, rgba(56,189,248,.12) 75%, transparent 82%);
+  mask-image: linear-gradient(transparent, black 14%, black 92%, transparent);
+}
+.avatarEnvironment::before {
+  content: "";
+  position: absolute;
+  inset: 8% 12% 9%;
+  border: 1px solid rgba(125,211,252,.24);
+  border-bottom-color: transparent;
+  border-radius: 50% 50% 18% 18%;
+  box-shadow: inset 0 0 22px rgba(56,189,248,.12), 0 0 16px rgba(56,189,248,.09);
+}
+.avatarEnvironment::after {
+  content: "";
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: 2%;
+  height: 8%;
+  border-radius: 50%;
+  border: 1px solid rgba(165,243,252,.48);
+  background: radial-gradient(ellipse, rgba(125,211,252,.24), rgba(8,47,73,.32) 60%, transparent 72%);
+  box-shadow: 0 0 18px rgba(56,189,248,.23), inset 0 0 10px rgba(165,243,252,.18);
+}
+
+/* Body portal: the wheel never changes the avatar/card layout. */
+.emotePicker {
+  position: fixed;
+  right: 12px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  width: min(230px, calc(100vw - 24px), calc(100dvh - 140px));
+  aspect-ratio: 1;
+  overflow: visible;
+  border: 1px solid rgba(165,243,252,.26);
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(165,243,252,.12), rgba(15,23,42,.32));
+  backdrop-filter: blur(18px) saturate(135%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 6px 18px rgba(0,0,0,.18);
+  z-index: 1500;
+  color: #cffafe;
+}
+.emoteOption {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 48px;
+  width: 48px;
+  min-width: 48px;
+  padding: 6px 2px;
+  border-radius: 50%;
+  line-height: 1.2;
+  white-space: nowrap;
+  font-size: 8px;
+}
+
+.avatarActions > button { pointer-events: auto; }
+.avatarActions > button:first-child { justify-self: start; }
+.emoteTrigger { justify-self: end; }
+
+.avatarAction {
+  --avatar-action-rgb: 251, 191, 110;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 48px;
+  min-width: 48px;
+  height: 58px;
+  padding: 7px 3px;
+  border: 0;
+  border-radius: 50%;
+  color: rgb(var(--avatar-action-rgb));
+  background: transparent;
+  isolation: isolate;
+  cursor: pointer;
+}
+.avatarAction[data-tone="cyan"] { --avatar-action-rgb: 116, 225, 239; }
+.avatarAction[data-tone="green"] { --avatar-action-rgb: 110, 231, 183; }
+.avatarBackgroundAction { width: 44px; min-width: 44px; height: 44px; padding: 0; flex-shrink: 0; }
+.fatigueAction > svg { position: absolute; top: 50%; transform: translateY(-50%); }
+.fatigueAction > .avatarActionLabel { position: absolute; top: calc(50% + 12px); }
+.avatarAction::before {
+  content: "";
+  position: absolute;
+  inset: -13px -16px;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(2, 9, 18, .7) 8%, rgba(var(--avatar-action-rgb), .34) 31%, rgba(var(--avatar-action-rgb), .2) 49%, transparent 73%);
+  filter: blur(8px);
+  opacity: .95;
+  transition: opacity 150ms ease;
+}
+.avatarAction:hover::before,
+.avatarAction[aria-expanded="true"]::before {
+  opacity: 1;
+}
+.avatarAction:active::before { opacity: .65; }
+.avatarAction:focus-visible { outline: 2px solid rgb(var(--avatar-action-rgb)); outline-offset: 3px; }
+.avatarActionIcon { width: 21px; height: 21px; filter: drop-shadow(0 0 5px rgba(var(--avatar-action-rgb), .26)); }
+.avatarActionLabel { font-size: 7px; font-weight: 800; line-height: 1; letter-spacing: .07em; text-transform: uppercase; }
+@media (prefers-reduced-motion: reduce) { .avatarAction::before { transition: none; } }
+
+.commandHeader { flex-direction: column; gap: 2px; }
+.commandSummarySlot { width: 100%; }
+
+/* Raised hands may paint above the stage without resizing the athlete. */
+.avatarStage, .avatarViewport, .avatarPicker { overflow: visible; }
+
+/* Lab floor is rendered in 3D at the feet rather than pinned to the image edge. */
+:global([data-avatar-lab-preview]) .avatarEnvironment::after { display: none; }
+
+/* The rail owns scrolling; its wrapper must not crop the ring's glow. */
+.supportSignalViewport {
+  overflow: visible !important;
+}
+
+/* Fill the card's content width; only the actual scroll rail clips at its edges. */
+.supportSignalViewport {
+  margin-inline: 0;
+  padding-inline: 0;
+}
+
+/* Use the remaining card height explicitly, without percentage-height grid
+   children or display:contents changing the placement of the support rail. */
+.contentGrid {
+  display: flex !important;
+  flex-direction: column;
+  flex: 1 1 0%;
+  min-height: 0;
+}
+.bodyStageGrid {
+  display: grid !important;
+  flex: 1 1 0%;
+  height: auto !important;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr) clamp(112px, 28cqw, 260px) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+  align-items: stretch;
+}
+.avatarStage {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  height: auto !important;
+  grid-template-rows: minmax(0, 1fr) auto !important;
+}
+.controlsHost {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  transform: none !important;
+}
+.supportSignalsHost {
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 0 !important;
+  border-left: 0;
+  padding-inline: 0 !important;
+}
+
+.commandHeader { flex: 0 0 auto; }
+.commandSummarySlot { flex: 0 0 auto !important; max-width: 100% !important; }
+
+/* Prevent focus or wheel scrolling from shifting the fixed compact loader. */
+.card .compactMuscleRail { overflow: clip !important; }
+
+.fatigueBarSegment { padding: 0; border: 0; cursor: help; min-width: 0; }
+.fatigueBarSegment:focus-visible { outline: 2px solid #e0faff; outline-offset: 2px; }
+.fatigueBarMarker { pointer-events: none; }
+.fatigueTooltip { position: absolute; bottom: calc(100% + 4px); left: 0; right: 0; z-index: 30; padding: 8px 10px; border: 1px solid #67e8f955; border-radius: 9px; background: #071522f5; color: #e0f2fe; font-size: 10px; line-height: 1.4; text-align: center; box-shadow: 0 4px 18px #0008; pointer-events: none; }

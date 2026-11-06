@@ -47,6 +47,11 @@ export default function OffscreenAnimationPauser() {
     let stopped = false;
 
     const sweep = () => {
+      // Global animation enumeration forces style/layout. Do it after header
+      // gestures settle, rather than competing with a click or slide frame.
+      const header = document.querySelector<HTMLElement>(".dashboard-header-vortex-shell");
+      if (header?.dataset.headerTransitioning === "true" || header?.dataset.headerFocusFlipping === "true") return;
+      const headerHoldsContent = header?.dataset.headerFocus === "header";
       // Cache visibility per element for this sweep — many animations share a
       // target/ancestors, and getComputedStyle forces a style flush.
       const visCache = new Map<Element, boolean>();
@@ -219,7 +224,8 @@ export default function OffscreenAnimationPauser() {
           continue;
         }
 
-        if (isHidden(target, selfOpacityIsAnimated(target))) {
+        const contentHeld = headerHoldsContent && !target.closest(".dashboard-header-vortex-shell, #dashboard-header-meter-panel");
+        if (contentHeld || isHidden(target, selfOpacityIsAnimated(target))) {
           if (anim.playState === "running") {
             try {
               anim.pause();

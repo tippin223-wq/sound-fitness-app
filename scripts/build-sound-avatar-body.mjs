@@ -43,6 +43,29 @@ export async function addAuthoredBody(avatar, materials) {
     const ids=[...new Set(base.groups.body.flat())];
     const bottom=Math.min(...ids.map(id=>vertices[id][1])),top=Math.max(...ids.map(id=>vertices[id][1]));
     const scale=3.40/(top-bottom);
+    if(sex==='female') {
+      // Relax the cheek surface itself, retaining the eyes, lips and neck
+      // boundary. Moving a single band only leaves a ridge beside it.
+      const adjacent=Array.from({length:vertices.length},()=>new Set());
+      for(const face of base.groups.body)for(let i=0;i<face.length;i++) {
+        const a=face[i],b=face[(i+1)%face.length];
+        adjacent[a].add(b);adjacent[b].add(a);
+      }
+      for(let pass=0;pass<2;pass++) {
+        const previous=vertices.map(v=>v.slice());
+        for(const id of ids) {
+          const [x,y,z]=previous[id].map((v,i)=>i===1?(v-bottom)*scale:v*scale);
+          const sideWeight=.22*smooth(.025,.065,Math.abs(x));
+          const mouthWeight=.12*(1-smooth(.025,.065,Math.abs(x)))*(1-smooth(3.10,3.14,y));
+          const amount=(sideWeight+mouthWeight)*(1-smooth(.15,.20,Math.abs(x)))*smooth(2.985,3.025,y)*(1-smooth(3.145,3.18,y))*smooth(.04,.13,z);
+          if(!amount||!adjacent[id].size)continue;
+          for(let axis=0;axis<3;axis++) {
+            const average=[...adjacent[id]].reduce((sum,n)=>sum+previous[n][axis],0)/adjacent[id].size;
+            vertices[id][axis]=previous[id][axis]+amount*(average-previous[id][axis]);
+          }
+        }
+      }
+    }
     const normalize=v=>new Vector3(v[0]*scale,(v[1]-bottom)*scale,v[2]*scale);
     const joint=name=>landmarks[name].reduce((sum,id)=>sum.add(new Vector3(...vertices[id])),new Vector3()).multiplyScalar(1/landmarks[name].length);
     const arms=[-1,1].map(sign=>{
@@ -52,9 +75,11 @@ export async function addAuthoredBody(avatar, materials) {
       const mapping=(a,b,c,d)=>{const from=b.clone().sub(a),to=d.clone().sub(c);return p=>p.clone().sub(a).applyQuaternion(new Quaternion().setFromUnitVectors(from.clone().normalize(),to.clone().normalize())).multiplyScalar(to.length()/from.length()).add(c);};
       return {s,e,w,upper:mapping(s,e,ts,te),lower:mapping(e,w,te,tw)};
     });
-    const transform=raw=>{
+    const femaleEyeHeight=normalize(joint('joint-r-eye').toArray()).y;
+    const mouthHeight=(normalize(joint('joint-mouth').toArray()).y+normalize(joint('joint-jaw').toArray()).y)/2;
+    const transform=(raw, allowArms=true, fabric=false)=>{
       const p=normalize(raw),sign=p.x<0?-1:1,arm=arms[sign<0?0:1];
-      const armAmount=smooth(.28,.43,Math.abs(p.x)) * Math.max(smooth(1.85,2.1,p.y),smooth(.48,.58,Math.abs(p.x)));
+      const armAmount=(allowArms ? 1 : 0)*smooth(.28,.43,Math.abs(p.x)) * Math.max(smooth(1.85,2.1,p.y),smooth(.48,.58,Math.abs(p.x)));
       const axis=arm.e.clone().sub(arm.s),along=p.clone().sub(arm.s).dot(axis)/axis.lengthSq();
       const elbow=smooth(.76,1.19,along);
       const posed=arm.upper(p).lerp(arm.lower(p),elbow);
@@ -62,10 +87,47 @@ export async function addAuthoredBody(avatar, materials) {
       // Bring the original wide A-stance under the hips, leaving feet planted.
       if(center.y<1.83) center.x-=sign*(1-smooth(.12,1.83,center.y))*.20;
       center.lerp(posed,armAmount);
+      if (sex === 'female') {
+        // Shape body and fabric together, with smooth transitions through
+        // the sleeve/chest seam instead of attaching separate bust meshes.
+        const upper = smooth(2.15,2.60,center.y) * (1-smooth(2.84,2.98,center.y));
+        center.x *= 1 - .12 * upper;
+        center.x -= sign * .035 * armAmount * (1-smooth(2.84,2.98,center.y));
+        const waist = Math.exp(-Math.pow((center.y-2.15)/.20,2));
+        center.x *= 1 - .035 * waist * (1-armAmount);
+        // Keep supported chest volume above the lower ribs. A soft depth
+        // taper below it avoids a projecting shelf in the side silhouette.
+        const lowerRibs = Math.exp(-Math.pow((center.y-2.28)/.145,2)) * (1-armAmount);
+        center.z = .06 + (center.z-.06) * (1-.16*lowerRibs);
+        const chest = Math.exp(-Math.pow((center.y-2.52)/.185,2)) * smooth(2.22,2.43,center.y);
+        // Rounded, modest contours with a soft fabric span between them.
+        const bust = Math.exp(-Math.pow((Math.abs(center.x)-.165)/.17,2));
+        const front = smooth(.02,.14,center.z);
+        const shirtBridge = fabric ? .035 * Math.exp(-Math.pow(center.x/.12,2)) : 0;
+        center.z += (.125 * bust + shirtBridge) * chest * front * (1-armAmount);
+        // Sculpt the female head from her own eye landmarks, not fixed male heights.
+        // Keep the boundary untouched so the continuous neck remains closed.
+        // Rain turnaround: a distinct cranium over a tapered neck, with a
+        // compact, softly rounded lower face rather than a long pinched jaw.
+        const neck=smooth(2.80,2.89,center.y)*(1-smooth(2.98,3.035,center.y));
+        const neckCenter=1-smooth(.13,.22,Math.abs(center.x));
+        center.x*=1-.18*neck*neckCenter;
+        center.z=.08+(center.z-.08)*(1-.14*neck*neckCenter);
+        // Preserve the authored female facial planes and lip anatomy.
+        // Stacked local cheek, chin and lip warps created competing ridges.
+        const seam=smooth(2.965,3.025,center.y);
+        const lowerFace=1-smooth(3.025,3.20,center.y);
+        center.x*=1-.22*lowerFace*seam;
+        const oralRegion=Math.exp(-Math.pow((center.y-mouthHeight)/.065,2))*Math.exp(-Math.pow(center.x/.095,4))*smooth(.05,.15,center.z);
+        center.z-=.020*oralRegion;
+
+
+
+      }
       return {point:center,armAmount,elbow,wrist:smooth(1.60,1.80,along),sign};
     };
-    const weights=raw=>{
-      const {point:p,armAmount,elbow,wrist,sign}=transform(raw), result=new Map();
+    const weights=(raw, allowArms=true)=>{
+      const {point:p,armAmount,elbow,wrist,sign}=transform(raw,allowArms), result=new Map();
       const put=(id,w)=>result.set(id,(result.get(id)??0)+w);
       const offset=sign<0?2:5;
       put(offset,armAmount*(1-elbow));put(offset+1,armAmount*elbow*(1-wrist));put(offset+2,armAmount*elbow*wrist);
@@ -78,9 +140,21 @@ export async function addAuthoredBody(avatar, materials) {
     };
     const scales=['x','y','z'].map((axis,i)=>{const match=fitting.match(new RegExp(`${axis}_scale (\\d+) (\\d+) ([\\d.]+)`));return match?Math.abs(vertices[Number(match[1])][i]-vertices[Number(match[2])][i])/Number(match[3]):1;});
     const cloth=fits.map(row=>row.length===1?vertices[row[0]].slice():[0,1,2].map(i=>vertices[row[0]][i]*row[3]+vertices[row[1]][i]*row[4]+vertices[row[2]][i]*row[5]+row[6+i]*scales[i]));
-    profiles[sex]={vertices,cloth,transform,weights,eyes:[-1,1].map(sign=>transform(joint(`joint-${sign<0?'r':'l'}-eye`).toArray()).point.toArray())};
+    profiles[sex]={vertices,cloth,transform,weights,mouth:[0,mouthHeight,0],eyes:[-1,1].map(sign=>transform(joint(`joint-${sign<0?'r':'l'}-eye`).toArray()).point.toArray())};
   }
   const triangulate=faces=>faces.flatMap(f=>Array.from({length:f.length-2},(_,i)=>{const face=[f[0],f[i+1],f[i+2]];face.uv=[f.uv[0],f.uv[i+1],f.uv[i+2]];return face;}));
+  // Compute skin normals across the complete surface before separating the head.
+  // Recomputing each cut piece independently creates a dark collar at the shared seam.
+  const fullSkin = new BufferGeometry();
+  fullSkin.setAttribute('position',new Float32BufferAttribute(profiles.male.vertices.flatMap(v=>profiles.male.transform(v).point.toArray()),3));
+  fullSkin.setIndex(triangulate(base.groups.body).flatMap(face=>Array.from(face)));
+  fullSkin.computeVertexNormals();
+  const fullSkinNormals=fullSkin.attributes.normal;
+  const femaleSkin=new BufferGeometry();
+  femaleSkin.setAttribute('position',new Float32BufferAttribute(profiles.female.vertices.flatMap(v=>profiles.female.transform(v).point.toArray()),3));
+  femaleSkin.setIndex(fullSkin.index.clone());femaleSkin.computeVertexNormals();
+  const femaleNormals=femaleSkin.attributes.normal;
+
   const hidden=new Set();
   const mask=(fitting.split('delete_verts')[1]??'').trim().split(/\s+/);
   for(let i=0;i<mask.length;i++) {
@@ -113,11 +187,11 @@ export async function addAuthoredBody(avatar, materials) {
       if(!lookup.has(key)){lookup.set(key,used.length);used.push({id,uv});}
       triangles.push(lookup.get(key));
     }
-    const positions=sex=>used.flatMap(({id})=>profiles[sex].transform(profiles[sex][kind][id]).point.toArray());
+    const positions=sex=>used.flatMap(({id})=>profiles[sex].transform(profiles[sex][kind][id],name!=='authored training pants',name==='authored performance shirt').point.toArray());
     const geometry=new BufferGeometry();geometry.setAttribute('position',new Float32BufferAttribute(positions('male'),3));
     geometry.setIndex(triangles);
     geometry.setAttribute('uv',new Float32BufferAttribute(used.flatMap(({uv})=>(kind==='cloth'?clothing:base).uvs[uv].slice(0,2)),2));
-    const pairs=used.map(({id})=>profiles.male.weights(profiles.male[kind][id]));
+    const pairs=used.map(({id})=>profiles.male.weights(profiles.male[kind][id],name!=='authored training pants'));
     geometry.setAttribute('skinIndex',new Uint16BufferAttribute(pairs.flatMap(v=>v.map(([id])=>id)),4));
     geometry.setAttribute('skinWeight',new Float32BufferAttribute(pairs.flatMap(v=>v.map(([,w])=>w)),4));
     geometry.morphAttributes.position=[new Float32BufferAttribute(positions('female'),3)];
@@ -126,10 +200,50 @@ export async function addAuthoredBody(avatar, materials) {
     const normal=geometry.attributes.normal,sums=new Map();
     used.forEach(({id},i)=>{const sum=sums.get(id)??new Vector3();sum.add(new Vector3().fromBufferAttribute(normal,i));sums.set(id,sum);});
     used.forEach(({id},i)=>normal.setXYZ(i,...sums.get(id).normalize().toArray()));
+    if(kind==='vertices')used.forEach(({id},i)=>normal.setXYZ(i,fullSkinNormals.getX(id),fullSkinNormals.getY(id),fullSkinNormals.getZ(id)));
+    if(kind==='vertices')geometry.morphAttributes.normal=[new Float32BufferAttribute(used.flatMap(({id})=>[femaleNormals.getX(id),femaleNormals.getY(id),femaleNormals.getZ(id)]),3)];
+
     if(name==='head sculpt') {
       const head=avatar.children.find(mesh=>mesh.name===name);
+      // Expressions deform the authored lips/cheeks/brow, not an old overlay smile.
+      const eyeY=profiles.male.eyes[0][1], mouthY=profiles.male.mouth[1];
+      for(const expression of ['bright','focused','defined']) {
+        const delta=[];
+        for(let i=0;i<geometry.attributes.position.count;i++) {
+          const x=geometry.attributes.position.getX(i),y=geometry.attributes.position.getY(i),z=geometry.attributes.position.getZ(i);
+          const front=smooth(.04,.15,z);
+          const mouth=Math.exp(-Math.pow((y-mouthY)/.032,2))*Math.exp(-Math.pow(x/.090,4))*front;
+          const corner=smooth(0,.09,Math.abs(x));
+          const cheek=Math.exp(-Math.pow((y-(eyeY-.07))/.065,2))*Math.exp(-Math.pow((Math.abs(x)-.10)/.055,2))*front;
+          const jaw=Math.exp(-Math.pow((y-(mouthY-.09))/.09,2))*smooth(2.98,3.04,y);
+          const brow=Math.exp(-Math.pow((y-(eyeY+.045))/.035,2))*front;
+          const lipCenter=Math.exp(-Math.pow(x/.055,2))*mouth;
+          delta.push(expression==='defined'?x*.13*jaw:expression==='bright'?x*.020*mouth:0,
+            expression==='bright'?.017*mouth*corner:expression==='focused'?-.012*brow*Math.exp(-Math.pow(x/.09,2))-.004*mouth:expression==='defined'?.010*mouth*corner+.014*brow:0,
+            expression==='bright'?-.004*mouth*corner:expression==='focused'?-.004*lipCenter:expression==='defined'?.012*jaw*front+.003*cheek:0);
+        }
+        geometry.morphAttributes.position.push(new Float32BufferAttribute(delta,3));
+      }
+      // GLTF export converts absolute morphs to deltas; match the existing absolute female target.
+      for(let target=1;target<geometry.morphAttributes.position.length;target++) {
+        const morph=geometry.morphAttributes.position[target],base=geometry.attributes.position;
+        for(let i=0;i<base.count;i++)morph.setXYZ(i,morph.getX(i)+base.getX(i),morph.getY(i)+base.getY(i),morph.getZ(i)+base.getZ(i));
+      }
+      // The smile moves the lips and their adjoining surface. Reuse of the
+      // resting normals makes the moved lip edge shade like a raised ridge.
+      for(let target=1;target<=3;target++) {
+        const expressionGeometry=new BufferGeometry();
+        expressionGeometry.setAttribute('position',geometry.morphAttributes.position[target].clone());
+        expressionGeometry.setIndex(geometry.index.clone());
+        expressionGeometry.computeVertexNormals();
+        const expressionNormals=expressionGeometry.attributes.normal;
+        // Preserve the common head/neck boundary normals.
+        for(let i=0;i<expressionNormals.count;i++)if(geometry.attributes.position.getY(i)<3.015)expressionNormals.setXYZ(i,geometry.attributes.normal.getX(i),geometry.attributes.normal.getY(i),geometry.attributes.normal.getZ(i));
+        geometry.morphAttributes.normal.push(expressionNormals.clone());
+        expressionGeometry.dispose();
+      }
       head.geometry.dispose();head.geometry=geometry;head.position.set(0,0,0);head.scale.set(1,1,1);head.rotation.set(0,0,0);head.updateMorphTargets();
-      head.userData={source:'MakeHuman Community CC0 adult facial topology',eyePositions:profiles.male.eyes,authoredFace:true};
+      head.userData={source:'MakeHuman Community CC0 adult facial topology',eyePositions:profiles.male.eyes,femaleEyePositions:profiles.female.eyes,authoredFace:true};
       continue;
     }
     const mesh=new Mesh(geometry,material);mesh.name=name;mesh.updateMorphTargets();
@@ -137,5 +251,6 @@ export async function addAuthoredBody(avatar, materials) {
     avatar.add(mesh);
     console.log(`${name}: ${used.length} vertices / ${faces.length} triangles`);
   }
+  fullSkin.dispose();femaleSkin.dispose();
   return {eyes:profiles.male.eyes};
 }

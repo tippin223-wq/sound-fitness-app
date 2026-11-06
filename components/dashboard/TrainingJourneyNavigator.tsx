@@ -7,6 +7,7 @@ import { ROUTES } from "@/lib/routes";
 export type TrainingJourneyStepId =
   | "profile"
   | "goals"
+  | "training-plans"
   | "sessions"
   | "library"
   | "workout-builder"
@@ -62,6 +63,10 @@ export const trainingJourneySteps: JourneyItem[] = [
     requestedHref: "/dashboard/goals",
     href: ROUTES.dashboard.goals,
     available: true,
+  },
+  {
+    id: "training-plans", emoji: "📋", label: "Training Plans", shortLabel: "Plans",
+    subtitle: "Plan", requestedHref: "/dashboard/training-plans", href: ROUTES.dashboard.trainingPlans, available: true,
   },
   {
     id: "sessions",

@@ -108,7 +108,7 @@
 @media (prefers-reduced-motion: reduce) {
   .summaryValue[data-chyron-active="true"] > span { animation: none; }
 }
-.row { min-height: calc(100dvh - 6.1rem); padding: 6px 0; justify-content: center; }
+.row { height: calc(100dvh - 4.48rem); min-height: calc(100dvh - 4.48rem); padding: 10px 0; justify-content: center; }
 .rowContent { gap: 8px; padding-inline: clamp(18px, 4vw, 34px); }
 .expandedRowContent {
   box-sizing: border-box;
@@ -271,9 +271,14 @@
 }
 .orbiterRows > section:not(:first-child) {
   box-sizing: border-box;
-  padding-inline: clamp(74px, 14vw, 88px);
+  padding-inline: clamp(12px, 3vw, 28px);
 }
-.orbiterStage { container-type: inline-size; }
+.orbiterStage {
+  container-type: inline-size;
+  grid-template-columns: minmax(0, 1fr);
+  padding-inline: 4px;
+}
+.orbiterStage > article { min-width: 0; }
 .orbiterStage > article, .rowHeader { max-width: 100%; }
 
 @container (max-width: 519px) {
@@ -358,4 +363,39 @@
   .plan > p { font-size: 10px; line-height: 1.2; }
   .rowContent { gap: 4px; transform: translateY(-8px); }
   .row { padding: 3px 0; }
+}
+
+/* Completion urgency stays readable without continuous blinking or motion. */
+.orbitCard [data-profile-indicator-motion][data-active] [data-profile-pulse-dot="true"] {
+  animation: none !important;
+  transform: none !important;
+}
+
+.row > .rowContent { height: 100%; padding-inline: clamp(12px, 3vw, 28px); }
+.row .hero { height: 100%; overflow-y: auto; scrollbar-width: none; }
+.row .hero::-webkit-scrollbar { display: none; }
+.row .hero .layout { display: flex; flex-direction: column; min-height: 100%; gap: 12px; }
+.row .hero .summaryGroup { margin-top: auto; padding-bottom: 18px; }
+@media (max-height: 650px) {
+  .row .hero .layout { gap: 8px; }
+  .row .hero [aria-label="Your profile overview"] { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+}
+
+.row .hero .summaryControls { top: auto; bottom: 0; }
+
+.row > .rowContent { min-height: 0; gap: 8px; }
+.row .hero { flex: 1; min-height: 0; height: auto; }
+.row > .rowContent > .summaryGroup { flex-shrink: 0; padding-bottom: 18px; }
+.row > .rowContent > .summaryGroup .summaryControls { top: auto; bottom: 0; }
+
+.sectionMenuToggle { transition: opacity 180ms ease, filter 180ms ease, color 180ms ease; }
+:global(body:has(.dashboard-header-vortex-shell[data-header-focus="content"])) .sectionMenuToggle,
+:global(body:has(.dashboard-header-vortex-shell--timed-out)) .sectionMenuToggle {
+  color: #94a3b8;
+  opacity: .45;
+  filter: grayscale(1);
+}
+.sectionMenuToggle:hover, .sectionMenuToggle:focus-visible, .sectionMenuToggle[aria-expanded="true"] {
+  opacity: 1 !important;
+  filter: none !important;
 }

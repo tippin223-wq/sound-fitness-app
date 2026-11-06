@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import Image from "next/image";
+import loadingStyles from "./DashboardLoading.module.css";
+import { syncPreloaderAura } from "./preloaderAura";
 import { preloadDashboardWebGlRuntime } from "./dashboardWebGlRenderer";
 
 const DASHBOARD_WEBGL_BATCH_SELECTOR = [
@@ -26,6 +29,7 @@ const DASHBOARD_WEBGL_REQUIRED_SELECTORS = [
 const DASHBOARD_WEBGL_BATCH_TIMEOUT_MS = 7000;
 
 export default function DashboardWebGlPreloader() {
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
     let cancelled = false;
     let animationFrameId = 0;
@@ -55,6 +59,7 @@ export default function DashboardWebGlPreloader() {
     }
 
     const markReadyWhenBatchRendered = () => {
+      animationFrameId = 0;
       if (cancelled || typeof document === "undefined") return;
 
       const canvases = Array.from(
@@ -76,18 +81,37 @@ export default function DashboardWebGlPreloader() {
         );
       const timedOut =
         performance.now() - startedAt > DASHBOARD_WEBGL_BATCH_TIMEOUT_MS;
+      const avatarHost = document.querySelector("[data-dashboard-avatar-host]");
+      const avatar = avatarHost?.querySelector<HTMLCanvasElement>("[data-sound-avatar-renderer]");
+      const avatarSettled = !avatarHost || avatar?.dataset.soundAvatarReady === "true" || avatar?.dataset.webglFallback === "true";
 
       if (batchRendered) {
         document.documentElement.dataset.dashboardWebgl = "ready";
+      } else if (timedOut) {
+        document.documentElement.dataset.dashboardWebgl = "fallback";
+      }
+      if ((batchRendered && avatarSettled) || timedOut) setLoading(false);
+      if (batchRendered && avatarSettled) {
+        observer.disconnect();
+        if (deadlineId !== undefined) clearTimeout(deadlineId);
         return;
       }
 
-      if (timedOut) {
-        document.documentElement.dataset.dashboardWebgl = "fallback";
-      }
-
-      animationFrameId = window.requestAnimationFrame(markReadyWhenBatchRendered);
     };
+
+    // Readiness changes only when widgets mount or mark their canvas ready.
+    // Polling every animation frame otherwise continues forever for widgets
+    // deliberately deferred until a menu opens.
+    const observer = new MutationObserver(() => {
+      if (!cancelled && animationFrameId === 0) {
+        animationFrameId = window.requestAnimationFrame(markReadyWhenBatchRendered);
+      }
+    });
+    observer.observe(document.documentElement, {
+      subtree: true, childList: true, attributes: true,
+      attributeFilter: ["data-webgl-ready", "data-webgl-fallback", "data-sound-avatar-ready"],
+    });
+    const deadlineId = setTimeout(markReadyWhenBatchRendered, DASHBOARD_WEBGL_BATCH_TIMEOUT_MS + 1);
 
     const preload = async () => {
       void preloadDashboardWebGlRuntime();
@@ -99,6 +123,8 @@ export default function DashboardWebGlPreloader() {
 
     return () => {
       cancelled = true;
+      observer.disconnect();
+      if (deadlineId !== undefined) clearTimeout(deadlineId);
       if (animationFrameId !== 0) {
         window.cancelAnimationFrame(animationFrameId);
       }
@@ -111,5 +137,9 @@ export default function DashboardWebGlPreloader() {
     };
   }, []);
 
-  return null;
+  return <div ref={syncPreloaderAura} className={`${loadingStyles.page} ${loading ? "" : loadingStyles.complete}`}
+    role={loading ? "status" : undefined} aria-live="polite" aria-hidden={!loading}>
+    <Image src="/sound-crest-avatar.png" alt="Sound Fitness" width={160} height={160} priority unoptimized className={loadingStyles.crest} />
+    <span className={loadingStyles.label}>Getting your dashboard ready</span>
+  </div>;
 }

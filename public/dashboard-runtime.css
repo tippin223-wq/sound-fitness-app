@@ -587,10 +587,9 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
   .dashboard-header-vortex-shell
     .dashboard-header-menu-content
     > .dashboard-header-mobile-orbit-joystick {
-    translate: 0 1.43rem;
-    /* The crest's beveled artwork extends past its layout box. Reserve a
-       positive gap while open so the joystick cannot paint over that edge. */
-    margin-left: 0.5rem !important;
+    translate: -1.75rem 1rem;
+    /* Keep both painted sizes beside the crest without moving the nav. */
+    margin-left: 1.25rem !important;
   }
 
   /* The nav's open-state shrink (formerly scale: 0.88 here) is folded into
@@ -606,7 +605,7 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
   .dashboard-header-vortex-shell:not([data-header-focus="content"])
     .dashboard-header-menu-content
     > .dashboard-header-mobile-orbit-joystick {
-    scale: 0.88 !important;
+    scale: 0.68 !important;
   }
 
   /* Measured against the collapsed shell's midline once the focus transition
@@ -620,32 +619,18 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
        instead of the ~71px menu area, and since that box's height changes with
        its contents the joystick kept drifting between positions. */
     align-self: flex-start !important;
-    /* 0.6 (the generic idle scale) x 0.88 (this joystick's deliberate open
-       size): keeps its idle->open growth ratio identical to the neighbouring
-       menu items, which animate 0.6 -> 1 over the same 420ms.
-
-       This rule no longer touches margin-left. It used to pull the joystick
-       -0.5rem against the open state's +0.5rem, and that 16px sign flip was
-       measured as the cause of "both joystick backgrounds shift down and
-       right every scroll": the button itself moved on every focus change and
-       the CSS bubble and the 3D ball both ride it. Worse, the joystick is the
-       flex item before the orbit stage, so the same 16px pushed the WHOLE NAV
-       right (stage offsetLeft 144 -> 160, width 279 -> 263) — the separate
-       "the nav shifts right during scroll" report. The crest holds
-       offsetLeft 12 in both states; the joystick was the only item in the row
-       that moved sideways, so nothing here should either. */
+    /* Idle size stays compact; expansion now grows only to 0.68. Keep the
+       layout margin constant so the nav itself never jumps sideways. */
     scale: 0.528 !important;
-    /* Centred, not the old `0 0`. With a top-left origin the 0.528 shrink
-       also pulled the ball's CENTRE ~11px left of where the open state puts
-       it, so even with the margins equalised the button still slid sideways. */
+    /* Keep the shrink centred, then independently close the idle-only gap. */
     transform-origin: 50% 50% !important;
     /* Retunes the collapsed drop against that centred origin so the joystick
        keeps its tuned idle line (centre y ~36, level with the crest and the
        collapsed nav). The open state's 1.43rem still applies while open, so
        the joystick drops with the rest of the row as the header grows — the
-       same ~21px every sibling travels. What it no longer does is move
-       sideways. */
-    translate: 0 0.1rem !important;
+       same ~21px every sibling travels. Shift left while idle so the smaller
+       joystick sits beside the crest rather than shrinking in place. */
+    translate: -3rem -0.125rem !important;
   }
 
   /* Same 13px lift for the menu blocks, which carry the nav content and the
@@ -731,7 +716,7 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
   .dashboard-header-vortex-shell
     .dashboard-header-main-orbit-stage--stable
     .dashboard-profile-action-gear {
-    left: 0.15rem !important;
+    left: 1.1rem !important;
     right: auto !important;
     top: 3.08rem !important;
   }
@@ -1232,7 +1217,7 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
        off the block's centre. The roomy shared-rewards case below switches to
        a right-edge anchor to match the full header. */
     left: auto !important;
-    right: calc(50% + 3rem - 0.45rem) !important;
+    right: calc(50% + 3rem - 1.4rem) !important;
     top: 2.5rem !important;
   }
 
@@ -1259,7 +1244,7 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
   .dashboard-header-vortex-shell[data-account-paged="true"][data-rewards-meter-shared="true"]
     .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="account"]
     .dashboard-profile-action-gear {
-    right: 4.35rem !important;
+    right: 3.4rem !important;
     translate: clamp(-5.6rem, -19vw, -5rem) 0 !important;
   }
 
@@ -1460,6 +1445,62 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
   }
 
   .dashboard-header-vortex-shell:not([data-header-focus="content"])
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-selector-body {
+    grid-template-columns: 6.35rem max-content !important;
+  }
+}
+
+/* Idle must measure the same complete text footprint as the open menu.
+   Viewport-sized nested tracks cropped the right half of the title before
+   the nav fitter could scale it to the available lane. */
+@media (max-width: 940px) {
+  html body .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-selector-copy {
+    max-width: none !important;
+  }
+
+  html body .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-selector-copy > span > span {
+    max-width: none !important;
+  }
+
+  .dashboard-header-vortex-shell[data-header-focus="content"]
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-dashboard-selector {
+    grid-template-columns: max-content !important;
+    max-width: none !important;
+    overflow: visible !important;
+    width: max-content !important;
+  }
+
+  .dashboard-header-vortex-shell[data-header-focus="content"]
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-orbit-system {
+    grid-template-columns: 3.05rem max-content !important;
+    max-width: none !important;
+    width: max-content !important;
+  }
+
+  .dashboard-header-vortex-shell[data-header-focus="content"]
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-selector-body {
+    grid-template-columns: 6.65rem max-content !important;
+    max-width: none !important;
+    width: max-content !important;
+  }
+}
+
+@media (max-width: 430px) {
+  .dashboard-header-vortex-shell[data-header-focus="content"]
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-orbit-system {
+    grid-template-columns: 2.86rem max-content !important;
+  }
+
+  .dashboard-header-vortex-shell[data-header-focus="content"]
     .dashboard-header-main-orbit-stage--stable
     .dashboard-header-selector-body {
     grid-template-columns: 6.35rem max-content !important;
@@ -2354,6 +2395,20 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
   gap: 0.28rem;
   min-height: 0.9rem;
   min-width: 0;
+  overflow: visible;
+  white-space: nowrap;
+}
+
+/* Counts may extend over the decorative gift, without stealing its click. */
+.dashboard-profile-rewards-control .dashboard-profile-points-trigger {
+  overflow: visible !important;
+  position: relative;
+  z-index: 3;
+}
+.dashboard-profile-rewards-control .dashboard-profile-points-trigger__values {
+  overflow: visible;
+  pointer-events: none;
+  z-index: 4;
 }
 
 .dashboard-profile-points-trigger__webgl-shell {
@@ -6622,10 +6677,9 @@ body.dashboard-page--level-meter-open main.dashboard-page--level-meter-open.dash
 
 .dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out) {
   filter: brightness(0.6) saturate(0.72) !important;
-  height: 6.1rem;
+  height: 4.48rem;
   transition:
-    filter 320ms ease,
-    height 240ms cubic-bezier(0.2, 0.84, 0.2, 1) !important;
+    filter 180ms ease !important;
 }
 
 .dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
@@ -6642,15 +6696,15 @@ body.dashboard-page--level-meter-open main.dashboard-page--level-meter-open.dash
    hover feedback those utilities provided; the later members override it for
    the state-change properties.
 
-   EVERY property that changes an item's SIZE has to be in the 240ms group, not
+   EVERY property that changes an item's SIZE has to be in the 160ms group, not
    just the transform-ish ones. With only margin/translate/scale listed, an item
-   that shrinks by scaling ran 240ms on the cubic curve while one that shrinks by
+   that shrinks by scaling ran 160ms on the cubic curve while one that shrinks by
    changing its own box — width, height, font-size, padding, flex-basis — fell
    through to `all 150ms ease`. Two different durations AND two different
    easings on the same row, which reads as the items resizing at slightly
    different speeds. Colour, border, opacity and transform stay on the fast
    150ms path so hover and press feedback are unaffected. */
-/* Speed audit (Sept 2026): the 240ms LAYOUT group above (width, height,
+/* Speed audit (Sept 2026): the 160ms LAYOUT group above (width, height,
    margin, padding, font-size, flex-basis, zoom) is gone, and so is the
    `all` catch-all that also covered them. Two motion sources fought here:
    the FLIP bridge (runDashboardHeaderFocusFlip) animates every item's
@@ -6673,8 +6727,8 @@ body.dashboard-page--level-meter-open main.dashboard-page--level-meter-open.dash
     filter 150ms ease,
     opacity 150ms ease,
     outline-color 150ms ease,
-    scale 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
-    translate 240ms cubic-bezier(0.2, 0.84, 0.2, 1);
+    scale 160ms cubic-bezier(0.2, 0.84, 0.2, 1),
+    translate 160ms cubic-bezier(0.2, 0.84, 0.2, 1);
 }
 
 /* The joystick participates directly in the focus bridge. Keep its normal
@@ -6879,8 +6933,7 @@ main.dashboard-page--idle-menu-open
 .dashboard-header-vortex-shell[data-header-focus="header"]:not(.dashboard-header-vortex-shell--timed-out) {
   height: auto;
   transition:
-    filter 320ms ease,
-    height 240ms cubic-bezier(0.2, 0.84, 0.2, 1) !important;
+    filter 180ms ease !important;
 }
 
 .dashboard-header-vortex-shell[data-header-focus="header"]:not(.dashboard-header-vortex-shell--timed-out)
@@ -7466,8 +7519,9 @@ html[data-dashboard-webgl="warming"]
    286px card fits at full size. */
 @media (max-width: 430px) {
   [data-dashboard-orbiter-row]:has(.dashboard-orbit-card) {
-    padding-left: 3rem !important;
-    padding-right: 1rem !important;
+    /* Row navigation now overlays the card; no reserved left gutter. */
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
   }
 }
 
@@ -7671,7 +7725,7 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
     opacity: 0;
     pointer-events: none !important;
     position: absolute !important;
-    right: 4.35rem !important;
+    right: 3.4rem !important;
     top: 2.5rem !important;
     transform: translateX(calc(-1 * var(--dashboard-header-account-page-swipe-offset))) !important;
     z-index: 9;
@@ -7723,7 +7777,7 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
     opacity: 0;
     pointer-events: none !important;
     position: absolute !important;
-    right: 4.35rem !important;
+    right: 3.4rem !important;
     top: 2.5rem !important;
     transform: translateX(var(--dashboard-header-account-page-swipe-offset)) !important;
     z-index: 9;
@@ -8069,4 +8123,330 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
   opacity: 0 !important;
   pointer-events: none !important;
   visibility: hidden !important;
+}
+
+/* Single-panel mobile navigation uses the middle of its allocated lane.
+   Wider headers that show two blocks keep their existing arrangement. */
+@media (max-width: 940px) {
+  .dashboard-header-vortex-shell[data-account-paged="true"]:not([data-header-focus="content"])
+    .dashboard-header-main-orbit-stage[data-mobile-header-panel="selector"]
+    > .dashboard-header-menu-block--dashboard {
+    display: flex !important;
+    justify-content: center !important;
+  }
+
+  .dashboard-header-vortex-shell[data-account-paged="true"]:not([data-header-focus="content"])
+    .dashboard-header-dashboard-selector {
+    margin-inline: auto !important;
+  }
+}
+
+@media (max-width: 430px) {
+  .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-account-paged="true"]:not([data-header-focus="content"])
+    .dashboard-header-main-orbit-stage[data-mobile-header-panel="selector"] {
+    margin-left: -2rem !important;
+  }
+
+  .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-account-paged="true"]:not([data-header-focus="content"])
+    .dashboard-header-main-orbit-stage[data-mobile-header-panel="selector"]
+    > .dashboard-header-menu-block--dashboard {
+    justify-content: center !important;
+  }
+
+  .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-account-paged="true"]:not([data-header-focus="content"])
+    .dashboard-header-dashboard-selector {
+    transform: none !important;
+    margin-inline: auto !important;
+  }
+}
+
+/* Reward glow shares the exact transformed anchor used by the 3D stage.
+   A halo on the smaller parent shell drifts when its child grows. */
+.dashboard-profile-points-trigger .dashboard-profile-points-trigger__webgl-shell::before {
+  display: none;
+}
+
+.dashboard-profile-points-trigger :is(
+  .dashboard-profile-points-trigger__webgl-gems,
+  .dashboard-profile-points-trigger__webgl-coin,
+  .dashboard-profile-points-trigger__webgl-bolt
+)::before {
+  content: "";
+  position: absolute;
+  inset: -12%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center,
+    var(--dashboard-reward-icon-glow, rgba(34, 211, 238, .32)),
+    transparent 68%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+.dashboard-profile-points-trigger:is(:hover, :focus-visible, [aria-expanded="true"])
+  :is(.dashboard-profile-points-trigger__webgl-gems,
+      .dashboard-profile-points-trigger__webgl-coin,
+      .dashboard-profile-points-trigger__webgl-bolt)::before {
+  opacity: 1;
+}
+
+/* Match shell motion to the faster compositor focus bridge. */
+.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out),
+.dashboard-header-vortex-shell[data-header-focus="header"]:not(.dashboard-header-vortex-shell--timed-out) {
+  transition: filter 180ms ease !important;
+}
+@media (max-width: 940px) {
+  .dashboard-header-vortex-shell { --dashboard-header-account-page-swipe-duration: 140ms; }
+}
+
+/* Member level details retain the glass frame alongside verified reward values. */
+.dashboard-page-level-meter-control--open .dashboard-page-level-meter-panel--member {
+  width: min(340px, calc(100vw - 58px));
+  max-height: min(480px, calc(100dvh - 160px));
+  padding: 18px 12px 18px 18px;
+  gap: 12px;
+  background: radial-gradient(circle at 15% 5%, rgba(34,211,238,.16), transparent 55%), linear-gradient(150deg, rgba(15,23,42,.98), rgba(2,6,23,.97));
+  border: 1px solid rgba(125,211,252,.4);
+  border-radius: 20px;
+  box-shadow: 0 18px 60px rgba(0,0,0,.65), 0 0 24px rgba(34,211,238,.15), inset 0 1px 0 rgba(255,255,255,.12);
+}
+.dashboard-page-level-meter-panel--member::before { display: none; }
+.dashboard-page-level-meter-panel--member .dashboard-page-level-meter-explainer {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  max-height: min(420px, calc(100dvh - 210px));
+  padding: 0 12px 0 0;
+  gap: 10px;
+}
+.dashboard-page-level-meter-explainer__crest { justify-self: center; object-fit: contain; filter: drop-shadow(0 0 10px rgba(34,211,238,.25)); }
+.dashboard-page-level-meter-panel--member .dashboard-page-level-meter-explainer__eyebrow { font-size: 10px; }
+.dashboard-page-level-meter-panel--member .dashboard-page-level-meter-explainer__heading { font-size: 10px; }
+.dashboard-page-level-meter-panel--member .dashboard-page-level-meter-explainer__note { font-size: 12px; line-height: 1.5; color: #b6c6d8; margin: 0; }
+.dashboard-page-level-meter-explainer__balances { display: grid; gap: 6px; margin: 0; }
+.dashboard-page-level-meter-explainer__balances > div { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 10px; padding: 8px; border: 1px solid rgba(125,211,252,.15); border-radius: 8px; background: rgba(34,211,238,.04); }
+.dashboard-page-level-meter-explainer__balances dt { color: #b6c6d8; font-size: 11px; }
+.dashboard-page-level-meter-explainer__balances dd { color: #cffafe; font-size: 13px; font-weight: 800; margin: 0; overflow-wrap: anywhere; }
+.dashboard-page-level-meter-member-stage { position: relative; width: 48px; height: 280px; flex-shrink: 0; opacity: .65; }
+.dashboard-page-level-meter-member-stage .dashboard-page-level-meter-webgl { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+/* Only short viewports get an inner vertical scrollbar. The frame keeps the
+   row carousel clipped to one row while providing enough height for controls. */
+@media (max-height: 520px) {
+  [data-dashboard-short-viewport] {
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(103, 232, 249, 0.5) transparent;
+  }
+  [data-dashboard-short-frame] {
+    min-height: 520px;
+  }
+}
+
+/* One mobile content lane: joystick clearance on the left, and the visible
+   far-right meter (when present) on the right. No destination-specific bias. */
+@media (max-width: 940px) {
+  html body .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-account-paged] .dashboard-header-main-orbit-stage--stable[data-mobile-header-panel] {
+    position: relative !important;
+    left: var(--dashboard-mobile-lane-offset, 0px) !important;
+    right: auto !important;
+  }
+  html body .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-account-paged] .dashboard-header-main-orbit-stage--stable[data-mobile-header-panel]
+    :is(.dashboard-header-menu-block--dashboard, .dashboard-header-menu-block--profile) {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-inline: 0 !important;
+    justify-content: center !important;
+    transform-origin: 50% 0 !important;
+  }
+  html body .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-account-paged] .dashboard-header-main-orbit-stage--stable[data-mobile-header-panel]
+    :is(.dashboard-header-profile-cluster, .dashboard-header-dashboard-selector) {
+    justify-content: center !important;
+    translate: 0 0 !important;
+    margin-left: 0 !important;
+  }
+  html body .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-account-paged] .dashboard-header-main-orbit-stage--stable[data-mobile-header-panel]
+    .dashboard-header-profile-cluster {
+    width: 100% !important;
+  }
+  html body .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-account-paged] .dashboard-header-main-orbit-stage--stable[data-mobile-header-panel][data-narrow-account-item="account"]
+    .dashboard-profile-hub-trigger {
+    translate: 0 0 !important;
+  }
+  html body .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-account-paged] .dashboard-header-main-orbit-stage--stable[data-mobile-header-panel][data-narrow-account-item="account"]
+    .dashboard-profile-action-gear {
+    right: calc(50% + 1.6rem) !important;
+    translate: 0 0 !important;
+  }
+}
+
+/* The count column owns its intrinsic width. Additional digits naturally
+   move the neighboring gift, rather than reserving a wide empty column. */
+html body .dashboard-header-vortex-shell .dashboard-profile-rewards-control {
+  align-items: stretch !important;
+  gap: 0.45rem !important;
+}
+html body .dashboard-header-vortex-shell .dashboard-profile-rewards-control .dashboard-profile-points-trigger {
+  min-width: 0 !important;
+  width: max-content !important;
+  padding-inline: 0.15rem !important;
+}
+html body .dashboard-header-vortex-shell .dashboard-profile-rewards-control .dashboard-profile-claim-trigger--webgl {
+  align-self: stretch !important;
+  height: auto !important;
+  min-height: 0 !important;
+  width: 3.6rem !important;
+  min-width: 3.6rem !important;
+  margin-inline: 0 !important;
+  padding: 0 !important;
+}
+html body .dashboard-header-vortex-shell .dashboard-profile-rewards-control .dashboard-profile-points-trigger__claim-webgl {
+  width: 100% !important;
+  height: 100% !important;
+}
+@media (max-width: 940px) {
+  html body .dashboard-header-vortex-shell .dashboard-header-menu-content > .dashboard-header-mobile-orbit-joystick {
+    top: var(--dashboard-mobile-joystick-center-y, 0px);
+  }
+}
+
+.dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus][data-header-focus-flipping="true"] {
+  transition: none !important;
+}
+.dashboard-header-reward-count-overlay {
+  transition: opacity 220ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus][data-header-focus-flipping="true"],
+  .dashboard-header-reward-count-overlay { transition: none !important; }
+}
+
+/* The bowl rises above the crest; the stem and base tuck behind its z-10 artwork. */
+html body .dashboard-header-vortex-shell .dashboard-header-logo-cluster > .dashboard-header-trophy-selector {
+  top: -1rem !important;
+  z-index: 8 !important;
+}
+
+/* A fixed design box keeps the nav joystick anchored as labels rotate.
+   The existing fitter scales this whole box to the lane; only long copy
+   shrinks inside its own track, so it cannot push the rail or joystick. */
+html body .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus] .dashboard-header-dashboard-selector {
+  --dashboard-nav-design-width: 23rem;
+  width: var(--dashboard-nav-design-width) !important;
+  min-width: var(--dashboard-nav-design-width) !important;
+  max-width: none !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+html body .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus] .dashboard-header-orbit-system {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  height: 5.45rem !important;
+  min-height: 5.45rem !important;
+  grid-template-columns: 3.05rem minmax(0,1fr) !important;
+  gap: .28rem !important;
+  padding: 0 !important;
+}
+html body .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus] .dashboard-header-selector-body {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  grid-template-columns: 6.65rem minmax(0,1fr) !important;
+  justify-content: start !important;
+}
+html body .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus] .dashboard-header-selector-copy {
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  height: 4rem;
+  margin-left: 0 !important;
+  overflow: clip !important;
+}
+html body .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus] .dashboard-header-selector-copy > span {
+  flex: none;
+  width: max-content;
+  transform-origin: left center;
+  scale: var(--dashboard-nav-copy-scale,1);
+}
+html body .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus] .dashboard-header-selector-copy > span > span {
+  max-width: none !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: nowrap !important;
+}
+@media(max-width:940px) {
+  html body .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus] .dashboard-header-dashboard-selector { --dashboard-nav-design-width: 19rem; }
+}
+@media(max-width:430px) {
+  html body .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus] .dashboard-header-orbit-system { grid-template-columns:2.86rem minmax(0,1fr) !important; }
+  html body .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus] .dashboard-header-selector-body { grid-template-columns:6.35rem minmax(0,1fr) !important; }
+}
+
+/* Pointer feedback changes color/glow, never the control’s hit position. */
+html body .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus] .dashboard-header-selector-joystick {
+  translate: 20px -6px !important;
+  scale: 1 !important;
+}
+
+/* The chyron belongs to the expanded header, not its compact idle band. */
+html body .dashboard-header-vortex-shell[data-header-focus="content"] {
+  pointer-events: auto;
+  /* Keep the compact band clickable to wake the header, while clipping
+     expanded layers so they cannot cover the card below. */
+  clip-path: inset(0);
+}
+html body .dashboard-header-vortex-shell .dashboard-header-news-chyron {
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
+  transition: transform 160ms cubic-bezier(.2,.84,.2,1), opacity 160ms ease, visibility 0s !important;
+}
+html body .dashboard-header-vortex-shell:is([data-header-focus="content"], .dashboard-header-vortex-shell--timed-out) .dashboard-header-news-chyron {
+  opacity: 0 !important;
+  transform: translateY(-100%);
+  visibility: hidden;
+  transition: transform 160ms cubic-bezier(.2,.84,.2,1), opacity 140ms ease, visibility 0s 160ms !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  html body .dashboard-header-vortex-shell .dashboard-header-news-chyron { transition: none !important; }
+}
+
+/* Idle compositing must not expose a rectangular joystick backing layer. */
+html body .dashboard-header-vortex-shell :is(.dashboard-header-selector-joystick, .dashboard-header-mobile-orbit-joystick) {
+  background: transparent !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+}
+html body .dashboard-header-vortex-shell :is(.dashboard-header-selector-joystick, .dashboard-header-mobile-orbit-joystick) :is(.dashboard-header-scroll-button__webgl, .dashboard-webgl-snapshot-layer) {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Expanded navigation has an opaque surface over dashboard content. */
+html body .dashboard-header-vortex-shell[data-header-focus="header"]:not(.dashboard-header-vortex-shell--timed-out) {
+  background-color: #06111e !important;
+  background-image: radial-gradient(ellipse at 22% 0%, rgba(34,211,238,.10), transparent 60%), linear-gradient(180deg, #0a1c2b, #06111e) !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,.35), inset 0 -1px 0 rgba(165,243,252,.14) !important;
+}
+
+/* Header focus motion is owned solely by runDashboardHeaderFocusFlip.
+   No delayed CSS height/scale or separate chyron entrance competes with it. */
+html body .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus] {
+  transition: filter 180ms ease !important;
+}
+html body .dashboard-header-vortex-shell .dashboard-header-news-chyron {
+  transition: none !important;
+}
+html body .dashboard-header-vortex-shell:is([data-header-focus="content"], .dashboard-header-vortex-shell--timed-out) .dashboard-header-news-chyron {
+  transform: translateY(-8px);
+}
+html body .dashboard-header-vortex-shell[data-header-focus-flipping="true"] {
+  clip-path: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  html body .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus] { transition: none !important; }
 }

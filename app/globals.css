@@ -18517,12 +18517,15 @@ html.dashboard-page--page-analog-active.dashboard-page--page-analog-active
   --dashboard-news-category-soft: rgba(251, 146, 60, 0.085);
 }
 
-.dashboard-hero-news-row:hover {
+.dashboard-hero-news-row:hover,
+.dashboard-hero-news-row:focus-within {
+  border-color: var(--dashboard-news-category-border);
   box-shadow:
     0 12px 26px rgba(0, 0, 0, 0.2),
     0 0 24px var(--dashboard-news-category-glow),
     inset 0 1px 0 rgba(255, 255, 255, 0.075);
-  translate: 0 -2px;
+  /* Keep the card inside the feed's scroll clip, including its first row. */
+  translate: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

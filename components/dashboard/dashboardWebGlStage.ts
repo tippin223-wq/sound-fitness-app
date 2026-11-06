@@ -35,6 +35,8 @@ export type DashboardWidgetContext = {
 export type DashboardWidgetInstance = {
   scene: Scene;
   camera: Camera;
+  /** Apply a static rest pose when zone animation is frozen. */
+  rest?: () => boolean;
   /** Advance animation. Called each frame before the widget is drawn. */
   /**
    * Advance the scene. Return `false` to signal that nothing visible changed
@@ -220,7 +222,7 @@ let stageIdleHidden = false;
 
 // The dim lerp runs in the frame loop: ~250ms to match the header chrome's own
 // CSS filter transition, instead of the old instant x0.48 snap.
-const DASHBOARD_STAGE_DIM_SECONDS = 0.25;
+const DASHBOARD_STAGE_DIM_SECONDS = 0.18;
 const DASHBOARD_STAGE_DIM_COLOR = 0.48;
 const DASHBOARD_STAGE_DIM_EMISSIVE = 0.28;
 
@@ -817,6 +819,9 @@ function runStageFrame(time: number) {
         applyWidgetDim(widget);
         widgetChanged = true;
       }
+      if (frozen && widget.instance.rest) {
+        widgetChanged = widget.instance.rest() || widgetChanged;
+      }
       if (!frozen && update) {
         try {
           // void return = "changed" so unmigrated widgets keep rendering.
@@ -889,6 +894,9 @@ function runStageFrame(time: number) {
     );
     if ((changed || targetRecreated) && widget.renderTarget) {
       renderer.setRenderTarget(widget.renderTarget);
+      // Widget updates share this renderer. Reassert transparent clearing so
+      // another scene cannot leave an opaque black rectangle in a cached tile.
+      renderer.setClearColor(0x000000, 0);
       renderer.clear();
       try {
         renderer.render(widget.instance.scene, widget.instance.camera);
@@ -913,6 +921,7 @@ function runStageFrame(time: number) {
     quad.position.set(rect.left + cssWidth / 2, -(rect.top + cssHeight / 2), 0);
   }
   renderer.setRenderTarget(null);
+  renderer.setClearColor(0x000000, 0);
 
   if (stageCompositeScene && stageCompositeCamera) {
     renderer.clear();

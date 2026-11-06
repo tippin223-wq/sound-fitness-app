@@ -1,0 +1,23 @@
+.adaptive {
+  flex: 1 1 0%;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* Use measured row content, rather than a fixed card-height breakpoint. */
+  .adaptive[data-stacked="true"] .rail {
+    height: 100%;
+    flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scroll-snap-type: none;
+    touch-action: pan-y;
+  }
+  .adaptive[data-stacked="true"] .rail > * {
+    display: flex;
+    flex: 1 0 auto;
+    flex-direction: column;
+    justify-content: center;
+    width: 100%;
+  }
+  .adaptive[data-stacked="true"] .controls { display: none; }

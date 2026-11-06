@@ -1,7 +1,8 @@
+import { SUPPORT_RECORDS_KEY, validSupportHistory } from "./supportSignalValidation";
 import { planningKeys, planningSnapshot } from "./store";
 import { validatePlanningImport } from "./importValidation";
 import { activityTimestamp, localDate } from "./dates";
-import { nutritionWeek } from "./nutritionSummary";
+import { nutritionTargets, nutritionWeek } from "./nutritionSummary";
 import type { MealEntry } from "./meals";
 import type { WaterEntry } from "./hydration";
 import { checkInReadiness, WEEKLY_CHECK_INS_KEY, type WeeklyCheckIn } from "./checkIns";
@@ -16,6 +17,7 @@ export function readDashboardHealthEvidence(now = new Date(), values: Readonly<R
   const meals = collection<MealEntry>(planningKeys.meals), water = collection<WaterEntry>(planningKeys.hydration), checks = collection<WeeklyCheckIn>(WEEKLY_CHECK_INS_KEY);
   const available = <T extends { recordedAt: string; updatedAt: string }>(rows: T[]) => rows.filter(row => activityTimestamp(row.recordedAt) <= now.getTime() && activityTimestamp(row.updatedAt) <= now.getTime());
   const days = nutritionWeek(available(meals.rows), available(water.rows), localDate(now));
+  const targets = nutritionTargets((values[planningKeys.goals] ?? {}) as Record<string, unknown>);
   const nutritionIssue = meals.issue || water.issue ? "Review nutrition records" : "";
   const nutritionDays = nutritionIssue ? 0 : days.filter(day => day.mealCount > 0 || day.waterCount > 0).length;
   const nutritionRows = [
@@ -31,12 +33,33 @@ export function readDashboardHealthEvidence(now = new Date(), values: Readonly<R
   const calorieDays = days.filter(day => day.nutrients.calories.reported > 0);
   const waterDays = days.filter(day => day.waterCount > 0);
   const latest = recordedChecks.at(-1);
+  const supportRaw = values[SUPPORT_RECORDS_KEY] ?? [];
+  const supportRows = validSupportHistory(supportRaw) ? supportRaw : [];
+  const checkInDays = days.map(day => {
+    const daily = supportRows.filter(row => row.date === day.date && activityTimestamp(row.recordedAt) <= now.getTime()).sort((a,b) => activityTimestamp(b.recordedAt) - activityTimestamp(a.recordedAt));
+    const total = (kind: "recovery" | "core") => {
+      const rows = daily.filter(row => row.kind === kind);
+      return rows.length ? rows.reduce((sum, row) => sum + row.value, 0) : null;
+    };
+    return { date: day.date, recovery: total("recovery"), core: total("core"), fuel: nutritionIssue || !day.nutrients.calories.reported ? null : day.nutrients.calories.value, hydration: nutritionIssue || !day.waterCount ? null : day.waterMl, sleep: daily.find(row => row.kind === "sleep")?.value ?? null, stress: daily.find(row => row.kind === "stress")?.value ?? null, soreness: daily.find(row => row.kind === "soreness")?.value ?? null, fatigue: daily.find(row => row.kind === "fatigue")?.value ?? null };
+  });
   return {
+    checkInDays,
     reportedCalories: nutritionIssue || !calorieDays.length ? null : calorieDays.reduce((sum, day) => sum + (day.nutrients.calories.value ?? 0), 0),
     calorieDays: nutritionIssue ? 0 : calorieDays.length,
     recordedWaterMl: nutritionIssue || !waterDays.length ? null : waterDays.reduce((sum, day) => sum + (day.waterMl ?? 0), 0),
     waterDays: nutritionIssue ? 0 : waterDays.length,
     latestCheckIn: latest ? { date: localDate(new Date(latest.savedAt)), sleep: latest.sleep, stress: latest.stress, soreness: latest.soreness } : null,
+    nutritionTotals: (["calories", "protein", "carbs", "fat"] as const).map(field => ({
+      label: field === "calories" ? "kcals" : field === "carbs" ? "Carbs" : field === "fat" ? "Fat" : "Protein",
+      unit: field === "calories" ? "kcal" : "g",
+      total: nutritionIssue ? 0 : days.reduce((sum, day) => sum + (day.nutrients[field].value ?? 0), 0),
+      days: nutritionIssue ? 0 : days.filter(day => day.nutrients[field].reported > 0).length,
+      dailyGoal: field === "protein" ? targets.proteinG : null,
+      daily: days.map(day => ({ date: day.date, amount: nutritionIssue ? 0 : day.nutrients[field].value ?? 0 })),
+    })),
+    waterDailyGoalMl: targets.waterOz === null ? null : targets.waterOz * 29.5735295625,
+    waterDaily: days.map(day => ({ date: day.date, amount: nutritionIssue ? 0 : day.waterMl ?? 0 })),
     nutritionIssue, nutritionDays, nutritionRows, nutritionPercent: nutritionDays / 7 * 100,
     nutritionLabel: nutritionIssue || (nutritionDays ? `${nutritionDays}/7 days recorded` : "No nutrition records"),
     recoveryIssue: checks.issue ? "Review saved check-ins" : "", recoveryRows, recoveryPercent,

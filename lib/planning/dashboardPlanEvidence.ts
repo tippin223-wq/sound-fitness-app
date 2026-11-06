@@ -10,8 +10,9 @@ import { bookedCalendarItems } from "./bookings";
 export type DashboardPlanEvidence = {
   target: number; completed: number; progress: number; title: string; issue: string;
   next: { date: string; time: string; title: string; source: "plan" | "booking" } | null;
+  steps?: Array<{ id: string; date: string; title: string; status: string }>;
 };
-export const EMPTY_DASHBOARD_PLAN_EVIDENCE: DashboardPlanEvidence = { target: 0, completed: 0, progress: 0, title: "", issue: "", next: null };
+export const EMPTY_DASHBOARD_PLAN_EVIDENCE: DashboardPlanEvidence = { target: 0, completed: 0, progress: 0, title: "", issue: "", next: null, steps: [] };
 export const serverDashboardPlanEvidence = () => JSON.stringify(EMPTY_DASHBOARD_PLAN_EVIDENCE);
 
 /** Assignments are targets; only an exact linked completion can fill a target. No cadence inference. */
@@ -32,11 +33,17 @@ export function readDashboardPlanEvidence(now = new Date()): DashboardPlanEviden
   const logs = readAvailableWorkoutLogs();
   const records = readWorkoutCompletionEvidence();
   const done = new Set<string>();
+  const steps: NonNullable<DashboardPlanEvidence["steps"]> = [];
   for (const { day, assignment } of assignments) {
     const status = assignmentStatusFromRecords(plan!.id, day.id, assignment, records, now, { allowSameSessionMirrors: true, reportedLogs: logs });
     if (status === "Needs history review") return { ...EMPTY_DASHBOARD_PLAN_EVIDENCE, title: plan!.title, issue: "Review workout assignment history" };
     if (status === "Completed") done.add(assignment.id);
+    steps.push({ id: assignment.id, date: day.date, title: assignment.templateTitle, status });
   }
+  for (const day of plan?.days || []) {
+    if (day.kind === "rest" && !day.assignments.length) steps.push({ id: day.id, date: day.date, title: day.title || "Planned recovery day", status: "Recovery scheduled" });
+  }
+  steps.sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
   const upcoming = (date: string, time: string) => validDateOnly(date) && date >= localDate(now)
     && (!time || /^([01]\d|2[0-3]):[0-5]\d$/.test(time) && new Date(`${date}T${time}:00`).getTime() >= now.getTime());
   const candidates: NonNullable<DashboardPlanEvidence["next"]>[] = [
@@ -47,7 +54,7 @@ export function readDashboardPlanEvidence(now = new Date()): DashboardPlanEviden
   ];
   candidates.sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
   const target = assignments.length, completed = done.size;
-  return { target, completed, progress: target ? completed / target * 100 : 0, title: plan?.title || "", issue: "", next: candidates[0] || null };
+  return { target, completed, progress: target ? completed / target * 100 : 0, title: plan?.title || "", issue: "", next: candidates[0] || null, steps };
 }
 export const dashboardPlanEvidenceSnapshot = () => JSON.stringify(readDashboardPlanEvidence());
 export function subscribeDashboardPlanEvidence(callback: () => void) {

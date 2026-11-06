@@ -1,0 +1,29 @@
+.header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "title modes" "range modes";
+  align-items: start;
+  gap: .125rem .5rem;
+  flex-shrink: 0;
+  min-width: 0;
+}
+.title { grid-area: title; min-width: 0; line-height: 1.2; }
+.range { grid-area: range; display: grid; grid-template-columns: 1.5rem minmax(0, 1fr) 1.5rem; align-items: center; gap: .25rem; width: fit-content; max-width: 100%; min-width: 0; }
+.modes { grid-area: modes; display: flex; align-items: center; gap: .5rem; min-width: 0; }
+.weekLayout { display: grid; min-height: 0; min-width: 0; flex: 1; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: 2rem minmax(0, 1fr); gap: .25rem; }
+.timeControls { grid-column: 1; grid-row: 1; display: flex; min-height: 0; flex-direction: row; align-items: center; justify-content: center; gap: .75rem; }
+.weekGrid { grid-column: 1 / -1; grid-row: 2; min-width: 0; }
+.dayControls { grid-column: 2; grid-row: 1; display: flex; align-items: center; justify-content: center; gap: 2.5rem; }
+
+/* Respond to the calendar's own width, including narrow embedded dashboards. */
+@container (max-width: 520px) {
+  .header { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title modes" "range range"; align-items: center; gap: .125rem .375rem; }
+  .range { grid-template-columns: 2.75rem minmax(0, 1fr) 2.75rem; width: 100%; text-align: center; }
+  .range button { width: 2.75rem; height: 1.75rem; }
+  .modes { justify-content: space-between; }
+  .weekLayout { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: 2.25rem minmax(0, 1fr); gap: .375rem; }
+  .weekGrid { grid-column: 1 / -1; grid-row: 2; }
+  .timeControls { grid-column: 1; grid-row: 1; flex-direction: row; gap: .5rem; }
+  .dayControls { grid-column: 2; grid-row: 1; gap: .5rem; }
+  .timeControls button, .dayControls button { width: 2.75rem; height: 2.25rem; }
+}

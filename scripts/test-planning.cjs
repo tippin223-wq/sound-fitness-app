@@ -44,6 +44,7 @@ function load(file) {
   instance.require = name => {
     // Rendering checks use the client snapshot without mounting effects or subscriptions.
     if (name === 'react') return { ...require('react'), useSyncExternalStore: (_subscribe, snapshot) => snapshot(), useState: initial => require('react').useState(file === path.join(root, 'app/dashboard/stats/page.tsx') ? initial === 'overview' && statsRenderTab ? statsRenderTab : typeof initial === 'function' && statsRenderSnapshot ? statsRenderSnapshot : initial : initial) };
+    if (name.endsWith('.module.css')) return { default: {} };
     if (name === 'next/navigation') return { useRouter: () => ({ push: () => { throw new Error('Unexpected navigation during isolated render'); } }) };
     // Review-screen tests do not render images; avoid Next Image's browser-document bootstrap in this isolated harness.
     if (name === 'next/image') return { default: () => null };
@@ -7759,10 +7760,10 @@ test('dashboard plan evidence has no invented ten-session target, cadence or act
 });
 
 test('dashboard plan attendance requires an exact active-plan completion link and preserves date-only assignments', () => {
-  const helper=load('lib/planning/dashboardPlanEvidence.ts'),f=planCalendarLaunchFixture();plans.setActiveWorkoutPlan(f.plan.id);store.writePlanning(store.planningKeys.plans,plans.readWorkoutPlans().map(p=>({...p,days:p.days.map(d=>({...d,assignments:d.assignments.map(a=>({...a,time:''}))}))})));const plan=plans.readWorkoutPlans().find(p=>p.id===f.plan.id),day=plan.days[0],now=new Date(day.date+'T08:00:00');let result=helper.readDashboardPlanEvidence(now);assert.equal(result.target,1);assert.equal(result.completed,0);assert.equal(result.next.date,day.date);assert.equal(result.next.time,'');const labels=actualDashboardPlanLabels(result);assert.match(labels.dashboardNextPlannedSessionLabel,/time not set/);assert.match(labels.dashboardPlanAttendanceDescription,/assigned workout/);assert.doesNotMatch(labels.dashboardPlanAttendanceDescription,/T12:00/);
+  const helper=load('lib/planning/dashboardPlanEvidence.ts'),f=planCalendarLaunchFixture();plans.setActiveWorkoutPlan(f.plan.id);store.writePlanning(store.planningKeys.plans,plans.readWorkoutPlans().map(p=>({...p,days:p.days.map(d=>({...d,assignments:d.assignments.map(a=>({...a,time:''}))}))})));const plan=plans.readWorkoutPlans().find(p=>p.id===f.plan.id),day=plan.days[0],now=new Date(day.date+'T08:00:00');let result=helper.readDashboardPlanEvidence(now);assert.equal(result.target,1);assert.equal(result.completed,0);assert.equal(result.steps.find(step=>step.id===f.assignment.id).title,f.assignment.templateTitle);assert.equal(result.steps.find(step=>step.id===f.assignment.id).date,day.date);assert.equal(result.next.date,day.date);assert.equal(result.next.time,'');const labels=actualDashboardPlanLabels(result);assert.match(labels.dashboardNextPlannedSessionLabel,/time not set/);assert.match(labels.dashboardPlanAttendanceDescription,/assigned workout/);assert.doesNotMatch(labels.dashboardPlanAttendanceDescription,/T12:00/);
   const entry={exerciseId:'squat',exerciseName:'Squat',weight:'20',reps:'8',sets:'3',date:now.toISOString()};const base={id:'linked-plan-evidence',title:'Workout',planId:plan.id,planDayId:day.id,assignmentId:f.assignment.id,templateId:f.template.id,completedAt:now.toISOString(),entries:[entry]};
   for(const patch of [{planId:'other'},{planDayId:'other'},{templateId:'other'},{completedAt:new Date(now.getTime()+1000).toISOString()},{entries:[]}]){store.writePlanning(store.planningKeys.logs,[{...base,...patch}]);assert.equal(helper.readDashboardPlanEvidence(now).completed,0,JSON.stringify(patch));}
-  store.writePlanning(store.planningKeys.logs,[base]);result=helper.readDashboardPlanEvidence(now);assert.equal(result.completed,1);assert.equal(result.progress,100);assert.equal(result.next,null);assert.equal(actualDashboardPlanLabels(result).dashboardPlanAttendanceCaption,'Plan complete');
+  store.writePlanning(store.planningKeys.logs,[base]);result=helper.readDashboardPlanEvidence(now);assert.equal(result.completed,1);assert.equal(result.progress,100);assert.equal(result.steps.find(step=>step.id===f.assignment.id).status,'Completed');assert.equal(result.next,null);assert.equal(actualDashboardPlanLabels(result).dashboardPlanAttendanceCaption,'Plan complete');
 });
 
 test('dashboard upcoming evidence uses confirmed saved booking times and ignores draft, past and pending bookings', async () => {
@@ -7963,11 +7964,11 @@ test('actual dashboard foundation ignores profile goal defaults and visit flags 
 
 test('dashboard reward evidence distinguishes recorded profile points from unavailable redeemable balances', () => {
   const helper=load('lib/planning/dashboardRewardEvidence.ts');for(const value of [null,{},[],{soundPoints:true},{soundPoints:-1},{soundPoints:'bad'},{soundPoints:1.5}]){const result=helper.dashboardRewardEvidence(value);assert.equal(result.points,null);assert.equal(result.pointsLabel,'Unavailable');assert.equal(result.canClaim,false);assert.match(result.description,/ledger unavailable/);}
-  for(const value of [0,'50']){const result=helper.dashboardRewardEvidence({soundPoints:value,soundTokens:800,emeralds:50,level:30});assert.equal(result.points,Number(value));assert.equal(result.pointsLabel,Number(value).toLocaleString()+' recorded');assert.equal(result.tokensLabel,'Unavailable');assert.equal(result.emeraldsLabel,'Unavailable');assert.equal(result.levelLabel,'Unavailable');assert.equal(result.canClaim,false);assert.match(result.description,/Recorded Profile points only/);}
+  for(const value of [0,'50']){const result=helper.dashboardRewardEvidence({soundPoints:value,soundTokens:800,emeralds:50,level:30});assert.equal(result.points,Number(value));assert.equal(result.pointsLabel,Number(value).toLocaleString());assert.equal(result.tokensLabel,'Unavailable');assert.equal(result.emeraldsLabel,'Unavailable');assert.equal(result.levelLabel,'Unavailable');assert.equal(result.canClaim,false);assert.match(result.description,/Recorded Profile points only/);}
 });
 
 test('dashboard reward snapshots follow account ownership without creating awards from workouts', async () => {
-  const helper=load('lib/planning/dashboardRewardEvidence.ts');await store.initializePlanning('wallet-first');store.writePlanning(store.planningKeys.profile,{soundPoints:'25'});store.writePlanning(store.planningKeys.logs,[dashboardCompletionFixture('wallet-workout')]);const before=store.planningSnapshot(),snapshot=JSON.parse(helper.dashboardRewardEvidenceSnapshot());assert.equal(snapshot.points,25);assert.equal(snapshot.canClaim,false);assert.equal(store.planningSnapshot(),before);await store.initializePlanning('wallet-second');assert.equal(JSON.parse(helper.dashboardRewardEvidenceSnapshot()).points,null);assert.equal(JSON.parse(helper.serverDashboardRewardEvidence()).points,null);
+  const helper=load('lib/planning/dashboardRewardEvidence.ts');await store.initializePlanning('wallet-first');store.writePlanning(store.planningKeys.profile,{soundPoints:'25'});store.writePlanning(store.planningKeys.logs,[dashboardCompletionFixture('wallet-workout')]);const before=store.planningSnapshot(),snapshot=JSON.parse(helper.dashboardRewardEvidenceSnapshot());assert.equal(snapshot.points,25);assert.equal(snapshot.canClaim,false);assert.equal(store.planningSnapshot(),before);await store.initializePlanning('wallet-second');assert.equal(JSON.parse(helper.dashboardRewardEvidenceSnapshot()).points,0);assert.equal(JSON.parse(helper.serverDashboardRewardEvidence()).points,null);
 });
 
 function actualDashboardRewardAdapters(evidence, meter = {}) {
@@ -7975,7 +7976,7 @@ function actualDashboardRewardAdapters(evidence, meter = {}) {
 }
 
 test('actual member level, reward panel and claim panel show unverified status without generated awards or Claim actions', () => {
-  const helper=load('lib/planning/dashboardRewardEvidence.ts');for(const profile of [null,{soundPoints:1200}]){const {api,render}=actualDashboardRewardAdapters(helper.dashboardRewardEvidence(profile));const level=render(api.level);assert.match(level,/Level unavailable/);assert.doesNotMatch(level,/level 3|level 4|aria-valuenow|500|300/);for(const panel of [api.panel,api.claim]){const html=render(panel);assert.match(html,/ledger unavailable/);assert.match(html,/not verified/);assert.doesNotMatch(html,/Ready to claim|Claimed|>Claim<|80|3 emeralds|rewardEarned|threshold/);}if(profile)assert.match(render(api.panel),/1,200 recorded/);}
+  const helper=load('lib/planning/dashboardRewardEvidence.ts');for(const profile of [null,{soundPoints:1200}]){const {api,render}=actualDashboardRewardAdapters(helper.dashboardRewardEvidence(profile));const level=render(api.level);assert.match(level,/Level unavailable/);assert.doesNotMatch(level,/level 3|level 4|aria-valuenow|500|300/);for(const panel of [api.panel,api.claim]){const html=render(panel);assert.match(html,/ledger unavailable|Account rewards/);assert.match(html,/not verified/);assert.doesNotMatch(html,/Ready to claim|Claimed|>Claim<|80|3 emeralds|rewardEarned|threshold/);}if(profile)assert.match(render(api.panel),/1,200/);}
 });
 
 function actualDashboardControlHandlers(names, environment) {
@@ -8205,21 +8206,42 @@ test('challenge tracking preserves missing, invalid and review states instead of
 });
 
 function actualRecordedChallengePanel(category, goals, sessions, plan) {
-  const source=fs.readFileSync(path.join(root,'components/dashboard/DashboardExperience.tsx'),'utf8'),ast=ts.createSourceFile('dashboard.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),names=['dashboardChallengeCategories','activeDashboardChallengeCategory','dashboardTrainingConstellationChallenges','ActiveDashboardChallengeCategoryIcon','dashboardTrackedChallenges','dashboardChallengeAverageProgress','renderDashboardChallengesPanel','dashboardTrophyObjectiveGroups','dashboardTrophyObjectiveProgress'],nodes=[];
+  const source=fs.readFileSync(path.join(root,'components/dashboard/DashboardExperience.tsx'),'utf8'),ast=ts.createSourceFile('dashboard.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),names=['dashboardChallengeCategories','activeDashboardChallengeCategory','ActiveDashboardChallengeCategoryIcon','renderDashboardChallengesPanel','dashboardTrophyObjectiveGroups','dashboardTrophyObjectiveProgress'],nodes=[];
   function visit(node){if(ts.isVariableDeclaration(node)&&names.includes(node.name.getText(ast)))nodes.push('const '+node.getText(ast)+';');ts.forEachChild(node,visit);}visit(ast);assert.equal(nodes.length,names.length);
-  const React=require('react'),stub=()=>null,context={exports:{},require,dashboardChallengeEvidence:load('lib/planning/dashboardChallengeEvidence.ts').dashboardChallengeEvidence,dashboardGoalTargets:goals,dashboardSessionEvidence:sessions,dashboardPlanEvidence:plan,activeDashboardChallengeCategoryId:category,headerAchievementItems:load('lib/planning/achievementEvidence.ts').achievementMilestones({goals:false,plan:false,planIssue:'',workouts:0,historyIssue:''}),clampDashboardPercent:value=>Math.max(0,Math.min(100,value)),meterCardStyles:{},Link:props=>React.createElement('a',{href:props.href},props.children),ROUTES:load('lib/routes.ts').ROUTES};
+  const React=require('react'),stub=()=>null,context={exports:{},require,ChallengeSetProgress:load('components/dashboard/ChallengeSetProgress.tsx').default,dashboardChallengeEvidence:load('lib/planning/dashboardChallengeEvidence.ts').dashboardChallengeEvidence,dashboardGoalTargets:goals,dashboardSessionEvidence:sessions,dashboardPlanEvidence:plan,dashboardHealthEvidence:{nutritionIssue:"",nutritionRows:[{label:"Protein",days:0},{label:"Hydration",days:0},{label:"Meals",days:0}],recoveryIssue:"",recoveryRows:[]},dashboardTrainingConstellationSessions:[],activeDashboardChallengeCategoryId:category,headerAchievementItems:load('lib/planning/achievementEvidence.ts').achievementMilestones({goals:false,plan:false,planIssue:'',workouts:0,historyIssue:''}),clampDashboardPercent:value=>Math.max(0,Math.min(100,value)),meterCardStyles:{},Link:props=>React.createElement('a',{href:props.href},props.children),ROUTES:load('lib/routes.ts').ROUTES};
   for(const name of ['Dumbbell','Activity','PersonStanding','HeartPulse','CalendarCheck','Apple','Gauge','BookOpen','Users','ChevronRight'])context[name]=stub;
   const code=ts.transpileModule(nodes.join('\n')+'\nexports.result={panel:renderDashboardChallengesPanel(),groups:dashboardTrophyObjectiveGroups,progress:dashboardTrophyObjectiveProgress};',{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;new Function(...Object.keys(context),code)(...Object.values(context));return {...context.exports.result,render:require('react-dom/server').renderToStaticMarkup};
 }
 
-test('actual challenge panel renders unavailable categories without progress meters or reward promises', () => {
-  const actual=actualRecordedChallengePanel('strength',{sessions:null,sets:null},{weekly:0,issue:''},emptyJourneyInput().plan),html=actual.render(actual.panel);assert.match(html,/Not tracked/);assert.match(html,/Rewards unavailable/);assert.doesNotMatch(html,/<progress|50%|120 SP|Open rewards/);assert.match(html,/0 tracked/);assert.ok(actual.groups.flatMap(group=>group.items).every(item=>item.reward==='Unavailable'&&item.status==='Not yet recorded'&&item.progress===0));assert.equal(actual.progress,0);
+test('actual challenge panel displays three automatic targets without manual completion or reward promises', () => {
+  const actual=actualRecordedChallengePanel('strength',{sessions:null,sets:null},{weekly:0,issue:''},emptyJourneyInput().plan),html=actual.render(actual.panel);
+  assert.equal((html.match(/<h4>/g)||[]).length,3);assert.match(html,/0 of 3/);assert.doesNotMatch(html,/of 10|\/ 30|Lifetime totals|harder targets/);assert.match(html,/Log 3 strength sets/);assert.match(html,/0 \/ 3/);assert.doesNotMatch(html,/Mark complete|120 SP|Open rewards|0 planned/);
+  assert.ok(actual.groups.flatMap(group=>group.items).every(item=>item.reward==='Unavailable'&&item.status==='Not yet recorded'&&item.progress===0));assert.equal(actual.progress,0);
 });
 
-test('actual consistency challenge panel renders only current saved weekly and assignment targets', () => {
-  const actual=actualRecordedChallengePanel('consistency',{sessions:3,sets:36},{weekly:2,issue:''},{...emptyJourneyInput().plan,title:'Saved plan',target:4,completed:1,progress:99}),html=actual.render(actual.panel);assert.equal((html.match(/<progress/g)||[]).length,2);assert.match(html,/2 of 3 sessions recorded this week/);assert.match(html,/1 of 4 assignments completed in Saved plan/);assert.match(html,/67%/);assert.match(html,/25%/);assert.doesNotMatch(html,/Claimed|130 SP|Streak badge/);
+test('actual consistency panel does not accept manual completion records', () => {
+  store.writePlanning('soundFitnessChallengeProgressV1',{'consistency:0:0':'2026-11-01T00:00:00Z','consistency:0:1':'2026-11-01T00:00:00Z','consistency:0:2':'2026-11-01T00:00:00Z'});
+  const actual=actualRecordedChallengePanel('consistency',{sessions:3,sets:36},{weekly:2,issue:''},{...emptyJourneyInput().plan,title:'Saved plan',target:4,completed:1,progress:99}),html=actual.render(actual.panel);
+  assert.equal((html.match(/<h4>/g)||[]).length,3);assert.match(html,/0 of 3/);assert.doesNotMatch(html,/of 10|\/ 30|Lifetime totals|harder targets/);assert.match(html,/Complete 1 logged workout/);assert.doesNotMatch(html,/Mark complete|Claimed|130 SP/);
 });
 
+test('challenge activity counts completed recorded sets and days, excludes future and duplicate sessions',()=>{
+  const helper=load('lib/planning/challengeActivity.ts'),now=new Date('2026-11-01T20:00:00Z');
+  const log={id:'challenge-session',title:'Training',completedAt:'2026-10-30T18:00:00Z',entries:[{exerciseId:'squat',exerciseName:'Squat',pattern:'squat',sets:'3',reps:'8',weight:'20',date:'2026-10-30'}]};
+  const evidence=helper.projectChallengeActivity([log],{},now);assert.equal(evidence['training.sessions'].value,1);assert.equal(evidence['strength.sets'].value,3);assert.equal(evidence['strength.reps'].value,24);assert.equal(evidence['training.days'].value,1);assert.equal(evidence['mobility.sessions'].value,0);assert.equal(evidence['cardio.sessions'],undefined);
+  const duplicate=helper.projectChallengeActivity([log,log],{},now);assert.equal(duplicate['training.sessions'].value,null);
+  const future=helper.projectChallengeActivity([{...log,id:'future',completedAt:'2026-11-02T18:00:00Z'}],{},now);assert.equal(future['training.sessions'].value,0);
+  const unclassified=helper.projectChallengeActivity([{...log,entries:log.entries.map(e=>({...e,pattern:undefined}))}],{},now);assert.equal(unclassified['training.sessions'].value,1);assert.equal(unclassified['strength.sets'].value,0);
+});
+
+test('challenge nutrition and check-in milestones use lifetime saved records without target adherence assumptions',()=>{
+  const helper=load('lib/planning/challengeActivity.ts'),now=new Date('2026-11-01T20:00:00Z');
+  const meal={id:'meal',date:'2026-10-10',time:'',title:'Lunch',kind:'Lunch',notes:'',calories:null,protein:12,carbs:null,fat:null,recordedAt:'2026-10-10T18:00:00Z',updatedAt:'2026-10-10T18:00:00Z'};
+  const check={id:'check',weekStart:'2026-10-05',savedAt:'2026-10-10T18:00:00Z',energy:5,sleep:5,stress:5,soreness:5,habits:[],notes:'Rested'};
+  const values={[store.planningKeys.meals]:[meal,{...meal,id:'second'}],soundFitnessWeeklyCheckIns:[check]};
+  const evidence=helper.projectChallengeActivity([],values,now);assert.equal(evidence['nutrition.meals'].value,1);assert.equal(evidence['nutrition.protein'].value,1);assert.equal(evidence['recovery.weeks'].value,1);assert.equal(evidence['recovery.notes'].value,1);
+  assert.equal(helper.projectChallengeActivity([],{[store.planningKeys.meals]:{}},now)['nutrition.meals'].value,null);
+});
 
 async function withDeferredTemplateRefresh(run) {
   await withCloudRefreshFixture(async(local,rows)=>{
@@ -10505,4 +10527,97 @@ test('meal drafts removal snapshots and failed atomic completion remain detached
 
 test('workout backup receipt results cannot mutate stored confirmation or bypass revision guards',async()=>{
  authUser={id:'member'};await store.initializePlanning('member');const helper=load('lib/planning/workoutSyncReceipt.ts'),operation=helper.createWorkoutSyncOperation(),ticket=operation.begin(),counts={syncedTemplates:1,syncedLogs:2,skippedItems:0},saved=operation.record(ticket,counts,'2026-10-13T18:05:00Z'),expected={schemaVersion:1,completedAt:'2026-10-13T18:05:00Z',...counts},canonical=store.readPlanning(helper.WORKOUT_SYNC_RECEIPT_KEY,null),before=store.planningSnapshot();assert.notEqual(saved,canonical);saved.syncedLogs=999;saved.completedAt='invalid';counts.syncedTemplates=999;assert.deepEqual(store.readPlanning(helper.WORKOUT_SYNC_RECEIPT_KEY,null),expected);const read=helper.readWorkoutSyncReceipt();assert.notEqual(read,canonical);read.syncedLogs=888;assert.deepEqual(helper.readWorkoutSyncReceipt(),expected);assert.equal(store.planningSnapshot(),before);assert.throws(()=>operation.record(ticket,counts),/receipt changed/);assert.equal(operation.finish(ticket),true);const retry=operation.begin();failure=true;try{assert.throws(()=>operation.record(retry,{syncedTemplates:3,syncedLogs:4,skippedItems:0}));}finally{failure=false;}assert.equal(store.planningSnapshot(),before);assert.deepEqual(helper.readWorkoutSyncReceipt(),expected);assert.equal(operation.finish(retry),true);
+});
+
+
+test('challenge activity uses saved source counts without inventing goal progress',()=>{
+ const helper=load('lib/planning/dashboardChallengeEvidence.ts'),goals={sessions:null,sets:null},sessions={weekly:0,issue:''},plan=emptyJourneyInput().plan;
+ const activity={health:{nutritionRows:[{label:'Protein',days:2},{label:'Hydration',days:0},{label:'Meals',days:3}],nutritionIssue:'',recoveryRows:[],recoveryIssue:''},scheduled:[{lane:'strength'},{lane:'cardio'},{lane:'strength'}]},before=JSON.stringify(activity);
+ const strength=helper.dashboardChallengeEvidence('strength',goals,sessions,plan,activity)[0];assert.equal(strength.valueLabel,'2 planned');assert.equal(strength.progress,null);assert.equal(strength.href,'/dashboard/calendar');
+ const nutrition=helper.dashboardChallengeEvidence('nutrition',goals,sessions,plan,activity);assert.deepEqual(nutrition.map(row=>row.valueLabel),['2/7 days','0/7 days','3/7 days']);assert.ok(nutrition.every(row=>row.progress===null));assert.equal(nutrition[1].href,'/nutrition/hydration');
+ assert.equal(helper.dashboardChallengeEvidence('recovery',goals,sessions,plan,activity)[0].valueLabel,'0 recorded');
+ const invalid={...activity,health:{...activity.health,nutritionIssue:'Review saved meals',recoveryIssue:'Review check-ins'}};assert.ok(helper.dashboardChallengeEvidence('nutrition',goals,sessions,plan,invalid).every(row=>row.valueLabel==='Review records'));assert.equal(helper.dashboardChallengeEvidence('recovery',goals,sessions,plan,invalid)[0].valueLabel,'Review records');
+ assert.equal(helper.dashboardChallengeEvidence('consistency',goals,sessions,{...plan,title:'Broken plan',target:0},activity)[1].valueLabel,'Review records');assert.equal(helper.dashboardChallengeEvidence('community',goals,sessions,plan,activity)[0].progress,null);assert.equal(JSON.stringify(activity),before);
+});
+
+test('account reward balances preserve explicit zero and separate empty accounts from failed reads',async()=>{
+ const helper=load('lib/planning/dashboardRewardEvidence.ts');
+ const preview=helper.dashboardRewardEvidence(null,{signedIn:false,synced:false,preview:true});
+ assert.equal(preview.pointsLabel,'0');assert.equal(preview.tokensLabel,'0');assert.equal(preview.emeraldsLabel,'0');
+ assert.equal(preview.accountLinked,false);assert.equal(preview.canClaim,false);assert.match(preview.description,/Local preview/);
+ const linked={signedIn:true,synced:true};
+ for(const profile of [null,{}, {soundPoints:0,soundTokens:0,emeralds:0}]){
+  const evidence=helper.dashboardRewardEvidence(profile,linked);
+  assert.equal(evidence.pointsLabel,'0');assert.equal(evidence.tokensLabel,'0');assert.equal(evidence.emeraldsLabel,'0');assert.equal(evidence.accountLinked,true);assert.equal(evidence.canClaim,false);
+ }
+ const known=helper.dashboardRewardEvidence({soundPoints:'1200',soundTokens:12,emeralds:3},linked);
+ assert.equal(known.pointsLabel,'1,200');assert.equal(known.tokensLabel,'12');assert.equal(known.emeraldsLabel,'3');
+ const offline=helper.dashboardRewardEvidence(null,{signedIn:true,synced:false});
+ assert.equal(offline.pointsLabel,'Unavailable');assert.equal(offline.tokensLabel,'Unavailable');
+ for(const soundPoints of [null,undefined,false,-1,1.5,Number.MAX_SAFE_INTEGER+1,'','bad'])assert.equal(helper.dashboardRewardEvidence({soundPoints},linked).pointsLabel,'Unavailable');
+ assert.equal(helper.dashboardRewardEvidence([],linked).pointsLabel,'Unavailable');
+ await store.initializePlanning('reward-account-one');store.writePlanning(store.planningKeys.profile,{soundPoints:40,soundTokens:2,emeralds:1});
+ const original=store.planningSnapshot();assert.equal(JSON.parse(helper.dashboardRewardEvidenceSnapshot()).pointsLabel,'40');assert.equal(store.planningSnapshot(),original);
+ cloud={data:null,error:{message:'Unable to load'}};
+ await store.initializePlanning('reward-account-two');
+ assert.equal(JSON.parse(helper.dashboardRewardEvidenceSnapshot()).pointsLabel,'Unavailable','failed second-account read cannot inherit the first account or become zero');
+ assert.equal(JSON.parse(helper.serverDashboardRewardEvidence()).pointsLabel,'Unavailable');
+});
+
+
+test('weekly reward balances override editable caches only for the verified owner', async () => {
+ const helper=load('lib/planning/dashboardRewardEvidence.ts'), wallet=load('lib/planning/weeklyRewardBalances.ts');
+ await store.initializePlanning('weekly-first');
+ store.writePlanning(store.planningKeys.profile,{soundPoints:999,soundTokens:999,emeralds:999});
+ const before=store.planningSnapshot();
+ wallet.publishWeeklyRewards('weekly-first',{coins:25,bolts:2,sapphire:3,topaz:4,ruby:5,emerald:1});
+ let result=JSON.parse(helper.dashboardRewardEvidenceSnapshot());
+ assert.equal(result.canClaim,true);assert.equal(result.points,2);assert.equal(result.tokensLabel,'25');
+ assert.equal(result.sapphireLabel,'3');assert.equal(result.topazLabel,'4');assert.equal(result.rubyLabel,'5');assert.equal(result.emeraldsLabel,'1');
+ assert.equal(store.planningSnapshot(),before);
+ await store.initializePlanning('weekly-second');
+ result=JSON.parse(helper.dashboardRewardEvidenceSnapshot());assert.equal(result.canClaim,false);assert.equal(result.points,0);assert.equal(result.sapphireLabel,'Unavailable');
+ wallet.publishWeeklyRewards('weekly-second',{coins:-1,bolts:2,sapphire:0,topaz:0,ruby:0,emerald:0});
+ assert.equal(JSON.parse(helper.dashboardRewardEvidenceSnapshot()).canClaim,false);
+ wallet.publishWeeklyRewards(null,null);
+});
+
+test('dashboard volume category stacks preserve totals and share library colors', () => {
+  const { dashboardWorkloadEvidence } = load('lib/planning/dashboardWorkloadEvidence.ts');
+  const { exerciseAnatomyRegionVisuals } = load('lib/anatomy/exerciseAnatomyColors.ts');
+  const now = new Date(2026, 10, 4, 12), date = new Date(2026, 10, 3, 12).toISOString();
+  const base = { date, weight: 10, weightUnit: 'lb', sets: 2, reps: 5 };
+  const result = dashboardWorkloadEvidence([{...base, bodyPart: 'Quads'}, {...base, bodyPart: 'Hamstrings'}, {...base, bodyPart: 'Back'}, {...base, exerciseName: 'Leg press'}], now);
+  const day = result.rows[1];
+  assert.equal(day.segments.reduce((sum, part) => sum + part.volume, 0), 400);
+  assert.equal(day.segments.find(part => part.category === 'Legs').volume, 200);
+  assert.equal(day.segments.find(part => part.category === 'Legs').color, exerciseAnatomyRegionVisuals['Glutes/Hips'].selectedFill);
+  assert.equal(day.segments.find(part => part.category === 'Back').color, exerciseAnatomyRegionVisuals.Back.selectedFill);
+  assert.equal(day.segments.find(part => part.category === 'Unclassified').volume, 100, 'exercise names cannot invent a category');
+});
+
+test('dashboard volume best day excludes future and incomplete days but keeps recorded zero', () => {
+  const { dashboardWorkloadEvidence } = load('lib/planning/dashboardWorkloadEvidence.ts');
+  const now = new Date(2026, 10, 4, 12);
+  const base = { weight: 10, weightUnit: 'lb', sets: 2, reps: 5 };
+  const at = day => ({...base, date: new Date(2026, 10, day, 10).toISOString()});
+  const result = dashboardWorkloadEvidence([at(1), {...at(2), weight: 20}, {...at(2), weightUnit: undefined}, {...at(5), weight: 999}], now);
+  assert.equal(result.bestDailyVolume, 100);
+  assert.equal(dashboardWorkloadEvidence([], now).bestDailyVolume, null);
+  assert.equal(dashboardWorkloadEvidence([{...at(1), weight: 0}], now).bestDailyVolume, 0);
+});
+
+
+test('support daily prompts expire old ratings and retain today units and hydration logging', () => {
+  const helper=load('lib/planning/bodyCommandEvidence.ts');
+  const now=new Date(2026,9,13,12);
+  const records=[{id:'today-stress',kind:'stress',date:'2026-10-13',value:4,notes:'',recordedAt:now.toISOString()},{id:'old-sleep',kind:'sleep',date:'2026-10-12',value:8,notes:'',recordedAt:new Date(2026,9,12,12).toISOString()}];
+  const values={soundFitnessSupportSignalRecords:records},before=JSON.stringify(values);
+  const result=helper.readBodyCommandEvidence(now,values);
+  assert.equal(result.stress.value,'4/10');assert.equal(result.stress.detail,'Today');
+  assert.equal(result.sleep.recorded,false);assert.equal(result.sleep.detail,'Record now');
+  assert.equal(result.hydration.detail,'Log water');assert.equal(result.hydration.value,'— L');assert.equal(result.core.value,'— sets');assert.equal(result.recovery.value,'— min');assert.equal(result.core.detail,'Record now');
+  const f=healthRecordFixtures(now),logged=helper.readBodyCommandEvidence(now,{[store.planningKeys.hydration]:[f.water]});
+  assert.match(logged.hydration.value,/ L$/);assert.equal(logged.hydration.detail,'Log water');assert.equal(logged.hydration.recorded,true);
+  assert.equal(JSON.stringify(values),before);
 });

@@ -4,6 +4,11 @@ import {
   BoxGeometry,
   BufferGeometry,
   CapsuleGeometry,
+  CatmullRomCurve3,
+  TubeGeometry,
+  Raycaster,
+  DoubleSide,
+  Vector3,
   Group,
   Float32BufferAttribute,
   LatheGeometry,
@@ -17,6 +22,7 @@ import {
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { addAuthoredBody } from "./build-sound-avatar-body.mjs";
+import { avatarShoeGeometry } from "./avatar-shoe-geometry.mjs";
 
 globalThis.FileReader ??= class FileReader {
   readAsArrayBuffer(blob) {
@@ -94,7 +100,7 @@ const pants = material("charcoal training joggers", 0x263241, {
   roughness: 0.52,
 });
 const shoe = material("cyan-lit training shoes", 0x102032, {
-  roughness: 0.38,
+  roughness: 0.68,
 });
 const shoeGlow = material("shoe cyan sole glow", 0x8ff5ff, {
   emissive: 0x19d3ff,
@@ -102,17 +108,17 @@ const shoeGlow = material("shoe cyan sole glow", 0x8ff5ff, {
   metalness: 0.02,
   roughness: 0.28,
 });
-const eyeWhite = material("warm eye sclera", 0xf8ead8, {
+const eyeWhite = material("warm eye sclera", 0xd5c9b9, {
   metalness: 0,
-  roughness: 0.38,
+  roughness: 0.68,
 });
 const iris = material("amber brown iris", 0x61432d, {
   metalness: 0,
-  roughness: 0.22,
+  roughness: 0.48,
 });
 const pupil = material("soft pupil", 0x111827, {
   metalness: 0,
-  roughness: 0.2,
+  roughness: 0.42,
 });
 const logoGlow = material("sound crest glow", 0x7dd3fc, {
   emissive: 0x0ea5e9,
@@ -291,12 +297,12 @@ for (const [side,sign] of [["left",-1],["right",1]]) {
   place(`${side} shin`,[sign*.19,.55,0],[1,1,1]);
   const shoe=byName(`${side} shoe`),sole=byName(`${side} shoe sole glow`);
   shoe.geometry.dispose();
-  shoe.geometry=sphere(24).scale(.105,.07,.25);
+  shoe.geometry=avatarShoeGeometry();
   shoe.position.set(sign*.19,.085,.08);
   shoe.scale.set(1,1,1);
   shoe.rotation.y=sign*.08;
   sole.geometry.dispose();
-  sole.geometry=sphere(24).scale(.106,.018,.251);
+  sole.geometry=avatarShoeGeometry(true);
   sole.position.set(sign*.19,.03,.08);
   sole.scale.set(1,1,1);
   sole.rotation.y=sign*.08;
@@ -310,9 +316,9 @@ avatar.position.y = 0;
 const authored = await addAuthoredBody(avatar, { skin, shirt, pants });
 for(const [index,side] of ['left','right'].entries()) {
   const eye=authored.eyes[index];
-  place(`${side} eye white`,[eye[0],eye[1],eye[2]+.012],[.024,.012,.016]);
-  place(`${side} iris`,[eye[0],eye[1],eye[2]+.027],[.009,.009,.003]);
-  place(`${side} pupil`,[eye[0],eye[1],eye[2]+.030],[.0045,.0045,.002]);
+  place(`${side} eye white`,[eye[0],eye[1],eye[2]+.004],[.022,.008,.010]);
+  place(`${side} iris`,[eye[0],eye[1],eye[2]+.014],[.013,.010,.0025]);
+  place(`${side} pupil`,[eye[0],eye[1],eye[2]+.017],[.0055,.0055,.0015]);
   place(`${side} eyebrow`,[eye[0],eye[1]+.027,eye[2]+.015],[.9,.24,.7]);
   byName(`${side} cheek warmth`).visible=false;
 }
@@ -335,10 +341,132 @@ for(let i=0;i<sweptScalp.count;i++) {
   const lift=.022*Math.max(0,Math.min(1,(scalpPoints.getZ(i)+.04)/.22));
   sweptScalp.setXYZ(i,scalpPoints.getX(i)+scalpNormals.getX(i)*lift,scalpPoints.getY(i)+scalpNormals.getY(i)*lift,scalpPoints.getZ(i)+scalpNormals.getZ(i)*lift);
 }
-scalpGeometry.morphAttributes.position.push(sweptScalp);
+scalpGeometry.morphAttributes.position=[scalpGeometry.morphAttributes.position[0],sweptScalp];
+scalpGeometry.morphAttributes.normal=[scalpGeometry.morphAttributes.normal[0],scalpGeometry.attributes.normal.clone()];
 const scalp=byName('continuous crown hair cap');scalp.geometry.dispose();scalp.geometry=scalpGeometry;scalp.position.set(0,0,0);scalp.scale.set(1,1,1);
 scalp.updateMorphTargets();
 for(const name of ['raised front hairline cap','soft left hairline taper','soft right hairline taper','left temple coverage','right temple coverage','back hair coverage','subtle crown sheen'])byName(name).visible=false;
+
+// A separate, fully covered female scalp follows the female head surface down
+// through the temples and nape, instead of reusing the male crop's cut line.
+const femaleHairGeometry=scalpSource.clone();
+const femaleHead=scalpSource.morphAttributes.position[0];
+const femaleHairPositions=femaleHairGeometry.attributes.position;
+for(let i=0;i<femaleHairPositions.count;i++) {
+  const x=femaleHead.getX(i),y=femaleHead.getY(i),z=femaleHead.getZ(i);
+  const lift=.003+.004*Math.max(0,Math.min(1,(y-3.18)/.16));
+  femaleHairPositions.setXYZ(i,x+scalpNormals.getX(i)*lift,y+scalpNormals.getY(i)*lift,z+scalpNormals.getZ(i)*lift);
+}
+// Clip crossing triangles at a continuous curved hairline instead of dropping
+// whole faces, which leaves the conspicuous stair-step edge of a helmet.
+const hairlineAt=(x,z)=>{
+  const t=Math.max(0,Math.min(1,(z-.02)/.20)),front=t*t*(3-2*t);
+  // Only lift the edge to the top of the ear; the old additive notch
+  // reached the crown and carved a vertical bald strip into the temple.
+  const edge=3.025+.265*front-.040*Math.min(1,Math.abs(x)/.14)+(.003*Math.sin(x*43)+.002*Math.sin(x*91))*front;
+  const earContour=Math.exp(-Math.pow((z-.075)/.043,2))*Math.max(0,Math.min(1,(Math.abs(x)-.105)/.025));
+  return edge+Math.max(0,3.205-edge)*earContour;
+};
+const clippedPositions=[],clippedNormals=[],clippedUvs=[],hairCoverage=[],femaleHairTriangles=[],hairBoundary=[];
+for(let i=0;i<scalpIndices.length;i+=3){
+  let polygon=Array.from(scalpIndices.slice(i,i+3)).map(id=>({
+    p:[femaleHairPositions.getX(id),femaleHairPositions.getY(id),femaleHairPositions.getZ(id)],
+    n:[scalpNormals.getX(id),scalpNormals.getY(id),scalpNormals.getZ(id)],
+  }));
+  const output=[];
+  for(let j=0;j<polygon.length;j++){
+    const a=polygon[j],b=polygon[(j+1)%polygon.length];
+    const da=a.p[1]-hairlineAt(a.p[0],a.p[2]),db=b.p[1]-hairlineAt(b.p[0],b.p[2]);
+    if(da>=0)output.push(a);
+    if((da>=0)!==(db>=0)){
+      const t=da/(da-db);
+      const edge={p:a.p.map((v,k)=>v+(b.p[k]-v)*t),n:a.n.map((v,k)=>v+(b.n[k]-v)*t)};
+      output.push(edge);hairBoundary.push(edge);
+    }
+  }
+  for(let j=1;j<output.length-1;j++)for(const v of [output[0],output[j],output[j+1]]){
+    femaleHairTriangles.push(clippedPositions.length/3);
+    clippedPositions.push(...v.p);clippedNormals.push(...v.n);
+    hairCoverage.push(Math.max(0,Math.min(1,(v.p[1]-hairlineAt(v.p[0],v.p[2]))/.012)));
+    clippedUvs.push(.5+Math.atan2(v.p[0],v.p[2]-.08)/(2*Math.PI),(v.p[1]-3)/.42);
+  }
+}
+femaleHairGeometry.setAttribute('position',new Float32BufferAttribute(clippedPositions,3));
+femaleHairGeometry.setAttribute('normal',new Float32BufferAttribute(clippedNormals,3));
+femaleHairGeometry.setAttribute('uv',new Float32BufferAttribute(clippedUvs,2));
+femaleHairGeometry.setAttribute('hairCoverage',new Float32BufferAttribute(hairCoverage,1));
+femaleHairGeometry.setIndex(femaleHairTriangles);
+femaleHairGeometry.morphAttributes={};
+delete femaleHairGeometry.attributes.skinIndex;delete femaleHairGeometry.attributes.skinWeight;
+femaleHairGeometry.normalizeNormals();
+const femaleHairMaterial=scalp.material.clone();femaleHairMaterial.name='female swept hair';
+const femaleHair=new Mesh(femaleHairGeometry,femaleHairMaterial);
+femaleHair.name='female full hair cap';avatar.add(femaleHair);
+// Broad, shallow swept sections follow the actual scalp. Their physical
+// highlights and silhouette provide the volume visible in the Rain reference.
+const scalpCandidates=[...new Set(femaleHairTriangles)].map(id=>({
+  p:new Vector3(clippedPositions[id*3],clippedPositions[id*3+1],clippedPositions[id*3+2]),
+  n:new Vector3(clippedNormals[id*3],clippedNormals[id*3+1],clippedNormals[id*3+2]).normalize(),
+}));
+const projectionMaterial=scalp.material.clone();projectionMaterial.side=DoubleSide;
+const projectionMesh=new Mesh(femaleHairGeometry,projectionMaterial);projectionMesh.updateMatrixWorld(true);
+const scalpRay=new Raycaster(),scalpCenter=new Vector3(0,3.22,.075);
+const projectToScalp=target=>{
+  const direction=target.clone().sub(scalpCenter).normalize();
+  scalpRay.set(scalpCenter.clone().addScaledVector(direction,1),direction.clone().negate());
+  const hit=scalpRay.intersectObject(projectionMesh,false)[0];
+  if(hit)return {p:hit.point.clone(),n:hit.normal.clone().normalize()};
+  let best=scalpCandidates[0],distance=Infinity;
+  for(const candidate of scalpCandidates){const d=candidate.p.distanceToSquared(target);if(d<distance){best=candidate;distance=d;}}
+  return best;
+};
+const sections=[];
+for(let strand=0;strand<55;strand++){
+  const x=-.145+strand*.00537;
+  const start=projectToScalp(new Vector3(x,3.31-Math.abs(x)*.12,.26));
+  const crown=projectToScalp(new Vector3(x*.50+.025,3.43,.09));
+  const back=projectToScalp(new Vector3(x*.38,3.29,-.08));
+  const curve=new CatmullRomCurve3([start.p.clone(),crown.p.clone(),back.p.clone()]);
+  const geometry=new TubeGeometry(curve,32,strand%5===0?.005:.0018,8,false),points=geometry.attributes.position;
+  for(let ring=0;ring<=32;ring++){
+    const surface=projectToScalp(curve.getPointAt(ring/32));
+    const center=surface.p.clone().addScaledVector(surface.n,.0025);
+    const taper=.03+.97*Math.pow(Math.sin(Math.PI*ring/32),.65);
+    const originalCenter=curve.getPointAt(ring/32);
+    for(let j=0;j<=8;j++){
+      const id=ring*9+j,offset=new Vector3().fromBufferAttribute(points,id).sub(originalCenter);
+      offset.addScaledVector(surface.n,-offset.dot(surface.n)*.35).multiplyScalar(taper);
+      const point=center.clone().add(offset);points.setXYZ(id,point.x,point.y,point.z);
+    }
+  }
+  geometry.computeVertexNormals();sections.push(geometry);
+}
+const sweptSections=new Mesh(mergeGeometries(sections),scalp.material);
+sweptSections.name='female swept hair sections';avatar.add(sweptSections);sections.forEach(g=>g.dispose());projectionMaterial.dispose();
+
+// Fine tapered fibers start within the cap and follow the skin tangent past
+// the edge; they break up the outline without floating locks beside the face.
+const fibers=[],roots=[];
+for(const {p,n} of hairBoundary){
+  if(p[2]<.15||Math.abs(p[0])<.105||roots.some(root=>root.distanceTo(new Vector3(...p))<.0035))continue;
+  const root=new Vector3(...p),normal=new Vector3(...n).normalize();roots.push(root);
+  const tangent=new Vector3(0,-1,0).addScaledVector(normal,normal.y).normalize();
+  const length=.009+.008*(.5+.5*Math.sin(p[0]*773));
+  const curve=new CatmullRomCurve3([
+    root.clone().addScaledVector(tangent,-.012),root,
+    root.clone().addScaledVector(tangent,length*.65).add(new Vector3(.001*Math.sin(p[0]*211),0,0)),
+    root.clone().addScaledVector(tangent,length).addScaledVector(normal,-.001),
+  ]);
+  const fiber=new TubeGeometry(curve,8,.0009,4,false),points=fiber.attributes.position;
+  for(let ring=0;ring<=8;ring++)for(let j=0;j<=4;j++){
+    const index=ring*5+j,center=curve.getPointAt(ring/8);
+    const point=new Vector3().fromBufferAttribute(points,index).sub(center).multiplyScalar(1-.93*Math.pow(ring/8,2)).add(center);
+    points.setXYZ(index,point.x,point.y,point.z);
+  }
+  fiber.computeVertexNormals();fibers.push(fiber);
+}
+if(fibers.length){const wisps=new Mesh(mergeGeometries(fibers),scalp.material);wisps.name='female hairline fibers';avatar.add(wisps);fibers.forEach(g=>g.dispose());}
+
 
 const exporter = new GLTFExporter();
 const arrayBuffer = await exporter.parseAsync(scene, {

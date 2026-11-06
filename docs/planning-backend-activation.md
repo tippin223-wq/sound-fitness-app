@@ -1,5 +1,7 @@
 # Planning backend activation
 
+**Current state (2026-10-28):** The user-approved account-sync repair is active in production: `planning_documents` and `save_planning_document` are installed. A fresh signed-in localhost app session shows `Goals & Plan: Synced`. The other five app migrations remain pending. Do not replay the old six-migration activation package: its preconditions intentionally reject this partial installation.
+
 The app logic and isolated database tests are implemented. This guide does not establish that the migrations are active or that authenticated production flows have passed. The latest local baseline is 967 combined tests and a successful production build (2026-10-14 03:54 UTC).
 
 ## Observed production metadata (2026-10-14 04:36 UTC)
@@ -37,6 +39,24 @@ The exact package installed successfully in isolated PGlite using the base schem
 Explicit confirmation has been requested before applying this package through the production browser dashboard. The Computer Use Confirmation Policy requires action-time confirmation for creating or expanding security-sensitive access; the package introduces owner policies and authenticated database functions. No confirmation has been received and no production activation performed. Preserve this pending request across heartbeat runs; do not treat another heartbeat or elapsed time as approval. After approval, perform the final state/hash checks, apply only this reviewed scope atomically, verify metadata and complete controlled authenticated acceptance checks. SQL-editor execution does not automatically establish migration-history registration; record the exact applied hashes and verify history separately.
 
 ## Target and prerequisites
+
+### Approved account-sync repair applied (2026-10-28 06:52 UTC)
+
+The user explicitly approved the narrow production repair. The exact artifact below was checked against its SHA256, pasted into a fresh SQL query in project `phacfkbgqrnfbjdbaxzq` / main Production, compared against the editor's complete selected SQL, and executed once. The dashboard returned `Success. No rows returned`. Existing SQL drafts and the separate restore sandbox were preserved.
+
+A subsequent metadata-only SELECT confirmed the table exists, RLS is enabled, all three owner policies are present, authenticated SELECT/INSERT/UPDATE and save-function execution are granted, DELETE/TRUNCATE are withheld, anonymous reads/save execution are denied, and the save function is security invoker. The public zero-row table probe now returns permission denied (42501), as expected for the excluded anonymous role, instead of missing table (PGRST205). Other workout-schema probes remain unavailable. No member records were opened in the admin console.
+
+Reloading the existing signed-in localhost app session successfully completed its real owner-scoped planning read and displayed **Goals & Plan: Synced**; account reward evidence changed to connected with zero points. No fabricated rewards or test planning records were saved. Live authenticated save/retry/cross-account acceptance checks remain unperformed; the isolated checks are separate evidence. Screenshots: [database checks](../test-results/planning-account-sync-verification.jpg), [signed-in app](../test-results/account-sync-live.jpg).
+
+This SQL-editor activation does not register the migration in Supabase migration history. Record reconciliation is still pending; inspect the installed schema before any CLI migration deployment. The old six-migration package must not be replayed. Only the first planning migration was approved and applied; workout/message/semantic/identity migrations were not changed.
+
+### Connection recheck and narrow account-sync repair (2026-10-28)
+
+The configured public publishable key is valid: Auth health and a zero-row profiles request both return HTTP 200. The REST schema root returns 401 `Secret API key required`; that endpoint is not a valid public-key connection test. Do not rotate or replace the public key on that evidence.
+
+The development preflight still reports `planning_documents` missing (PGRST205), together with the staged workout columns. The signed-in production dashboard reports Healthy and still names retention_schedule_approvals as its last migration. The currently open restore-sandbox project is a different project and is not the app's configured destination.
+
+The narrow repair artifact [planning-account-sync-repair.sql](../test-results/planning-account-sync-repair.sql) applies **only** 20261012090000_planning_documents.sql to the configured production project. Source SHA256: `3cdc5d392452c90dbb748dc9217f39355804f5bd6254817f805bbf9a1c4c695c`; artifact SHA256: `4b6214b528822ed00acbde48105c32dc5d75e5407af96510db13c793916edc24`. It uses a transaction, bounded lock/statement timeouts, and refuses an existing table/function. Isolated PGlite verification passed rollback, owner-only reads/saves, stale-write refusal, restricted grants, anonymous execution denial, denied bulk deletion and safe replay refusal. No production SQL was executed. This repair enables planning document persistence; it does not install the other workout/message migrations or establish an authoritative rewards ledger. Action-time confirmation remains required before executing the access-policy/function creation through the Windows browser UI.
 
 The configured Supabase project reference is `phacfkbgqrnfbjdbaxzq`. Confirm the intended environment and its migration history before applying changes. Some files create tables or columns without rerun guards; an existing installation needs inspection rather than blind reapplication.
 

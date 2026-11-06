@@ -1,6 +1,11 @@
 "use client";
+import Image from "next/image";
+import { usePathname } from "next/navigation";
+import loadingStyles from "./DashboardLoading.module.css";
+import { syncPreloaderAura } from "./preloaderAura";
 import { useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { publishWeeklyRewards } from "@/lib/planning/weeklyRewardBalances";
 import { initializePlanning, subscribePlanning, planningStatus, legacyAvailable, importLegacyPlanning, dismissLegacy, syncPlanning, resolvePlanningConflict, refreshPlanningFromStorage, planningAccountGeneration, exportPlanningBackup } from "@/lib/planning/store";
 import { readWorkoutBuilderTemplates } from "@/lib/localData/workoutBuilderData";
 import { readPlanningLogs, planningLogUploadConfirmed } from "@/lib/planning/logs";
@@ -10,6 +15,7 @@ import { refreshCloudWorkoutHistory, resetCloudWorkoutHistory } from "@/lib/plan
 import WorkoutTemplateConflicts from "./WorkoutTemplateConflicts";
 
 export default function PlanningProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const [ready, setReady] = useState(false);
   const [status, setStatus] = useState(planningStatus);
   const [legacy, setLegacy] = useState(false);
@@ -21,6 +27,30 @@ export default function PlanningProvider({ children }: { children: ReactNode }) 
   const [startupError, setStartupError] = useState("");
   const [bookingStatus, setBookingStatus] = useState("");
   const [exportMessage, setExportMessage] = useState<{ account: string; generation: number | null; text: string } | null>(null);
+  useEffect(() => {
+    let live = true;
+    let request = 0;
+    publishWeeklyRewards(null, null);
+    const refresh = async () => {
+      if (!account || account === "local-preview") return;
+      const ticket = ++request;
+      try {
+        const { data, error } = await supabase.rpc("member_reward_balances");
+        if (live && ticket === request && !error) publishWeeklyRewards(account, data);
+      } catch { /* Retain the last verified balance; retry on reconnect/focus. */ }
+    };
+    void refresh();
+    const visible = () => { if (!document.hidden) void refresh(); };
+    window.addEventListener("online", refresh);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", visible);
+    return () => {
+      live = false; request++;
+      window.removeEventListener("online", refresh);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", visible);
+    };
+  }, [account]);
   const downloadPlanning = () => {
     try {
       const backup = exportPlanningBackup(account, new Date(), accountGeneration);
@@ -59,10 +89,14 @@ export default function PlanningProvider({ children }: { children: ReactNode }) 
     window.addEventListener("storage", refreshPlanningFromStorage);
     return () => { live = false; unsubscribe(); auth.subscription.unsubscribe(); window.removeEventListener("online", online); window.removeEventListener("focus", focus); window.removeEventListener("storage", refreshPlanningFromStorage); };
   }, []);
-  if (!ready) return <div className="p-6 text-slate-300"><p role="status">{startupError || "Loading your planning data…"}</p>{startupError && <button type="button" onClick={() => window.location.reload()}>Retry loading account</button>}</div>;
+  if (!ready) return <div ref={syncPreloaderAura} className={loadingStyles.page}>
+    <Image src="/sound-crest-avatar.png" alt="Sound Fitness" width={160} height={160} priority unoptimized className={loadingStyles.crest} />
+    <p role="status" className={loadingStyles.label}>{startupError || "Getting your dashboard ready"}</p>
+    {startupError && <button type="button" className="rounded-lg border border-cyan-200/40 px-4 py-2 text-sm" onClick={() => window.location.reload()}>Retry loading account</button>}
+  </div>;
   return <>
     <div key={account}>{children}</div>
-    <details key={`planning-tools:${account}`} className="bg-slate-950 px-4 py-2 text-xs text-slate-300">
+    {pathname === "/dashboard/settings" && <details key={`planning-tools:${account}`} className="bg-slate-950 px-4 py-2 text-xs text-slate-300">
       <summary className="cursor-pointer">Data &amp; backups</summary>
       <div className="mt-3 flex flex-wrap items-center gap-3" role="status">
       <span>Goals & Plan: {status}</span>
@@ -77,7 +111,7 @@ export default function PlanningProvider({ children }: { children: ReactNode }) 
       {status.startsWith("Sync conflict") && <><button type="button" onClick={() => void resolvePlanningConflict(false)}>Use cloud copy</button><button type="button" onClick={() => void resolvePlanningConflict(true)}>Keep this device’s changes</button></>}
       {legacy && <><span>Older browser planning data found. Import only if it belongs to this account.</span><button type="button" onClick={importLegacyPlanning}>Import my browser data</button><button type="button" onClick={dismissLegacy}>Skip import</button></>}
       </div>
-    </details>
+    </details>}
     <WorkoutTemplateConflicts key={`template-conflicts:${account}`} />
   </>;
 }

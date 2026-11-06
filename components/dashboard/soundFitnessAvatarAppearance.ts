@@ -6,6 +6,7 @@
 // option is a matter of adding a palette entry.
 
 export type SoundFitnessAvatarEmotePreset =
+  | "bow"
   | "calm"
   | "wave"
   | "nod"
@@ -14,14 +15,9 @@ export type SoundFitnessAvatarEmotePreset =
   | "salute"
   | "stretch";
 
-export type SoundFitnessAvatarShirtPreset =
-  | "sound"
-  | "ocean"
-  | "ember"
-  | "violet"
-  | "storm"
-  | "mint"
-  | "gold";
+export type SoundFitnessAvatarClothingColor = "navy" | "berry" | "onyx" | "white" | "blue" | "forest" | "rust" | "sand";
+
+export type SoundFitnessAvatarShirtPreset = "sound" | "storm" | "swoosh" | "compact" | "service" | "waves" | "orbit" | "echo" | "waterline" | "mountain" | "trainer" | "energy";
 
 export type SoundFitnessAvatarPantsPreset =
   | "graphite"
@@ -44,7 +40,8 @@ export type SoundFitnessAvatarSkinPreset =
   | "golden"
   | "deep"
   | "cool"
-  | "porcelain"
+  | "cocoa"
+  | "umber"
   | "olive";
 
 export type SoundFitnessAvatarHairPreset =
@@ -96,10 +93,12 @@ export type SoundFitnessAvatarAppearance = {
   eyes: SoundFitnessAvatarEyesPreset;
   face: SoundFitnessAvatarFacePreset;
   gear: SoundFitnessAvatarGearPreset;
+  gearColor: SoundFitnessAvatarClothingColor;
   hair: SoundFitnessAvatarHairPreset;
   hairColor: SoundFitnessAvatarHairColorPreset;
   pants: SoundFitnessAvatarPantsPreset;
   shirt: SoundFitnessAvatarShirtPreset;
+  shirtColor: SoundFitnessAvatarClothingColor;
   shoes: SoundFitnessAvatarShoesPreset;
   skin: SoundFitnessAvatarSkinPreset;
 };
@@ -110,10 +109,12 @@ export const defaultSoundFitnessAvatarAppearance: SoundFitnessAvatarAppearance =
   eyes: "amber",
   face: "relaxed",
   gear: "wristbands",
+  gearColor: "onyx",
   hair: "crop",
   hairColor: "natural",
   pants: "graphite",
   shirt: "sound",
+  shirtColor: "navy",
   shoes: "volt",
   skin: "warm",
 };
@@ -178,13 +179,30 @@ export const soundFitnessAvatarShirtPalettes: Record<
   SoundFitnessAvatarShirtPreset,
   SoundFitnessAvatarShirtPalette
 > = {
-  sound: { accent: "#67e8f9", base: "#0b1a2e", label: "Sound Tee", panel: "#12294a" },
-  ocean: { accent: "#7dd3fc", base: "#1e3a8a", label: "Ocean Tee", panel: "#1d4ed8" },
-  ember: { accent: "#fdba74", base: "#7c2d12", label: "Ember Tee", panel: "#9a3412" },
-  violet: { accent: "#c4b5fd", base: "#4c1d95", label: "Violet Tee", panel: "#5b21b6" },
-  storm: { accent: "#cbd5e1", base: "#1f2937", label: "Storm Tee", panel: "#334155" },
-  mint: { accent: "#a7f3d0", base: "#064e3b", label: "Mint Tee", panel: "#047857" },
-  gold: { accent: "#fde68a", base: "#3b2a06", label: "Gold Tee", panel: "#78500f" },
+  sound: { accent: "#67e8f9", base: "#0b1a2e", label: "Centered Crest", panel: "#12294a" },
+  storm: { accent: "#fecdd3", base: "#6b203b", label: "Centered Wordmark", panel: "#862b4b" },
+  swoosh: { accent: "#22d3ee", base: "#10151e", label: "Blue Swoosh", panel: "#182332" },
+  compact: { accent: "#38bdf8", base: "#172554", label: "Crest + Wordmark", panel: "#1e3a5f" },
+  service: { accent: "#7dd3fc", base: "#164e63", label: "Service Crest", panel: "#155e75" },
+  waves: { accent: "#22d3ee", base: "#064e3b", label: "Wave Contours", panel: "#065f46" },
+  orbit: { accent: "#93c5fd", base: "#312e81", label: "Circular Wordmark", panel: "#3730a3" },
+  echo: { accent: "#67e8f9", base: "#27272a", label: "Wordmark Echo", panel: "#3f3f46" },
+  waterline: { accent: "#38bdf8", base: "#0c4a6e", label: "Waterline", panel: "#075985" },
+  mountain: { accent: "#fb923c", base: "#7c2d12", label: "Mountain Outline", panel: "#9a3412" },
+  trainer: { accent: "#e2e8f0", base: "#334155", label: "Stretch & Flex Trainer", panel: "#475569" },
+  energy: { accent: "#60a5fa", base: "#581c87", label: "Energy Trainer", panel: "#6b21a8" },
+};
+
+// Fabric color is independent of the shirt print or gear shape.
+export const soundFitnessAvatarClothingColors: Record<SoundFitnessAvatarClothingColor, SoundFitnessAvatarShirtPalette> = {
+  navy: {base:"#0b1a2e",panel:"#12294a",accent:"#67e8f9",label:"Navy"},
+  berry: {base:"#6b203b",panel:"#862b4b",accent:"#fecdd3",label:"Berry"},
+  onyx: {base:"#10151e",panel:"#1e293b",accent:"#94a3b8",label:"Black"},
+  white: {base:"#e2e8f0",panel:"#cbd5e1",accent:"#94a3b8",label:"White"},
+  blue: {base:"#1e40af",panel:"#1d4ed8",accent:"#93c5fd",label:"Blue"},
+  forest: {base:"#064e3b",panel:"#065f46",accent:"#a7f3d0",label:"Forest"},
+  rust: {base:"#9a3412",panel:"#7c2d12",accent:"#fdba74",label:"Rust"},
+  sand: {base:"#a88b62",panel:"#8a6a3a",accent:"#fde68a",label:"Sand"},
 };
 
 export const soundFitnessAvatarPantsPalettes: Record<
@@ -219,7 +237,8 @@ export const soundFitnessAvatarSkinPalettes: Record<
   golden: { base: "#c9894f", cheek: "#c96b3a", highlight: "#e6ad74", label: "Golden" },
   deep: { base: "#6b3a2a", cheek: "#7a3c30", highlight: "#8d5240", label: "Deep" },
   cool: { base: "#b98278", cheek: "#b46b66", highlight: "#d4a49b", label: "Cool" },
-  porcelain: { base: "#efd2c1", cheek: "#e7a596", highlight: "#f8e5da", label: "Porcelain" },
+  cocoa: { base: "#a4775b", cheek: "#a06b53", highlight: "#bd9478", label: "Cocoa" },
+  umber: { base: "#875f49", cheek: "#885842", highlight: "#a67e63", label: "Umber" },
   olive: { base: "#a8845c", cheek: "#a86d4e", highlight: "#c7a47a", label: "Olive" },
 };
 
@@ -259,6 +278,15 @@ export const soundFitnessAvatarHairStyles: Record<
   bald: { label: "Clean Shave" },
 };
 
+export const soundFitnessAvatarHairByBody: Record<SoundFitnessAvatarBodyPreset, readonly SoundFitnessAvatarHairPreset[]> = {
+  female: ["ponytail", "bun", "long"],
+  male: ["crop", "swept", "fade", "buzz", "bald"],
+};
+
+export function avatarHairForBody(body: SoundFitnessAvatarBodyPreset, hair: SoundFitnessAvatarHairPreset): SoundFitnessAvatarHairPreset {
+  return soundFitnessAvatarHairByBody[body].includes(hair) ? hair : body === "female" ? "ponytail" : "crop";
+}
+
 export const soundFitnessAvatarFaces: Record<
   SoundFitnessAvatarFacePreset,
   { label: string }
@@ -297,7 +325,8 @@ export const soundFitnessAvatarEmotes: Record<
   SoundFitnessAvatarEmotePreset,
   { label: string }
 > = {
-  calm: { label: "Rest" },
+  calm: { label: "Idle" },
+  bow: { label: "Bow" },
   wave: { label: "Wave" },
   nod: { label: "Nod" },
   focus: { label: "Focus" },
@@ -329,12 +358,14 @@ export function sanitizeSoundFitnessAvatarAppearance(
       ? (value as Record<string, unknown>)
       : {};
   const d = defaultSoundFitnessAvatarAppearance;
+  const body = pick(soundFitnessAvatarBodies, source.body, d.body);
   return {
-    body: pick(soundFitnessAvatarBodies, source.body, d.body),
+    body,
     eyes: pick(soundFitnessAvatarEyesPalettes, source.eyes, d.eyes),
     face: pick(soundFitnessAvatarFaces, source.face, d.face),
     gear: pick(soundFitnessAvatarGear, source.gear, d.gear),
-    hair: pick(soundFitnessAvatarHairStyles, source.hair, d.hair),
+    gearColor: pick(soundFitnessAvatarClothingColors, source.gearColor, d.gearColor),
+    hair: avatarHairForBody(body, pick(soundFitnessAvatarHairStyles, source.hair, d.hair)),
     hairColor: pick(
       soundFitnessAvatarHairColorPalettes,
       source.hairColor,
@@ -342,8 +373,9 @@ export function sanitizeSoundFitnessAvatarAppearance(
     ),
     pants: pick(soundFitnessAvatarPantsPalettes, source.pants, d.pants),
     shirt: pick(soundFitnessAvatarShirtPalettes, source.shirt, d.shirt),
+    shirtColor: pick(soundFitnessAvatarClothingColors, source.shirtColor, source.shirt === "storm" ? "berry" : d.shirtColor),
     shoes: pick(soundFitnessAvatarShoesPalettes, source.shoes, d.shoes),
-    skin: pick(soundFitnessAvatarSkinPalettes, source.skin, d.skin),
+    skin: pick(soundFitnessAvatarSkinPalettes, source.skin === "porcelain" ? "cocoa" : source.skin, d.skin),
   };
 }
 

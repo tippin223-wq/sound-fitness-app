@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { Joystick } from "lucide-react";
 
 type Position = { left: number; top: number };
 
@@ -140,7 +141,8 @@ export default function DashboardAccessibilityNavigator({
 
   return createPortal(
     <div
-      className="pointer-events-none fixed z-[460] flex items-center"
+      className={`pointer-events-none fixed z-[460] ${open ? "h-[5.25rem] w-[4.35rem]" : "h-10 w-6"}`}
+      data-dashboard-accessibility-navigator="true"
       ref={wrapperRef}
       style={
         position
@@ -155,7 +157,7 @@ export default function DashboardAccessibilityNavigator({
             ? "Hide accessibility page navigator"
             : "Show accessibility page navigator"
         }
-        className="pointer-events-auto grid h-12 w-7 cursor-grab place-items-center rounded-l-xl border border-r-0 border-cyan-100/30 bg-slate-950/95 text-[0.48rem] font-black uppercase tracking-[0.12em] text-cyan-100 shadow-[-8px_8px_20px_rgba(0,0,0,0.4)] outline-none transition hover:w-8 hover:border-amber-100/45 hover:text-white active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-cyan-100/75 [writing-mode:vertical-rl]"
+        className={`pointer-events-auto grid cursor-grab place-items-center border border-cyan-100/20 bg-gradient-to-br from-white/10 via-slate-900/25 to-cyan-950/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.16),-2px_2px_8px_rgba(0,0,0,0.16)] backdrop-blur-md outline-none transition hover:border-amber-100/45 active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-cyan-100/75 ${open ? "absolute -top-1 right-0 z-20 h-7 w-7 rounded-full" : "h-10 w-6 rounded-l-lg border-r-0"}`}
         data-dashboard-tooltip={
           open
             ? "Click to hide. Double-click and hold to move."
@@ -169,7 +171,7 @@ export default function DashboardAccessibilityNavigator({
         onPointerUp={finishDrag}
         type="button"
       >
-        {open ? "Hide" : "Nav"}
+        <Joystick aria-hidden="true" className="h-4 w-4 text-slate-500" strokeWidth={1.8} />
       </button>
       {open ? (
         <div className="pointer-events-none grid h-[5.25rem] w-[4.35rem] place-items-center">

@@ -1,15 +1,48 @@
 import type * as Three from "three";
+import type { SoundFitnessAvatarShirtPreset } from "./soundFitnessAvatarAppearance";
+import { fetchPublishedContent } from "@/lib/usePublishedContent";
 
-export async function createAvatarShirtPrintTexture(THREE: typeof Three) {
+export async function createAvatarShirtPrintTexture(THREE: typeof Three, design: SoundFitnessAvatarShirtPreset = "sound") {
+  // A missing catalog must never hold the avatar preloader indefinitely.
+  let catalogTimer: ReturnType<typeof setTimeout> | undefined;
+  const rows=await Promise.race([fetchPublishedContent("avatar",`shirt:${design}`).catch(()=>[]),new Promise<[]>(resolve=>{catalogTimer=setTimeout(()=>resolve([]),1000);})]);
+  if(catalogTimer)clearTimeout(catalogTimer);
+  const publishedAsset=rows[0]?.fields?.["Asset URL"];
+  if(design!=="sound" && design!=="storm") {
+    const dual=design==="orbit"||design==="trainer"||design==="energy";
+    const fallback=`/models/textures/shirts/${design}.png`;
+    const art=await new THREE.ImageLoader().loadAsync(publishedAsset||fallback).catch(()=>new THREE.ImageLoader().loadAsync(fallback));
+    const front=dual ? await new THREE.ImageLoader().loadAsync(design==="orbit"?"/sound-fitness-logo.png":design==="trainer"?"/models/textures/sound-shirt-wordmark.webp":"/models/textures/shirts/energy-front.png") : art;
+    const canvas=document.createElement("canvas");canvas.width=1024;canvas.height=512;
+    const context=canvas.getContext("2d")!;
+    const draw=(image:HTMLImageElement,offset:number)=>{
+      const ratio=image.width/image.height;
+      const w=ratio>=1?512:512*ratio,h=ratio>=1?512/ratio:512;
+      context.drawImage(image,offset+(512-w)/2,(512-h)/2,w,h);
+    };
+    draw(front,0);if(dual)draw(art,512);
+    const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=4;
+    texture.userData.shirtLayout={atlas:true,front:dual?[.18,2.59,.22,.22]:[0,2.49,.50,.50],back:dual?[0,2.44,.53,.53]:null};
+    return texture;
+  }
+  if(publishedAsset){
+    try{
+      const image=await new THREE.ImageLoader().loadAsync(publishedAsset);
+      const canvas=document.createElement("canvas");canvas.width=canvas.height=512;
+      const context=canvas.getContext("2d")!;const scale=Math.min(448/image.width,448/image.height);
+      context.drawImage(image,(512-image.width*scale)/2,(512-image.height*scale)/2,image.width*scale,image.height*scale);
+      const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=4;return texture;
+    }catch{/* Preserve the authored print when an uploaded asset cannot load. */}
+  }
   const [crest,wordmark]=await Promise.all([
     new THREE.ImageLoader().loadAsync("/sound-fitness-logo.png"),
     new THREE.ImageLoader().loadAsync("/models/textures/sound-shirt-wordmark.webp"),
   ]);
-  const canvas=document.createElement("canvas");canvas.width=1024;canvas.height=320;
+  const canvas=document.createElement("canvas");canvas.width=design === "sound" ? 512 : 1024;canvas.height=design === "sound" ? 512 : 320;
   const context=canvas.getContext("2d")!;
-  // Match the existing Client Gear shirt: crest beside the two-line wordmark.
-  context.drawImage(crest,8,0,320,320);
-  context.drawImage(wordmark,0,0,240,88,346,44,650,238);
+  // Keep the existing crest and wordmark assets unchanged.
+  if(design === "sound") context.drawImage(crest,32,32,448,448);
+  else context.drawImage(wordmark,0,0,240,88,32,0,960,320);
   const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=4;
   return texture;
 }
@@ -24,12 +57,12 @@ export function createAvatarSurfaceMaterials(THREE: typeof Three, materials: Map
     for(let y=0;y<128;y++)for(let x=0;x<128;x++) {
       const noise=((Math.imul(x+17,374761393)^Math.imul(y+31,668265263))>>>0)%256;
       const level=kind==="fabric" ? 128+Math.sin(x*Math.PI/2)*15+Math.sin(y*Math.PI/2)*12+noise*.035
-        : kind==="hair" ? 95+Math.sin(x*1.4+Math.sin(y*.07))*34+noise*.08 : 135+noise*.10;
+        : kind==="hair" ? 125+Math.sin(x*1.4+Math.sin(y*.025)*.8)*24+Math.sin(x*3.3+y*.018)*10+noise*.025 : 135+noise*.10;
       const i=(y*128+x)*4;pixels.data[i]=pixels.data[i+1]=pixels.data[i+2]=level;pixels.data[i+3]=255;
     }
     context.putImageData(pixels,0,0);
     const map=new THREE.CanvasTexture(canvas);map.wrapS=map.wrapT=THREE.RepeatWrapping;
-    map.repeat.set(kind==="skin"?28:kind==="hair"?12:32,kind==="skin"?28:kind==="hair"?4:32);
+    map.repeat.set(kind==="skin"?28:kind==="hair"?3:32,kind==="skin"?28:kind==="hair"?1:32);
     map.anisotropy=4;maps.push(map);return map;
   };
   const skin=materials.get("warm athletic skin")!;
@@ -38,11 +71,15 @@ export function createAvatarSurfaceMaterials(THREE: typeof Three, materials: Map
     skin.map=skinTexture;skinTexture.colorSpace=THREE.SRGBColorSpace;
     // Preserve Avatar Lab skin colors while borrowing the photographed fine
     // facial detail; an unadjusted diffuse map would multiply dark skin twice.
+    const detailStrength={value:.74};
+    skin.userData.detailStrength=detailStrength;
     skin.onBeforeCompile=shader=>{
+      shader.uniforms.soundSkinDetail=detailStrength;
+      shader.fragmentShader="uniform float soundSkinDetail;\n"+shader.fragmentShader;
       shader.fragmentShader=shader.fragmentShader.replace("#include <map_fragment>",`#ifdef USE_MAP
         vec4 skinSample=texture2D(map,vMapUv);
         vec3 skinDetail=clamp(skinSample.rgb/vec3(.095,.041,.022),vec3(.18),vec3(2.8));
-        diffuseColor.rgb*=mix(vec3(1.0),skinDetail,.74);
+        diffuseColor.rgb*=mix(vec3(1.0),skinDetail,soundSkinDetail);
       #endif`);
       shader.fragmentShader=shader.fragmentShader.replace("#include <roughnessmap_fragment>",`#include <roughnessmap_fragment>
         #ifdef USE_MAP
@@ -50,7 +87,7 @@ export function createAvatarSurfaceMaterials(THREE: typeof Three, materials: Map
           roughnessFactor=clamp(roughnessFactor+.12*(1.0-clamp(skinLuminance*5.0,0.0,1.0)),.43,.80);
         #endif`);
     };
-    skin.customProgramCacheKey=()=>"sound-human-skin-detail-v2";
+    skin.customProgramCacheKey=()=>"sound-human-skin-detail-v3";
     maps.push(skinTexture);
   }
   for(const map of [cotton.color,cotton.normal,cotton.roughness]) {
@@ -70,15 +107,30 @@ export function createAvatarSurfaceMaterials(THREE: typeof Three, materials: Map
     material.customProgramCacheKey=()=>"sound-cotton-jersey-v1";
     material.needsUpdate=true;
   }
-  const hair=materials.get("full close-cropped hair cap")!;hair.metalness=0;hair.roughness=.80;hair.bumpMap=texture("hair");hair.bumpScale=.002;hair.emissiveIntensity=0;
+  const hair=materials.get("full close-cropped hair cap")!;hair.metalness=0;hair.roughness=.74;hair.bumpMap=texture("hair");hair.bumpScale=.002;hair.emissiveIntensity=0;
   hair.map=hair.bumpMap;
   hair.onBeforeCompile=shader=>{
     shader.fragmentShader=shader.fragmentShader.replace("#include <map_fragment>",`#ifdef USE_MAP
       float strand=texture2D(map,vMapUv).r;
-      diffuseColor.rgb*=.62+strand*.85;
+      diffuseColor.rgb*=.42+strand*1.25;
     #endif`);
   };
-  hair.customProgramCacheKey=()=>"sound-short-hair-fibers-v1";
+  hair.customProgramCacheKey=()=>"sound-short-hair-fibers-v2";
+  const femaleHair=materials.get("female swept hair");
+  if(femaleHair){
+    femaleHair.map=hair.map;femaleHair.bumpMap=hair.bumpMap;femaleHair.bumpScale=hair.bumpScale;
+    femaleHair.roughness=hair.roughness;femaleHair.metalness=0;femaleHair.emissiveIntensity=0;
+    femaleHair.transparent=true;femaleHair.depthWrite=false;
+    femaleHair.onBeforeCompile=(shader,renderer)=>{
+      hair.onBeforeCompile(shader,renderer);
+      shader.vertexShader="attribute float _haircoverage; varying float vHairCoverage;\n"+shader.vertexShader;
+      shader.vertexShader=shader.vertexShader.replace("#include <begin_vertex>","#include <begin_vertex>\nvHairCoverage=_haircoverage;");
+      shader.fragmentShader="varying float vHairCoverage;\n"+shader.fragmentShader;
+      shader.fragmentShader=shader.fragmentShader.replace("#include <alphatest_fragment>","diffuseColor.a*=smoothstep(0.0,1.0,vHairCoverage);\n#include <alphatest_fragment>");
+    };
+    femaleHair.customProgramCacheKey=()=>"sound-feathered-hairline-v1";femaleHair.needsUpdate=true;
+  }
+
   skin.needsUpdate=true;hair.needsUpdate=true;
   return ()=>maps.forEach(map=>map.dispose());
 }

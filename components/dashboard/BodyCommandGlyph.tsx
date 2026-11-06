@@ -60,24 +60,8 @@ export type BodyCommandGlyphTone =
 const SKIN = "#F3AC80";
 const SKIN_SHADE = "#CE8055";
 const SKIN_LINE = "#A85F3B";
-const MUSCLE = "#FF6F45";
-const MUSCLE_LIGHT = "#FFA277";
-const HAIR = "#6E4428";
-
-// Neck, sloping traps, both arms hanging past an armpit notch, and a trunk
-// tapering to the waist — one closed path.
-const FIGURE =
-  "M10.7 2.8H13.3V5C14.9 5.2 16 5.5 16.8 6.2C18.4 7 19.6 7.6 19.6 9.4V15.4C19.6 16.7 18.9 17.6 17.9 17.6C16.9 17.6 16.3 16.7 16.3 15.4V10.6C15.9 10.2 15.6 10 15.2 9.8C15.6 13.4 15.4 17.2 14.9 20C14.8 20.7 14.2 21.2 13.5 21.2H10.5C9.8 21.2 9.2 20.7 9.1 20C8.6 17.2 8.4 13.4 8.8 9.8C8.4 10 8.1 10.2 7.7 10.6V15.4C7.7 16.7 7.1 17.6 6.1 17.6C5.1 17.6 4.4 16.7 4.4 15.4V9.4C4.4 7.6 5.6 7 7.2 6.2C8 5.5 9.1 5.2 10.7 5Z";
-
-const figure = (
-  <path d={FIGURE} fill={SKIN} stroke={SKIN_LINE} strokeWidth="0.85" />
-);
-
-// One ab block. Four rows of two, tapering in as they descend, seated below
-// the pec line rather than up against it.
-const abBlock = (x: number, y: number, w: number) => (
-  <rect fill={MUSCLE} height="1.8" key={`${x}-${y}`} rx="0.8" width={w} x={x} y={y} />
-);
+const MUSCLE = "var(--body-muscle-color, #FF6F45)";
+const MUSCLE_LIGHT = "var(--body-muscle-light, #FFA277)";
 
 /**
  * A limb segment: the same skeleton stroked fat in the outline colour and
@@ -97,25 +81,6 @@ const limb = (d: string, width: number, outline: boolean) => (
   />
 );
 
-const ARM_TUBE = "M5.2 18.4H15.6L17.2 7.8";
-// A leg from the side, drawn as one closed outline rather than stroked
-// segments — tubes with round joins always read as a sausage. Clockwise from
-// the hip: front of the thigh, kneecap, shin, over the foot to the toe, back
-// along the sole, up the heel and achilles, out over the calf, into the back
-// of the knee, and up the hamstring.
-const LEG =
-  "M8.4 2.6C10.4 1.6 12.8 1.6 14.8 2.6C15.6 5.4 15.4 8.4 15 11.2C15.9 11.9 15.8 13.1 15.2 13.7C14.6 15.3 13.9 16.9 13.5 18.4L19.6 20.1C20.5 20.4 20.6 21.4 19.9 21.8H9.4C8.5 21.8 8.1 21.1 8.4 20.3L9 18.6C7.4 17 6.8 14.4 8.2 12.6C8.8 11.8 9.4 11.4 9.7 10.9C8 8.4 7.4 5.6 8.4 2.6Z";
-// Rear double-biceps. Each arm is one shaped contour, not a stroked skeleton
-// with circles on it: out along the triceps to the point of the elbow, up the
-// outer forearm, over the fist, down the inner forearm into the crook, then up
-// and over the bicep peak to the shoulder. The closing edge sits under the
-// trunk, which is drawn afterwards.
-const BACK_ARM_RIGHT =
-  "M15.4 9.9C17.4 10.3 19.6 10.3 21.6 10C22.3 9.8 22.5 9 22.2 8.3C21.9 6.8 21.7 5.2 21.5 3.6C21.4 2 20.6 1.2 19.7 1.1C18.8 1.1 18.1 1.8 18.1 2.9C18.1 4.2 18.4 5.5 18.8 6.7C18.3 5.4 17.7 4.5 16.8 4.6C15.8 4.7 15.1 5.6 14.9 6.9Z";
-const BACK_ARM_LEFT =
-  "M8.6 9.9C6.6 10.3 4.4 10.3 2.4 10C1.7 9.8 1.5 9 1.8 8.3C2.1 6.8 2.3 5.2 2.5 3.6C2.6 2 3.4 1.2 4.3 1.1C5.2 1.1 5.9 1.8 5.9 2.9C5.9 4.2 5.6 5.5 5.2 6.7C5.7 5.4 6.3 4.5 7.2 4.6C8.2 4.7 8.9 5.6 9.1 6.9Z";
-const BACK_TORSO =
-  "M12 5.4C13.7 5.4 15.3 5.9 16.4 6.8C17.2 7.4 17.5 8.4 17.3 9.4L15.9 18.6C15.7 20 14.6 21 13.3 21.2C12.4 21.3 11.6 21.3 10.7 21.2C9.4 21 8.3 20 8.1 18.6L6.7 9.4C6.5 8.4 6.8 7.4 7.6 6.8C8.7 5.9 10.3 5.4 12 5.4Z";
 const STRETCH_SPINE = "M12 7.4V14.4";
 const STRETCH_ARMS = "M12 8.8L7.2 4.8M12 8.8L16.8 4.8";
 const STRETCH_LEGS = "M12 14.2L9.4 20.4M12 14.2L14.6 20.4";
@@ -123,100 +88,17 @@ const STRETCH_LEGS = "M12 14.2L9.4 20.4M12 14.2L14.6 20.4";
 const glyphArt: Record<BodyCommandGlyphName, ReactNode> = {
   // Flexed bicep: upper arm, forearm and fist merged into one contour, with
   // the bicep swelling above the arm's own line.
-  arms: (
-    <>
-      {limb(ARM_TUBE, 5.2, true)}
-      <circle cx="10.2" cy="16.2" fill={SKIN_LINE} r="4.55" />
-      <circle cx="17.6" cy="6" fill={SKIN_LINE} r="3.95" />
-      {limb(ARM_TUBE, 5.2, false)}
-      <circle cx="10.2" cy="16.2" fill={SKIN} r="4" />
-      <circle cx="17.6" cy="6" fill={SKIN} r="3.4" />
-      <path
-        d="M6.8 20C8.6 20.7 11.5 20.5 13.5 19.3"
-        fill="none"
-        stroke={SKIN_SHADE}
-        strokeLinecap="round"
-        strokeWidth="0.9"
-      />
-      <path
-        d="M15.1 8.9C15.9 9.3 16.9 9.4 17.9 9.2"
-        fill="none"
-        stroke={SKIN_SHADE}
-        strokeLinecap="round"
-        strokeWidth="0.9"
-      />
-      <path
-        d="M16 3.9v1.9M17.7 3.6v2M19.3 4.2v1.8"
-        fill="none"
-        stroke={SKIN_SHADE}
-        strokeLinecap="round"
-        strokeWidth="0.85"
-      />
-    </>
-  ),
+  arms: (<><path d="M3 18.5 5 14l3-1c1-3 3-4 5-2l2 1 1-5-2-1 .8-3 3-.8 2.2 2.8-.6 10c-.2 4-3.4 6-7.4 6H6Z" fill="#33485b" stroke="#8ca5b7" strokeWidth=".8" strokeLinejoin="round"/><path d="M7 15c1-3 3-5 5-3s2 5-1 6l-5 .5Z" fill={MUSCLE}/><path d="m16.8 8-.8 6.5c-.3 2-1 3-2.5 3.5" fill="none" stroke={MUSCLE} strokeWidth="2.4" strokeLinecap="round"/><path d="M8.8 14c1-1.3 2-1.4 2.8-.2" fill="none" stroke={MUSCLE_LIGHT} strokeWidth=".8" strokeLinecap="round"/></>),
   // Rear double-biceps. Arms and head go down first so the trunk's own outline
   // lands on top as the shoulder seam; lats spread from the armpits to the
   // waist. It gets a head because a pose without one reads as decapitated
   // between two raised fists.
-  back: (
-    <>
-      <path d={BACK_ARM_LEFT} fill={SKIN} stroke={SKIN_LINE} strokeWidth="0.85" />
-      <path d={BACK_ARM_RIGHT} fill={SKIN} stroke={SKIN_LINE} strokeWidth="0.85" />
-      <circle cx="12" cy="3.2" fill={SKIN} r="2.3" stroke={SKIN_LINE} strokeWidth="0.85" />
-      <path d={BACK_TORSO} fill={SKIN} stroke={SKIN_LINE} strokeWidth="0.85" />
-      <path
-        d="M11.5 8.4C10.1 7.6 8.6 7.8 7.7 8.6C7.9 12.4 9 15.6 10.9 18.2C11.4 15.2 11.7 11.8 11.5 8.4Z"
-        fill={MUSCLE}
-      />
-      <path
-        d="M12.5 8.4C13.9 7.6 15.4 7.8 16.3 8.6C16.1 12.4 15 15.6 13.1 18.2C12.6 15.2 12.3 11.8 12.5 8.4Z"
-        fill={MUSCLE}
-      />
-      <path
-        d="M12 6.6v13"
-        fill="none"
-        stroke={SKIN_SHADE}
-        strokeLinecap="round"
-        strokeWidth="1.1"
-      />
-    </>
-  ),
+  back: (<><path d="m7 3 3 1h4l3-1 4 4-2 4-2 10H7L5 11 3 7Z" fill="#33485b" stroke="#8ca5b7" strokeWidth=".8" strokeLinejoin="round"/><path d="M5.5 7.5 10.8 10l.2 9-3-2.5ZM18.5 7.5 13.2 10l-.2 9 3-2.5Z" fill={MUSCLE}/><path d="m8 5 4 3 4-3-1 4-3 2-3-2Z" fill={MUSCLE}/><path d="M12 4v16" stroke="#a8bac7" strokeWidth=".7"/><path d="m6.8 8 2.5 1.5m7.9-1.5-2.5 1.5" stroke={MUSCLE_LIGHT} strokeWidth=".8" strokeLinecap="round"/></>),
   // Two pec slabs under the collarbone, with a sternum gap.
-  chest: (
-    <>
-      {figure}
-      <path
-        d="M11.8 7.4C10.6 6.7 9.1 6.9 8.6 8.1C8.2 9.2 8.8 10.6 10.2 11.1C11.2 11.4 11.8 10.9 11.8 10Z"
-        fill={MUSCLE}
-      />
-      <path
-        d="M12.2 7.4C13.4 6.7 14.9 6.9 15.4 8.1C15.8 9.2 15.2 10.6 13.8 11.1C12.8 11.4 12.2 10.9 12.2 10Z"
-        fill={MUSCLE}
-      />
-      <path
-        d="M9.4 8.4C10.1 8 11 8 11.6 8.4"
-        fill="none"
-        stroke={MUSCLE_LIGHT}
-        strokeLinecap="round"
-        strokeWidth="1"
-      />
-    </>
-  ),
+  chest: (<><path d="m8 3 2 1h4l2-1 5 4-1 6-3 1-1 7H8l-1-7-3-1-1-6Z" fill="#33485b" stroke="#8ca5b7" strokeWidth=".8" strokeLinejoin="round"/><path d="M4.5 8c2-2.3 4.5-2.4 7-.8v6c-2.5 2-5.5.6-6.8-1.2ZM19.5 8c-2-2.3-4.5-2.4-7-.8v6c2.5 2 5.5.6 6.8-1.2Z" fill={MUSCLE}/><path d="M6 8.5c1.5-.8 3-.8 4.2-.2m3.6 0c1.2-.6 2.7-.6 4.2.2" stroke={MUSCLE_LIGHT} fill="none" strokeWidth=".8" strokeLinecap="round"/><path d="M12 6v9" stroke="#a8bac7" strokeWidth=".6"/></>),
   // Eight blocks running from below the pecs down to the waist. Gaps of skin
   // define them far better than lines scored across one slab.
-  core: (
-    <>
-      {figure}
-      {abBlock(9.8, 11.8, 2)}
-      {abBlock(12.2, 11.8, 2)}
-      {abBlock(9.9, 13.9, 1.9)}
-      {abBlock(12.2, 13.9, 1.9)}
-      {abBlock(10, 16, 1.8)}
-      {abBlock(12.2, 16, 1.8)}
-      {abBlock(10.2, 18.1, 1.6)}
-      {abBlock(12.2, 18.1, 1.6)}
-    </>
-  ),
+  core: (<><path d="M5 2.5 9 4h6l4-1.5-2 9 1 8-6 2-6-2 1-8Z" fill="#33485b" stroke="#8ca5b7" strokeWidth=".8" strokeLinejoin="round"/><path d="m6.6 7 2.2 2-.3 8-1.1 2-.2-7Zm10.8 0-2.2 2 .3 8 1.1 2 .2-7Z" fill={MUSCLE}/>{[6.5,10,13.5,17].map((y,i)=><g key={y}><rect x={9.5+i*.12} y={y} width={2-i*.1} height="2.6" rx=".6" fill={MUSCLE}/><rect x="12.5" y={y} width={2-i*.1} height="2.6" rx=".6" fill={MUSCLE}/></g>)}</>),
   // Battery run down: the accumulated cost of work, training and life.
   fatigue: (
     <>
@@ -290,11 +172,7 @@ const glyphArt: Record<BodyCommandGlyphName, ReactNode> = {
   // One leg from the side, a single closed outline. No creases: at this size
   // they read as wrinkles, not anatomy — the knee, calf and heel are all in
   // the contour itself.
-  legs: (
-    <>
-      <path d={LEG} fill={SKIN} stroke={SKIN_LINE} strokeWidth="0.85" />
-    </>
-  ),
+  legs: (<><path d="M6 2.5h12l.7 7.5-2.1 7 .2 3.5 2 1H14l-.4-5-1.6-7-1.6 7-.4 5H5.2l2-1 .2-3.5-2.1-7Z" fill="#33485b" stroke="#8ca5b7" strokeWidth=".8" strokeLinejoin="round"/><path d="m7 4 3.7.2-.7 7.3-2-1.3Zm10 0-3.7.2.7 7.3 2-1.3Z" fill={MUSCLE}/><path d="m7.6 13 2 .4-.5 5H7.8Zm8.8 0-2 .4.5 5h1.3Z" fill={MUSCLE}/><path d="m8 5-.3 4m8.3-4 .3 4" stroke={MUSCLE_LIGHT} strokeWidth=".8" strokeLinecap="round"/></>),
   // A figure mid-stretch — this signal tracks whether the recovery sessions
   // actually happened, so it shows someone doing one.
   recovery: (
@@ -311,26 +189,12 @@ const glyphArt: Record<BodyCommandGlyphName, ReactNode> = {
   ),
   // Deltoids: caps straddling the shoulder corner, where the arm meets the
   // trap line. Any lower and they read as the top of the bicep.
-  shoulders: (
-    <>
-      {figure}
-      <path
-        d="M15.9 8.6C16 7.1 16.9 6.1 18.1 5.9C19.1 6.3 19.6 7.4 19.5 8.7C19.3 9.7 18.4 10.3 17.4 10.2C16.5 10.1 15.9 9.5 15.9 8.6Z"
-        fill={MUSCLE}
-      />
-      <path
-        d="M8.1 8.6C8 7.1 7.1 6.1 5.9 5.9C4.9 6.3 4.4 7.4 4.5 8.7C4.7 9.7 5.6 10.3 6.6 10.2C7.5 10.1 8.1 9.5 8.1 8.6Z"
-        fill={MUSCLE}
-      />
-      <path
-        d="M17.2 8C17.5 7.3 17.9 6.9 18.4 6.7M6.8 8C6.5 7.3 6.1 6.9 5.6 6.7"
-        fill="none"
-        stroke={MUSCLE_LIGHT}
-        strokeLinecap="round"
-        strokeWidth="1"
-      />
-    </>
-  ),
+  shoulders: (<>
+    <path d="M9 2.5v3c-1.7.2-3.3.8-4.5 1.8C2.2 9.2 2 12.6 2.8 17L6 18l1-6.2 1.6 1h6.8l1.6-1 1 6.2 3.2-1c.8-4.4.6-7.8-1.7-9.7-1.2-1-2.8-1.6-4.5-1.8v-3" fill="#33485b" stroke="#8ca5b7" strokeWidth=".8" strokeLinejoin="round" />
+    <path d="M6.9 6.5c-2.2.4-3.9 2-4 4.6 0 1.5.4 3 1.2 4.1l2.4-.7.5-3.2 1.4-2.7Zm10.2 0c2.2.4 3.9 2 4 4.6 0 1.5-.4 3-1.2 4.1l-2.4-.7-.5-3.2-1.4-2.7Z" fill={MUSCLE} />
+    <path d="m8.4 7.5 3.6 1 3.6-1M12 8.5v2" fill="none" stroke="#9eb4c4" strokeWidth=".8" strokeLinecap="round" />
+    <path d="M5.8 8.3c-1 .8-1.4 1.8-1.4 3.2m13.8-3.2c1 .8 1.4 1.8 1.4 3.2" fill="none" stroke={MUSCLE_LIGHT} strokeWidth=".9" strokeLinecap="round" />
+  </>),
   sleep: (
     <>
       <path d="M20.8 14.4A9 9 0 1 1 9.6 3.2 7 7 0 0 0 20.8 14.4Z" fill="#FFD966" />
@@ -344,32 +208,7 @@ const glyphArt: Record<BodyCommandGlyphName, ReactNode> = {
   // all one outline. A short crop of hair over the crown gives the head a
   // front and a top, which is what kept the bare version from reading as a
   // person. A jawline separates head from neck; the accent is the neck alone.
-  neck: (
-    <>
-      <path
-        d="M12 2.2C15.1 2.2 17.2 4.5 17.2 7.6C17.2 9.9 16.1 11.7 14.6 12.4C14.5 13.2 14.5 13.9 14.7 14.6C17 15.4 19.6 16.6 21 19C21.5 19.9 21.5 21.2 21.2 22.2H2.8C2.5 21.2 2.5 19.9 3 19C4.4 16.6 7 15.4 9.3 14.6C9.5 13.9 9.5 13.2 9.4 12.4C7.9 11.7 6.8 9.9 6.8 7.6C6.8 4.5 8.9 2.2 12 2.2Z"
-        fill={SKIN}
-        stroke={SKIN_LINE}
-        strokeLinejoin="round"
-        strokeWidth="0.85"
-      />
-      <path
-        d="M6.9 7.4C6.9 4.2 9 2.1 12 2.1C15 2.1 17.1 4.2 17.1 7.4C16.2 6.6 15 6.3 14 6.8C13.2 6.2 10.8 6.2 10 6.8C9 6.3 7.8 6.6 6.9 7.4Z"
-        fill={HAIR}
-      />
-      <path
-        d="M9.6 12.9C10.7 13.4 13.3 13.4 14.4 12.9C14.5 13.7 14.6 14.4 14.8 14.9C13 15.6 11 15.6 9.2 14.9C9.4 14.4 9.5 13.7 9.6 12.9Z"
-        fill={MUSCLE}
-      />
-      <path
-        d="M9.3 12.4C10.8 13.5 13.2 13.5 14.7 12.4"
-        fill="none"
-        stroke={SKIN_SHADE}
-        strokeLinecap="round"
-        strokeWidth="0.9"
-      />
-    </>
-  ),
+  neck: (<><path d="M10 2c4-1 7 1.5 7 5l1 2-1.5 1-.3 2-2.2 1v3l5 4v2H4v-2l4-4 .5-5C6 8.5 6.5 3.5 10 2Z" fill="#33485b" stroke="#8ca5b7" strokeWidth=".8" strokeLinejoin="round"/><path d="m10 11 3 2-.5 4 4 3h-5L9 17Zm-1 3-.4 3-3 3h4l1-2Z" fill={MUSCLE}/><path d="m10.5 13 1.2 3.5" stroke={MUSCLE_LIGHT} strokeWidth=".8" strokeLinecap="round"/></>),
   // A dressing: where you are still carrying yesterday's session.
   soreness: (
     <g transform="rotate(-35 12 12)">
@@ -494,8 +333,8 @@ export function BodyCommandRingFace({
   const hidden = "translate-y-[7px] scale-90 opacity-0";
   const textHidden = showGlyph && !capGlyph;
   const glyphLayerClassName = capGlyph
-    ? "pointer-events-none absolute bottom-[calc(100%-0.55rem)] left-1/2 z-20 grid -translate-x-1/2 place-items-center"
-    : "pointer-events-none absolute bottom-0 left-1/2 grid -translate-x-1/2 place-items-center";
+    ? "pointer-events-none absolute bottom-[calc(100%-0.55rem)] left-1/2 z-20 grid w-max -translate-x-1/2 place-items-center"
+    : "pointer-events-none absolute bottom-0 left-1/2 grid w-max -translate-x-1/2 place-items-center";
   const halo: CSSProperties | undefined = tone
     ? {
         background: `radial-gradient(circle, ${toneGlow[tone]} 0%, transparent 68%)`,

@@ -1,0 +1,85 @@
+{
+  "sourceBank": "Sound Fitness Website T-shirt Bank",
+  "purpose": "Avatar textures, not production cut-path masters",
+  "promptTemplate": "Faithfully extract the supplied owner design; remove shirt, cloth, wrinkles, background and photographic shadows; flatten straight-on; preserve typography/colors/proportions; transparent negative space; no invented elements.",
+  "assets": [
+    {
+      "id": "swoosh",
+      "source": "SF-TEE-001-wordmark-blue-swoosh.png",
+      "method": "Existing clean wordmark plus code-native SVG swoosh traced from reference",
+      "prompt": "Extract the white SOUND FITNESS lettering and cyan blue swoosh below it. Remove garment/fabric/background, flatten into clean artwork with genuine alpha.",
+      "asset": "swoosh.png",
+      "editableSource": "swoosh.svg"
+    },
+    {
+      "id": "compact",
+      "source": "SF-TEE-002-compact-crest-wordmark.png",
+      "method": "Built-in image_gen transparent artwork extraction",
+      "prompt": "Extract the compact full color crest on the left and white SOUND FITNESS wordmark to its right, keeping this combined layout. Remove garment/fabric/background, flatten into clean artwork with genuine alpha.",
+      "asset": "compact.png"
+    },
+    {
+      "id": "service",
+      "source": "SF-TEE-003-full-crest.png",
+      "method": "Built-in image_gen transparent artwork extraction",
+      "prompt": "Extract the entire colorful crest including the service ribbon text IN-HOME TRAINING AND ASSISTED STRETCH. Remove garment/fabric/background, flatten into clean artwork with genuine alpha.",
+      "asset": "service.png"
+    },
+    {
+      "id": "waves",
+      "source": "SF-TEE-005-wave-contours-v2.png",
+      "method": "Built-in image_gen transparent artwork extraction",
+      "prompt": "Extract the complete white SOUND FITNESS lettering with its flowing cyan blue white contour waves. Remove garment/fabric/background, flatten into clean artwork with genuine alpha.",
+      "asset": "waves.png"
+    },
+    {
+      "id": "orbit",
+      "source": "SF-TEE-007-crest-front-circular-wordmark-back-v2.png",
+      "method": "Built-in image_gen transparent artwork extraction",
+      "prompt": "Extract ONLY the large circular blue and silver swoosh SOUND FITNESS graphic on the BACK shirt (right). Do not include the small crest or left shirt. Remove garment/fabric/background, flatten into clean artwork with genuine alpha.",
+      "asset": "orbit.png"
+    },
+    {
+      "id": "echo",
+      "source": "SF-TEE-008-wordmark-echo.png",
+      "method": "Built-in image_gen transparent artwork extraction",
+      "prompt": "Extract the entire SOUND FITNESS wordmark with its three offset echo outlines below, cyan edge and black outline. Remove garment/fabric/background, flatten into clean artwork with genuine alpha.",
+      "asset": "echo.png"
+    },
+    {
+      "id": "waterline",
+      "source": "SF-TEE-010-waterline-wordmark-v3.png",
+      "method": "Built-in image_gen transparent artwork extraction",
+      "prompt": "Extract the complete horizontal blue cyan white ocean wave graphic including SOUND FITNESS lettering. Remove garment/fabric/background, flatten into clean artwork with genuine alpha.",
+      "asset": "waterline.png"
+    },
+    {
+      "id": "mountain",
+      "source": "SF-TEE-011-mountain-outline-wordmark-v2.png",
+      "method": "Built-in image_gen transparent artwork extraction",
+      "prompt": "Extract the entire mountain outline and SOUND FITNESS outlined lettering, retaining orange cyan white lines and dark letter interiors. Remove garment/fabric/background, flatten into clean artwork with genuine alpha.",
+      "asset": "mountain.png"
+    },
+    {
+      "id": "trainer",
+      "source": "SF-TEE-012-trainer-back-badge.png",
+      "method": "Built-in image_gen transparent artwork extraction",
+      "prompt": "Extract ONLY the large monochrome shield on the BACK shirt (right). Preserve exact SOUND FITNESS STRETCH & FLEX TRAINER lettering and all mountain and wave linework. Remove garment/fabric/background, flatten into clean artwork with genuine alpha.",
+      "asset": "trainer.png"
+    },
+    {
+      "id": "energy",
+      "source": "SF-TEE-013-trainer-homepage-logo-v3.png",
+      "method": "Built-in image_gen transparent artwork extraction",
+      "prompt": "Extract ONLY the large BACK shirt graphic (right): SOUND FITNESS, IN-HOME TRAINING AND ASSISTED STRETCH and TRAINER, with blue orange energy starburst. Preserve exact text. Remove garment/fabric/background, flatten into clean artwork with genuine alpha.",
+      "asset": "energy.png"
+    },
+    {
+      "id": "energy-front",
+      "source": "SF-TEE-013-trainer-homepage-logo-v3.png",
+      "method": "Built-in image_gen transparent artwork extraction",
+      "prompt": "Extract front chest art only Remove garment/fabric/background, flatten into clean artwork with genuine alpha.",
+      "asset": "energy-front.png"
+    }
+  ]
+}

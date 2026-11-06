@@ -23,6 +23,7 @@ export const planningKeys = {
   hydrationDraft: "soundFitnessHydrationDraft",
   meals: "soundFitnessMealEntries", mealDraft: "soundFitnessMealDraft",
   mealTemplates: "soundFitnessMealTemplates",
+  supportRecords: "soundFitnessSupportSignalRecords",
 } as const;
 type Cache = { values: Record<string, unknown>; revision: number; dirty: boolean };
 let owner: string | null = null;

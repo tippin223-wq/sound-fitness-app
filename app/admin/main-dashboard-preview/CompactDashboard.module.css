@@ -1,0 +1,98 @@
+/* Keep each admin row inside the space below the shared header. Titles flow
+   above their content instead of requiring several stacked padding reserves. */
+.compact :global([data-dashboard-orbiter-row]:not([data-dashboard-orbiter-row="0"])) {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  padding: 0.5rem 1.5rem 0.75rem;
+  min-height: 0;
+}
+
+.compact :global([data-dashboard-row-title]) {
+  position: relative;
+  inset: auto;
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+.compact :global([data-dashboard-row-title] h2) {
+  margin-top: 0.25rem;
+  font-size: clamp(1.1rem, 2.2vw, 1.5rem);
+  line-height: 1.1;
+}
+
+.compact :global([data-dashboard-row-title] > p) {
+  max-width: none;
+  margin-top: 0.25rem;
+  line-height: 1.25;
+}
+
+.compact :global([data-dashboard-row-title] > [role="tablist"]),
+.compact :global([data-dashboard-row-title] > [role="group"]) {
+  margin-top: 0.375rem;
+}
+
+.compact :global([data-dashboard-orbiter-row] > [data-dashboard-orbiter-local-scroll]),
+.compact :global([data-dashboard-orbiter-row="2"] > div:last-child) {
+  flex: 1 1 0%;
+  min-height: 0;
+  height: auto;
+  padding-top: 0;
+  padding-bottom: 0;
+  align-items: flex-start;
+}
+
+.compact :global([data-dashboard-orbiter-local-scroll] > section) {
+  min-height: 0;
+  max-height: 100%;
+  padding-top: 0;
+  padding-bottom: 0;
+  gap: 0.5rem;
+}
+
+.compact :global([data-dashboard-orbiter-local-scroll] > section > section) {
+  padding-block: 0;
+}
+
+.compact :global(.dashboard-row-orbit-stage),
+.compact :global([aria-label="Settings horizontal orbit"]) {
+  height: min(340px, calc(100dvh - 240px));
+  min-height: 0;
+  flex-shrink: 0;
+}
+
+.compact :global([data-dashboard-orbiter-row="7"] > .dashboard-row-orbit-stage) {
+  flex: 1 1 0%;
+  height: auto;
+}
+
+.compact :global(.dashboard-orbit-card) {
+  padding: 0.75rem;
+}
+
+.compact :global([data-dashboard-orbiter-row="4"] > [data-dashboard-orbiter-local-scroll]) {
+  flex: 0 1 auto;
+  height: min(440px, 100%);
+  max-height: min(440px, 100%);
+}
+
+.compact :global(.dashboard-calendar-card) {
+  padding: 0.5rem;
+  border-radius: 1.25rem;
+}
+
+.compact :global(.dashboard-calendar-main) {
+  margin-top: 0.5rem;
+  gap: 0.5rem;
+}
+
+@media (max-width: 640px) {
+  .compact :global([data-dashboard-orbiter-row]:not([data-dashboard-orbiter-row="0"])) {
+    padding-inline: 0.5rem;
+    gap: 0.375rem;
+  }
+}

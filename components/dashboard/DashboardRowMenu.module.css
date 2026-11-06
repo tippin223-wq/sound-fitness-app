@@ -1,0 +1,66 @@
+.root {
+  position: absolute;
+  inset: 0;
+  z-index: 70;
+  pointer-events: none;
+}
+
+.panel {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-4rem);
+  transition: opacity 180ms ease, transform 180ms ease, visibility 180ms;
+}
+
+.root[data-row-menu-open="true"] .panel {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+}
+
+.panel :global(.dashboard-page-orbit-shell) {
+  top: calc(var(--dashboard-row-menu-top, 9rem) + 44px);
+  left: 0;
+  width: 3.25rem;
+  border-radius: 0 1rem 1rem 0;
+  background: linear-gradient(90deg, rgba(2, 7, 19, .94), rgba(2, 7, 19, .72));
+  box-shadow: 8px 0 20px rgba(0, 0, 0, .22);
+}
+
+.tab {
+  position: absolute;
+  top: var(--dashboard-row-menu-top, 9rem);
+  left: 0;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 48px;
+  align-content: center;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #fbbf24;
+  cursor: pointer;
+  pointer-events: auto;
+  filter: brightness(.6) saturate(.35);
+  opacity: .72;
+  transition: filter 180ms ease, opacity 180ms ease;
+}
+
+.root[data-header-active="true"] .tab { filter: none; opacity: 1; }
+
+.tab svg {
+  position: relative;
+  filter: drop-shadow(0 0 3px rgba(103, 232, 249, .55));
+}
+.tab:hover { color: white; }
+.root[data-row-menu-open="true"] .tab .chevron { transform: rotate(180deg); }
+.menuIcon { filter: drop-shadow(0 0 4px rgba(251, 191, 36, .45)) !important; }
+.tab:focus-visible { outline: 2px solid #a5f3fc; outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .panel, .tab { transition: none; }
+}

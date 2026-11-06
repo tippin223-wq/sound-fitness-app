@@ -1,6 +1,10 @@
 "use client";
 
 import Image from "next/image";
+import styles from "./DashboardCalendar.module.css";
+import { calendarMonthColor } from "@/lib/calendar-themes";
+import { CalendarMonthHeading, CalendarWeekHeading } from "./CalendarMonthHeading";
+import { CalendarAppearancePicker, CalendarBackdrop, useCalendarAppearance } from "./CalendarAppearance";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -18,6 +22,11 @@ import {
 import { useDashboardCalendarEntries } from "./useDashboardCalendarEntries";
 import {
   Accessibility,
+  Activity,
+  CheckCircle2,
+  ClipboardCheck,
+  CalendarDays,
+  CalendarRange,
   Apple,
   ChevronDown,
   ChevronLeft,
@@ -105,6 +114,12 @@ const typeStyles: Record<DashboardCalendarItem["type"], string> = {
   workout: "border-sky-300/30 bg-sky-300/10 text-sky-100",
 };
 
+const calendarEventIcons: Record<DashboardCalendarItem["type"], LucideIcon> = {
+  cardio: HeartPulse, "check-in": ClipboardCheck, completed: CheckCircle2,
+  nutrition: Utensils, performance: Activity, recovery: Wind,
+  training: Dumbbell, workout: Dumbbell,
+};
+
 const dotStyles: Record<DashboardCalendarItem["type"], string> = {
   cardio: "bg-orange-300 shadow-[0_0_12px_rgba(253,186,116,0.6)]",
   "check-in": "bg-violet-300 shadow-[0_0_12px_rgba(196,181,253,0.6)]",
@@ -171,7 +186,7 @@ const soundSessionAddOptions = [
 ] as const satisfies readonly CalendarAddOption[];
 
 const calendarAddCardClassName =
-  "group flex min-h-[108px] w-[100px] shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-2xl border bg-gradient-to-b from-white/[0.06] to-transparent px-2 py-3 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_4px_10px_rgba(0,0,0,0.18)] transition hover:-translate-y-0.5 hover:brightness-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/70 motion-reduce:transform-none";
+  "group relative isolate flex h-[54px] w-[56px] shrink-0 snap-start flex-col items-center justify-center overflow-hidden rounded-xl border bg-gradient-to-b from-white/[0.06] to-transparent px-1 py-1.5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_4px_10px_rgba(0,0,0,0.18)] transition hover:-translate-y-0.5 hover:brightness-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/70 motion-reduce:transform-none";
 
 function createCalendarEntryId() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -257,7 +272,7 @@ export default function DashboardCalendar({
   orbitCommand,
 }: DashboardCalendarProps) {
   const [today] = useState<Date>(() => startOfDay(new Date()));
-  const [view, setView] = useState<CalendarView>("week");
+  const [view, setView] = useState<CalendarView>("month");
   const [collapsed, setCollapsed] = useState(false);
   const [cursorDate, setCursorDate] = useState<Date | null>(() =>
     parseCalendarDate(initialEventFocus?.dateKey) || (initialDate ? startOfDay(initialDate) : null),
@@ -279,6 +294,7 @@ export default function DashboardCalendar({
   const [selectedDayDropdownOpen, setSelectedDayDropdownOpen] = useState(Boolean(initialEventFocus));
   const [soundSessionMenuOpen, setSoundSessionMenuOpen] = useState(false);
   const [userEntries, setUserEntries, calendarSaveError] = useDashboardCalendarEntries();
+  const [pendingEntry, setPendingEntry] = useState<DashboardCalendarItem | null>(null);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [editingEntryTitle, setEditingEntryTitle] = useState("");
   const [editingEntryTime, setEditingEntryTime] = useState("");
@@ -290,6 +306,8 @@ export default function DashboardCalendar({
   const consumedOrbitCommandRef = useRef<number | null>(null);
   const activeToday = today;
   const activeCursorDate = cursorDate || activeToday;
+  const appearanceMonth = `${activeCursorDate.getFullYear()}-${String(activeCursorDate.getMonth() + 1).padStart(2, "0")}`;
+  const appearance = useCalendarAppearance(appearanceMonth);
   const activeSelectedDate = selectedDate || activeToday;
   const activeCursorDateKey = toDateKey(activeCursorDate);
   const highlightedWeekTime = `${String(highlightedWeekHour).padStart(2, "0")}:00`;
@@ -350,7 +368,12 @@ export default function DashboardCalendar({
       title: option.title,
       type: option.type,
     };
-    setUserEntries((previous) => [...previous, entry]);
+    setPendingEntry(entry);
+    setEditingEntryId(entry.id!);
+    setEditingEntryTitle(entry.title);
+    setEditingEntryTime(entry.time!);
+    setEditingTimePickerOpen(false);
+    setPendingDeleteEntryId(null);
     setSoundSessionMenuOpen(false);
   }
 
@@ -377,7 +400,11 @@ export default function DashboardCalendar({
   function saveEditedEntry() {
     if (!editingEntryId || !editingEntryTitle.trim()) return;
 
-    setUserEntries((previous) =>
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(editingEntryTime)) return;
+    if (pendingEntry && pendingEntry.id === editingEntryId) {
+      const entry = { ...pendingEntry, title: editingEntryTitle.trim(), time: editingEntryTime };
+      setUserEntries(previous => previous.some(saved => saved.id === entry.id) ? previous : [...previous, entry]);
+    } else setUserEntries((previous) =>
       previous.map((entry) =>
         entry.id === editingEntryId
           ? {
@@ -389,6 +416,7 @@ export default function DashboardCalendar({
       ),
     );
     setEditingEntryId(null);
+    setPendingEntry(null);
     setEditingTimePickerOpen(false);
   }
 
@@ -411,6 +439,7 @@ export default function DashboardCalendar({
   function deleteUserEntry(entryId: string) {
     setUserEntries((previous) => previous.filter((entry) => entry.id !== entryId));
     setEditingEntryId(null);
+    setPendingEntry(null);
     setEditingTimePickerOpen(false);
     setPendingDeleteEntryId(null);
   }
@@ -418,22 +447,10 @@ export default function DashboardCalendar({
   const dayRailDays = useMemo(() => getDayRailDays(activeToday), [activeToday]);
   const monthDays = useMemo(() => getMonthDays(activeCursorDate), [activeCursorDate]);
   const selectedEvents = eventsByDate[toDateKey(activeSelectedDate)] || [];
-  const selectedCellEvents =
-    view === "week"
-      ? selectedEvents.filter(
-          (event, eventIndex) =>
-            Math.max(
-              weekTimelineHours[0],
-              Math.min(
-                weekTimelineHours[weekTimelineHours.length - 1],
-                Math.floor(getEventTimelineMinutes(event, eventIndex) / 60),
-              ),
-            ) === highlightedWeekHour,
-        )
-      : selectedEvents;
-  const activeEditingEntry = selectedCellEvents.find(
-    (event) => event.id === editingEntryId,
-  );
+  const selectedCellEvents = selectedEvents;
+  const activeEditingEntry = pendingEntry && pendingEntry.id === editingEntryId
+    ? normalizeItems([], activeCursorDate, activeToday, [pendingEntry])[0]
+    : selectedCellEvents.find(event => event.id === editingEntryId);
   const displayedCellEvents = activeEditingEntry
     ? [activeEditingEntry]
     : initialEventFocus
@@ -453,9 +470,6 @@ export default function DashboardCalendar({
       : selectedDayDateLabel;
   const weekInViewStart = startOfWeek(activeSelectedDate);
   const weekInViewEnd = endOfWeek(activeSelectedDate);
-  const weekInViewLabel = `${compactDateFormatter.format(
-    weekInViewStart,
-  )} - ${compactDateFormatter.format(weekInViewEnd)}`;
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addDays(weekInViewStart, index)),
     [weekInViewStart],
@@ -489,8 +503,8 @@ export default function DashboardCalendar({
       );
       if (!scroller || !activeCell) return;
 
-      const stickyTimeRailWidth = 56;
-      const stickyDayHeaderHeight = 44;
+      const stickyTimeRailWidth = 40;
+      const stickyDayHeaderHeight = 30;
       const visibleCenterX =
         stickyTimeRailWidth +
         (scroller.clientWidth - stickyTimeRailWidth) / 2;
@@ -522,11 +536,6 @@ export default function DashboardCalendar({
     return () => window.cancelAnimationFrame(frame);
   }, [activeSelectedDate, highlightedWeekHour, view]);
 
-  const calendarDateLabel = calendarReady
-    ? view === "week"
-      ? weekInViewLabel
-      : monthTitleFormatter.format(activeCursorDate)
-    : "Loading current dates";
   function moveRange(direction: "next" | "previous") {
     const amount = direction === "next" ? 1 : -1;
     const rawNextCursor =
@@ -551,6 +560,7 @@ export default function DashboardCalendar({
     setSelectedDayDropdownOpen(true);
     setSoundSessionMenuOpen(false);
     setEditingEntryId(null);
+    setPendingEntry(null);
     setPendingDeleteEntryId(null);
     if (view === "week") {
       setCursorDate(day);
@@ -607,14 +617,15 @@ export default function DashboardCalendar({
 
   return (
     <section
-      className={`dashboard-calendar-card relative w-full overflow-hidden border border-white/10 bg-white/[0.04] shadow-2xl shadow-black/15 backdrop-blur ${
+      className={`dashboard-calendar-card isolate relative w-full overflow-hidden border border-white/10 bg-white/[0.04] shadow-2xl shadow-black/15 backdrop-blur ${
         collapsed
           ? "rounded-[22px] p-3 sm:p-4"
           : view === "month"
-          ? "flex h-full min-h-0 flex-col rounded-[26px] p-3 sm:p-4"
-          : "flex h-full min-h-0 flex-col rounded-[32px] px-3 pb-1 pt-3"
+          ? "flex h-full min-h-0 flex-col rounded-[26px] pt-3"
+          : "flex h-full min-h-0 flex-col rounded-[26px] pt-3"
       }`}
     >
+      <CalendarBackdrop appearance={appearance} />
       {calendarSaveError && <p role="alert" className="mb-2 text-xs text-rose-200">{calendarSaveError} <button type="button" className="underline" onClick={() => setUserEntries(previous => previous)}>Retry calendar save</button></p>}
       {collapsed ? (
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
@@ -627,7 +638,7 @@ export default function DashboardCalendar({
             </span>
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-300">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: calendarMonthColor(activeCursorDate.getMonth()) }}>
               My Training Calendar
             </p>
             <p className="mt-1 text-lg font-black text-white">
@@ -680,14 +691,11 @@ export default function DashboardCalendar({
         </div>
       ) : (
         <>
-      <div className="relative shrink-0">
-        <div
-          className={`min-w-0 ${collapsible ? "pr-[13rem]" : "pr-[9.75rem] sm:pr-44"}`}
-        >
-          <p className="shrink-0 text-[11px] font-black uppercase tracking-[0.24em] text-amber-300">
+      <div className={`${styles.header} px-3 sm:px-4`}>
+          <p className={`${styles.title} text-[10px] font-black uppercase tracking-[0.18em]`} style={{ color: calendarMonthColor(activeCursorDate.getMonth()) }}>
             My Training Calendar
           </p>
-          <div className="mt-3 flex min-w-0 items-center gap-2">
+          <div className={styles.range}>
             <button
               aria-label={`Previous ${view}`}
               className="grid h-7 w-5 shrink-0 place-items-center bg-transparent p-0 text-lg font-black text-slate-300 transition hover:-translate-x-0.5 hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/60"
@@ -697,9 +705,9 @@ export default function DashboardCalendar({
             >
               &lt;
             </button>
-            <p className="min-w-0 whitespace-nowrap text-base font-black uppercase leading-none tracking-normal text-cyan-50 [text-shadow:0_0_24px_rgba(34,211,238,0.16)] sm:text-lg">
-              {calendarDateLabel}
-            </p>
+            <div className="min-w-0 text-base font-black uppercase leading-tight tracking-normal text-cyan-50 sm:text-lg">
+              {view === "week" ? <CalendarWeekHeading start={weekInViewStart} end={weekInViewEnd} /> : <CalendarMonthHeading month={activeCursorDate.getMonth()} year={activeCursorDate.getFullYear()} compact />}
+            </div>
             <button
               aria-label={`Next ${view}`}
               className="grid h-7 w-5 shrink-0 place-items-center bg-transparent p-0 text-lg font-black text-slate-300 transition hover:translate-x-0.5 hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/60"
@@ -710,14 +718,15 @@ export default function DashboardCalendar({
               &gt;
             </button>
           </div>
-        </div>
-
-        <div className="absolute right-0 top-0 flex shrink-0 gap-2">
+        <div className={styles.modes}>
+          <CalendarAppearancePicker appearance={appearance} monthKey={appearanceMonth} />
           <div className="inline-flex rounded-full border border-white/10 bg-slate-950/58 p-1">
-            {(["week", "month"] as const).map((option) => (
+            {(["month", "week"] as const).map((option) => (
               <button
                 aria-pressed={view === option}
-                className={`rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.14em] transition ${
+                aria-label={option === "month" ? "Month view" : "Week view"}
+                title={option === "month" ? "Month view" : "Week view"}
+                className={`grid h-10 w-10 place-items-center rounded-full text-[10px] font-black uppercase tracking-[0.14em] transition ${
                   view === option
                     ? "bg-cyan-300 text-slate-950 shadow-[0_0_22px_rgba(34,211,238,0.24)]"
                     : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
@@ -727,7 +736,7 @@ export default function DashboardCalendar({
                 onClick={() => setView(option)}
                 type="button"
               >
-                {option}
+                {option === "month" ? <CalendarDays aria-hidden="true" className="h-5 w-5" /> : <CalendarRange aria-hidden="true" className="h-5 w-5" />}
               </button>
             ))}
           </div>
@@ -752,15 +761,15 @@ export default function DashboardCalendar({
 
       <div
         className={`dashboard-calendar-main grid min-h-0 ${
-          view === "month" ? "mt-3 flex-1 gap-3" : "mt-4 flex-1 gap-6"
+          view === "month" ? "mt-3 flex-1 gap-3" : "mt-1 flex-1 gap-1"
         }`}
       >
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {view === "week" ? (
-            <div className="grid min-h-0 flex-1 grid-cols-[1.5rem_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_1.5rem] gap-1">
+            <div className={styles.weekLayout}>
               <div
                 aria-label="Calendar vertical cell controls"
-                className="flex min-h-0 flex-col items-center justify-center gap-5"
+                className={styles.timeControls}
               >
                 <button
                   aria-label="Highlight previous calendar time"
@@ -786,14 +795,14 @@ export default function DashboardCalendar({
               </div>
               <div
                 aria-label="Weekly training time grid"
-                className="min-h-0 overflow-auto overscroll-contain rounded-[20px] border border-white/10 bg-slate-950/35 [scrollbar-width:none] [touch-action:pan-x_pan-y] [&::-webkit-scrollbar]:hidden"
+                className={`${styles.weekGrid} min-h-0 overflow-auto overscroll-contain border-t border-white/10 bg-slate-950/35 [scrollbar-width:none] [touch-action:pan-x_pan-y] [&::-webkit-scrollbar]:hidden`}
                 ref={weekGridScrollRef}
               >
               <div
                 className="relative grid min-w-[73rem]"
                 style={{
-                  gridTemplateColumns: "3.5rem repeat(7, minmax(9.75rem, 1fr))",
-                  gridTemplateRows: `2.75rem repeat(${weekTimelineHours.length}, 3.25rem)`,
+                  gridTemplateColumns: "2.5rem repeat(7, minmax(9.75rem, 1fr))",
+                  gridTemplateRows: `1.875rem repeat(${weekTimelineHours.length}, 3.25rem)`,
                 }}
               >
                 <div className="sticky left-0 top-0 z-40 grid place-items-center border-b border-r border-white/10 bg-slate-950/95 text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
@@ -830,7 +839,7 @@ export default function DashboardCalendar({
                 })}
                 {weekTimelineHours.map((hour, hourIndex) => (
                   <div
-                    className="sticky left-0 z-20 flex items-start justify-end border-b border-r border-white/10 bg-slate-950/92 px-2 pt-1.5 text-[8px] font-black uppercase tracking-[0.08em] text-slate-500"
+                    className="sticky left-0 z-20 flex items-start justify-end border-b border-r border-white/10 bg-slate-950/92 px-1 pt-1 text-[8px] font-black uppercase tracking-[0.08em] text-slate-500"
                     key={`timeline-hour-${hour}`}
                     style={{ gridColumn: 1, gridRow: hourIndex + 2 }}
                   >
@@ -872,6 +881,7 @@ export default function DashboardCalendar({
                           setSelectedDayDropdownOpen(false);
                           setSoundSessionMenuOpen(false);
                           setEditingEntryId(null);
+    setPendingEntry(null);
                           setPendingDeleteEntryId(null);
                         }}
                         style={{ gridColumn: dayIndex + 2, gridRow: hourIndex + 2 }}
@@ -946,7 +956,7 @@ export default function DashboardCalendar({
             </div>
               <div
                 aria-label="Calendar horizontal cell controls"
-                className="col-start-2 row-start-2 flex items-center justify-center gap-10"
+                className={styles.dayControls}
               >
                 <button
                   aria-label="Highlight previous calendar day"
@@ -970,8 +980,8 @@ export default function DashboardCalendar({
               </div>
             </div>
           ) : (
-            <div className="min-h-0 flex-1 overflow-x-auto rounded-[22px] border border-white/10 bg-slate-950/35 p-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <div className="flex h-full min-h-0 min-w-[680px] flex-col">
+            <div className="min-h-0 min-w-0 flex-1 overflow-hidden border-t border-white/10 bg-slate-950/35 pt-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex h-full min-h-0 min-w-0 flex-col">
                 <div className="grid shrink-0 grid-cols-7 gap-1.5 pb-1.5">
                   {dayLabels.map((day) => (
                     <div
@@ -983,7 +993,7 @@ export default function DashboardCalendar({
                   ))}
                 </div>
 
-                <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-7 gap-1.5">
+                <div className="grid min-h-0 flex-1 grid-cols-7 gap-1" style={{ gridTemplateRows: `repeat(${monthDays.length / 7}, minmax(0, 1fr))` }}>
                   {monthDays.map((day) => {
                     const dayKey = toDateKey(day);
                     const dayEvents = eventsByDate[dayKey] || [];
@@ -994,7 +1004,8 @@ export default function DashboardCalendar({
                     return (
                       <button
                         aria-pressed={selected}
-                        className={`min-h-0 rounded-xl border px-2 py-1.5 text-left transition duration-300 hover:border-cyan-300/35 hover:bg-cyan-300/8 ${
+                        aria-label={detailDateFormatter.format(day)}
+                        className={`flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border px-1 py-1 text-left transition duration-300 hover:border-cyan-300/35 hover:bg-cyan-300/8 ${
                           selected
                             ? "border-cyan-300/45 bg-cyan-300/10 shadow-[0_0_24px_rgba(34,211,238,0.12)]"
                             : todayActive
@@ -1006,33 +1017,24 @@ export default function DashboardCalendar({
                         onClick={() => selectDay(day)}
                         type="button"
                       >
-                        <div className="flex items-center justify-between gap-2">
+                        <div className="flex w-full shrink-0 items-center justify-between gap-1">
                           <span className="text-sm font-black leading-none text-white">
                             {day.getDate()}
                           </span>
+                          {dayEvents.length > 1 ? <span className="shrink-0 whitespace-nowrap text-[9px] font-black text-cyan-100" title={`${dayEvents.length - 1} more events`}>+{dayEvents.length - 1}</span> : null}
                           {todayActive ? (
                             <span className="h-2 w-2 rounded-full bg-amber-300 shadow-[0_0_12px_rgba(252,211,77,0.7)]" />
                           ) : null}
                         </div>
-                        <div className="mt-1.5 flex flex-wrap gap-1">
-                          {dayEvents.slice(0, 4).map((event) => (
-                            <span
-                              className={`h-1.5 w-1.5 rounded-full ${dotStyles[event.type]}`}
-                              key={`${event.dateKey}-${event.title}`}
-                              title={event.title}
-                            />
-                          ))}
-                          {dayEvents.length > 4 ? (
-                            <span className="text-[10px] font-black text-slate-400">
-                              +{dayEvents.length - 4}
-                            </span>
-                          ) : null}
+                        <div className="mt-1 flex min-w-0 items-center gap-0.5">
+                          {dayEvents.slice(0, 1).map((event, eventIndex) => {
+                            const EventIcon = calendarEventIcons[event.type];
+                            return <span key={`${event.dateKey}-${event.title}-${eventIndex}`} title={`${event.title} · ${calendarEventTimeLabel(event)}`} className={`inline-flex shrink-0 rounded p-0.5 ${typeStyles[event.type]}`}>
+                              <EventIcon className="h-2.5 w-2.5" aria-hidden="true" />
+                              <span className="sr-only">{event.title}</span>
+                            </span>;
+                          })}
                         </div>
-                        {dayEvents[0] ? (
-                          <p className="mt-1 truncate text-[9px] font-bold leading-tight text-slate-300">
-                            {dayEvents[0].title}
-                          </p>
-                        ) : null}
                       </button>
                     );
                   })}
@@ -1057,7 +1059,7 @@ export default function DashboardCalendar({
               <div className="flex min-w-0 items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-200">
-                    {activeEditingEntry ? "Edit Event" : "Selected Day"}
+                    {activeEditingEntry ? pendingEntry ? "Session details" : "Edit Event" : "Selected Day"}
                   </p>
                   <h3 className="mt-1 text-lg font-black leading-tight text-white">
                     {detailDateFormatter.format(activeSelectedDate)}
@@ -1073,6 +1075,7 @@ export default function DashboardCalendar({
                     setSelectedDayDropdownOpen(false);
                     setSoundSessionMenuOpen(false);
                     setEditingEntryId(null);
+    setPendingEntry(null);
                     setPendingDeleteEntryId(null);
                   }}
                   type="button"
@@ -1080,47 +1083,7 @@ export default function DashboardCalendar({
                   x
                 </button>
               </div>
-              {selectedEvents.length ? (
-                <div
-                  aria-label="Events happening this day"
-                  className="mt-3 flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                >
-                  {selectedEvents.map((event, eventIndex) => {
-                    const eventMinutes = getEventTimelineMinutes(event, eventIndex);
-                    const eventHour = Math.max(
-                      weekTimelineHours[0],
-                      Math.min(
-                        weekTimelineHours[weekTimelineHours.length - 1],
-                        Math.floor(eventMinutes / 60),
-                      ),
-                    );
-                    const activeEventHour =
-                      view === "week" && eventHour === highlightedWeekHour;
 
-                    return (
-                      <button
-                        aria-label={`Show ${event.title}, ${calendarEventTimeLabel(event)}`}
-                        aria-pressed={activeEventHour}
-                        className={`shrink-0 rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.1em] transition hover:brightness-125 ${
-                          activeEventHour
-                            ? `${typeStyles[event.type]} ring-1 ring-white/50`
-                            : typeStyles[event.type]
-                        }`}
-                        key={event.id || `${event.dateKey}-${event.title}-${eventIndex}-day-pill`}
-                        onClick={() => {
-                          setHighlightedWeekHour(eventHour);
-                          setSoundSessionMenuOpen(false);
-                          setEditingEntryId(null);
-                          setPendingDeleteEntryId(null);
-                        }}
-                        type="button"
-                      >
-                        {calendarEventTimeLabel(event)} · {event.title}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : null}
             </div>
 
             <div className={activeEditingEntry
@@ -1130,7 +1093,7 @@ export default function DashboardCalendar({
               {displayedCellEvents.length ? (
                 displayedCellEvents.map((event) => {
                   const userCreated = Boolean(
-                    !event.readOnly && event.id && userEntries.some((entry) => entry.id === event.id),
+                    !event.readOnly && event.id && (event.id === pendingEntry?.id || userEntries.some((entry) => entry.id === event.id)),
                   );
                   const editing = userCreated && editingEntryId === event.id;
                   const confirmingDelete =
@@ -1339,6 +1302,7 @@ export default function DashboardCalendar({
                               className="px-1 py-2 text-[9px] font-black uppercase tracking-[0.12em] opacity-70 hover:opacity-100"
                               onClick={() => {
                                 setEditingEntryId(null);
+    setPendingEntry(null);
                                 setEditingTimePickerOpen(false);
                               }}
                               type="button"
@@ -1401,6 +1365,7 @@ export default function DashboardCalendar({
                                     onClick={() => {
                                       setPendingDeleteEntryId(event.id || null);
                                       setEditingEntryId(null);
+    setPendingEntry(null);
                                     }}
                                     type="button"
                                   >
@@ -1485,10 +1450,10 @@ export default function DashboardCalendar({
                       >
                         <Icon
                           aria-hidden="true"
-                          className="h-8 w-8 shrink-0 drop-shadow-[0_3px_0_rgba(0,0,0,0.45)] transition group-hover:scale-110 motion-reduce:transform-none"
+                          className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-11 w-11 -translate-x-1/2 -translate-y-1/2 opacity-25 transition-opacity group-hover:opacity-40"
                           strokeWidth={1.8}
                         />
-                        <span className="text-[9px] font-black uppercase leading-[1.35] tracking-[0.08em]">
+                        <span className="relative z-10 text-[8px] font-black uppercase leading-tight tracking-[0.02em] [text-shadow:0_1px_3px_rgba(0,0,0,.9)]">
                           {option.label}
                         </span>
                       </button>
@@ -1504,12 +1469,12 @@ export default function DashboardCalendar({
                     >
                       <Image
                         alt=""
-                        className="h-8 w-8 object-contain drop-shadow-[0_3px_6px_rgba(232,121,249,0.35)] transition group-hover:scale-110 motion-reduce:transform-none"
+                        className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-11 w-11 -translate-x-1/2 -translate-y-1/2 object-contain opacity-30 transition-opacity group-hover:opacity-45"
                         height={32}
                         src="/sound-crest-avatar.png"
                         width={32}
                       />
-                      <span className="text-[9px] font-black uppercase leading-[1.35] tracking-[0.08em]">
+                      <span className="relative z-10 text-[8px] font-black uppercase leading-tight tracking-[0.02em] [text-shadow:0_1px_3px_rgba(0,0,0,.9)]">
                         Sound Session
                       </span>
                     </button>

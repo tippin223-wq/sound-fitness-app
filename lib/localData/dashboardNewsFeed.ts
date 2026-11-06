@@ -49,6 +49,8 @@ export type DashboardNewsFeedItem = {
   tone: DashboardNewsFeedTone;
   title: string;
   summary: string;
+  image?: string;
+  imageAlt?: string;
   /** ISO 8601 with offset. */
   publishedAt: string;
   /** Outlet / organisation / author name only. */
@@ -237,8 +239,17 @@ export const DASHBOARD_NEWS_FEED_SEED: DashboardNewsFeed = {
  * Supabase `dashboard_news` read; callers keep `useState(() => getDashboardNewsFeed())`
  * as the initial value and add one effect that replaces it.
  */
-export const getDashboardNewsFeed = (): DashboardNewsFeed =>
-  DASHBOARD_NEWS_FEED_SEED;
+export const dashboardNewsPhotos: Record<DashboardNewsFeedTopic, string> = {
+  community: "/onboarding-location-outdoors-travel.jpg",
+  gear: "/onboarding-equipment-dumbbells.jpg",
+  nutrition: "/member-preview-matched-plan.jpg",
+  recovery: "/member-preview-no-commute.jpg",
+  training: "/onboarding-workout-focus-photo.jpg",
+};
+export const getDashboardNewsFeed = (): DashboardNewsFeed => ({
+  ...DASHBOARD_NEWS_FEED_SEED,
+  items: DASHBOARD_NEWS_FEED_SEED.items.map(item => ({...item, image: item.image || dashboardNewsPhotos[item.topic], imageAlt: item.imageAlt || `${item.topic} illustration`})),
+});
 
 export const filterDashboardNewsFeed = (
   items: readonly DashboardNewsFeedItem[],

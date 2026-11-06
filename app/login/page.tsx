@@ -998,6 +998,13 @@ export default function LoginPage() {
             )}
 
             <div className="mt-8 border-t border-white/10 pt-5">
+              <Link
+                href={ROUTES.coach.login}
+                className="mb-5 flex items-center justify-between gap-4 rounded-2xl border border-sky-300/20 bg-sky-400/5 px-5 py-4 text-left transition hover:border-sky-300/60 hover:bg-sky-400/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-300"
+              >
+                <span><span className="block text-sm font-bold text-sky-200">Coach sign in</span><span className="mt-1 block text-xs text-slate-400">Manage your members, sessions and messages.</span></span>
+                <span className="text-sky-300" aria-hidden="true">→</span>
+              </Link>
               <p className="text-center text-xs leading-6 text-slate-500">
                 Your training data, messages, and progress tools live inside
                 your private Sound Fitness portal.

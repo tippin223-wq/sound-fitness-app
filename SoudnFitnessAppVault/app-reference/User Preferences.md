@@ -39,6 +39,9 @@ These notes are meant to reduce repeated misunderstandings. New user instruction
 
 ## Dashboard Row Navigation
 
+- Header rewards read the current account's saved Sound Points, Treasure Tokens and Emeralds. Show confirmed zero as `0` with no "recorded" suffix. Distinguish a successfully loaded empty account from failed/loading/invalid data, and never carry a previous account's values into the next one.
+- Keep the account settings gear tucked toward the account icon at its lower-left, with a little more breathing room than the attached coach badge. Preserve this spacing through account/rewards paging.
+- The header's complete category/section/page title must contribute to navigation sizing in both idle and expanded modes. Fit the whole joystick/rail/title group to its lane; do not clip its right edge with viewport-sized inner grid tracks or cap the page name prematurely.
 - In Account paging, tight phone widths may keep the Account/avatar step near the center. When the header has enough room for the rewards/gift side to read to the right, the Account/avatar step should right-align to preserve the full-size header's account-on-the-right perception. Rewards may remain centered on its own step.
 - When Account paging is active, let Rewards and the meter share the same horizontal position only when their measured open-header footprints fit with breathing room. Tight phone widths should keep the meter as its own next scroll position.
 - Center the open header's complete navigation group (joystick, rail, and title) in its available menu lane. Move Rewards to the next horizontal scroll position before it crowds Account; use the controls' full open footprints and a clear gap, not only a hard-coded phone breakpoint or compressed idle sizes.
@@ -53,13 +56,20 @@ These notes are meant to reduce repeated misunderstandings. New user instruction
 - Remove urgency/status dots from the left vertical row indicators; keep the current-row selection highlight.
 - Row icons should look solid and three-dimensional, with visible sides, bevels, and highlights rather than faint outline glyphs.
 - Keep left-side row indicators free of background containers. Use a fine luminous circular highlight for the active/hovered icon and show row-name tooltips on hover and keyboard focus.
+- Main dashboard row indicators overlay the active card instead of reserving a left gutter. Keep a small left-edge Rows tab available; reveal navigation during scrolling and hide it about 1.6 seconds after activity stops. Manual opening persists until closed or clicking outside; keyboard focus keeps the menu usable and Escape closes it. Cards use balanced narrow margins across the available width.
+- The dashboard row-menu trigger is a bare chevron with no text, glass container or visible border. Position it just below the expanded header footprint with a small gap; retain an invisible tap area and accessible open/close label. The menu starts closed and opens automatically only from scroll input, never layout/initialization scroll events.
+- The coolness key underneath the avatar snaps complete options to its left edge when it overflows. Keep exactly one option clearly highlighted, including after free scrolling; the final option must reach the same leading edge and the arrow wraps to the first. This is legend selection, not an inferred workload status.
+- Training Constellation opens with today aligned flush beneath the sticky track icons on mobile, leaving the upcoming days visible. Arrows advance exactly one day and show a single active day; Today keeps its label but is not a second selection. The last day must align to the same top position and stop at the week boundary.
+- Training Constellation marks Today and its date number in warm orange, with a restrained orange rim/tint. Keep that date marker recognizable even while another day is selected. Leave the existing week-range layout unchanged.
+- Use a consistent loading cover through account setup and initial dashboard graphics, rather than exposing staggered mounting. The detailed avatar has its own cover until model/textures/clothing and its first rendered frame are ready, including when revisiting its card. Use real readiness, no invented percentages; retain timeout/error paths so the app remains usable.
 - In Profile's left vertical row rail, use each row's currently selected card icon in place of the completion/urgency dot. Keep every control visually bare with no surrounding card/container and no persistent title text. Render the icon with a layered 3D extrusion and card-colored light aura; reveal the row title only as a hover/keyboard-focus tooltip.
 - Show one bare up arrow above Profile's left vertical icon rail whenever a non-hero row is active. It returns directly to the Member Profile hero rather than stepping through previous rows.
 
 ## Hero Cards
 
+- Stack avatar actions vertically in a reserved left rail outside the 3D canvas, preserving the athlete's full stage height and comfortable margins. Center the coolness indicators on the athlete's canvas beneath his feet. Short, wide cards keep Support Signals in the right column so the athlete spans the available height. Training Areas use the exercise library's category palette; actual muscle highlights reflect per-muscle workload/coolness status (neutral when unavailable) and fade after about 2.6 seconds, including stationary hover. Choosing again restarts the preview.
 - Avatar target: the realistic adult sports-character reference selected on 2026-10-19. Use free licensed authored human/clothing meshes, natural hands and joints, matte skin/fabric detail, and restrained standing motion. Fix skin/hair clipping and retain existing muscle/appearance controls. Use the Client Gear shirt's crest-beside-wordmark chest design. The timer remains stopped until explicitly restarted.
-- Use natural adult athletic proportions for the 3D avatar, with clearly shaped muscles and fitted selection surfaces rather than rectangular glow bands. Exact muscle selections should remain visible while being inspected.
+- Use natural adult athletic proportions for the 3D avatar, with clearly shaped muscles and fitted selection surfaces rather than rectangular glow bands. Keep the inspected muscle selected after its temporary highlight fades.
 - Make the avatar's shirt and pants read as continuous garments, with blended shoulder, hip and knee joins rather than separate body-part pieces. Give the resting athlete a visible, gentle upper-body sway with planted feet; keep blinking, muscle selections and reduced-motion support.
 - Judge avatar joints against natural anatomy: sloping shoulders, a smooth hip/crotch transition, tapered knees and ankles, and continuous elbows. Resting palms face inward toward the thighs with thumbs forward and relaxed fingers.
 - Support Signals should show every whole circle that fits, including even counts. Keep the highlight centered when possible (nearest middle slot for even counts); do not hide an otherwise fitting circle just to force exact centering. Clamp at list ends without empty slots.
@@ -117,3 +127,11 @@ These notes are meant to reduce repeated misunderstandings. New user instruction
 - Plan Timeline details (Current Focus, Plan Source, Next Action, Training Data) use bare text without individual pill backgrounds or borders; retain the slider and arrow.
 
 - TrainerHub is a separate app. Exclude its routes, APIs, migration, libraries and coach integration from Sound Fitness app releases; preserve its local work separately.
+
+- Dashboard row-menu trigger is a down chevron at the top left, attached just below the header's current bottom as it expands/collapses. Keep it at the left edge when open, flip upward to close, and stack row navigation beneath it. This supersedes reserving the expanded header footprint.
+
+## App admin scope — 2026-10-30
+
+- Keep the app admin focused on app accounts, digital subscriptions/sales, app products, app calendar, app messaging, app content, announcements, and app settings. The website owns the lead journey, business accounting, in-home service catalog, and general marketing.
+- App products follow member areas: Training; Sound Kitchen Menu (Nutrition; Kitchen Table was discussed as a possible name); Steady (Recovery); Run Tracker (Performance); Graduate (Education); Sound World Arcade; and Angles across Training/Performance without requiring another member header circle.
+- Display real integration/access/billing status. Do not imply a product is connected, paid access is fulfilled, or publishing/support administration exists merely because its catalog entry or member workspace exists.

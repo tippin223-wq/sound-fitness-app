@@ -1203,6 +1203,16 @@ export function DashboardSpinningSoundCoin3D({
 
       let coinSpinRotation: number = SOUND_COIN_REST_ROTATION.y;
       let coinPulseTime = 0;
+      const rest = () => {
+        const changed = coinGroup.rotation.x !== SOUND_COIN_REST_ROTATION.x
+          || coinGroup.rotation.y !== SOUND_COIN_REST_ROTATION.y
+          || coinGroup.rotation.z !== SOUND_COIN_REST_ROTATION.z
+          || glint.scale.x !== SOUND_COIN_GLINT_REST_SCALE;
+        coinGroup.rotation.set(SOUND_COIN_REST_ROTATION.x, SOUND_COIN_REST_ROTATION.y, SOUND_COIN_REST_ROTATION.z);
+        coinSpinRotation = SOUND_COIN_REST_ROTATION.y;
+        glint.scale.setScalar(SOUND_COIN_GLINT_REST_SCALE);
+        return changed;
+      };
       const update = (_elapsed: number, delta: number) => {
         const frameDelta = delta * 1000;
 
@@ -1262,6 +1272,7 @@ export function DashboardSpinningSoundCoin3D({
         scene,
         camera,
         update,
+        rest,
         dispose: () => {
           // coinTexture stays alive in the module cache for the next mount.
           disposeObject(scene);

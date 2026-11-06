@@ -1,23 +1,34 @@
 import { readDashboardHealthEvidence } from "./dashboardHealthEvidence";
 import { planningSnapshot } from "./store";
+import { localDate } from "./dates";
+import { SUPPORT_RECORDS_KEY, validSupportHistory, type SupportKind } from "./supportSignalValidation";
 
 export type BodyCommandReading = { value: string; detail: string; description: string; recorded: boolean };
 /** Recorded totals are partial journal evidence; no target, muscle allocation or recovery dose is inferred. */
 export function readBodyCommandEvidence(now = new Date(), values: Readonly<Record<string, unknown>> = planningSnapshot()) {
   const health = readDashboardHealthEvidence(now, values);
-  const unavailable = (description: string): BodyCommandReading => ({ value: "—", detail: "Unavailable", description, recorded: false });
-  const rating = (key: "sleep" | "stress" | "soreness") => health.latestCheckIn
-    ? { value: `${health.latestCheckIn[key]}/10`, detail: "Self-report", description: `Latest saved weekly ${key} rating on ${health.latestCheckIn.date}. A self-report score, not a daily average or target.`, recorded: true }
-    : unavailable(health.recoveryIssue || "No saved weekly check-in in the last 7 days.");
+  const today = localDate(now);
+  const day = health.checkInDays.find(row => row.date === today);
+  const supportValid = validSupportHistory(values[SUPPORT_RECORDS_KEY] ?? []);
+  const reading = (kind: SupportKind | "fuel" | "hydration", unit: string): BodyCommandReading => {
+    const issue = kind === "fuel" || kind === "hydration" ? health.nutritionIssue : !supportValid ? "Review saved support records" : "";
+    const legacyRating = (kind === "sleep" || kind === "stress" || kind === "soreness") && health.latestCheckIn?.date === today ? health.latestCheckIn[kind] : null;
+    const amount = day?.[kind] ?? legacyRating;
+    const prompt = kind === "hydration" ? "Log water" : kind === "fuel" ? "Log food" : "Record now";
+    const suffix = unit === "/10" ? unit : ` ${unit}`;
+    const displayAmount = amount === null ? "—" : (kind === "hydration" ? amount / 1000 : amount).toLocaleString("en-US", { maximumFractionDigits: kind === "hydration" ? 2 : 0 });
+    if (issue) return { value: `—${suffix}`, detail: "Review records", description: issue, recorded: false };
+    return {
+      value: `${displayAmount}${suffix}`,
+      detail: kind === "hydration" || kind === "fuel" || amount === null ? prompt : "Today",
+      description: amount === null ? `No ${kind} recorded today. ${prompt}.` : `${kind}: ${displayAmount} ${unit} recorded today, ${today}. ${kind === "hydration" ? "Log more water throughout the day." : "Open to review or update today's records."}`,
+      recorded: amount !== null,
+    };
+  };
   return {
-    sleep: rating("sleep"), stress: rating("stress"), soreness: rating("soreness"),
-    fuel: health.reportedCalories === null ? unavailable(health.nutritionIssue || "No recorded calorie values in the last 7 days.")
-      : { value: health.reportedCalories.toLocaleString("en-US"), detail: "Logged kcal", description: `${health.reportedCalories} reported calories across ${health.calorieDays} recorded days in the last 7 days. Partial journal total; complete daily intake and calorie targets are not established.`, recorded: true },
-    hydration: health.recordedWaterMl === null ? unavailable(health.nutritionIssue || "No water records in the last 7 days.")
-      : { value: String(Math.round(health.recordedWaterMl)), detail: "Logged ml", description: `${Math.round(health.recordedWaterMl)} ml in saved water entries across ${health.waterDays} recorded days in the last 7 days. Partial journal total; hydration adequacy and daily targets are not established.`, recorded: true },
-    fatigue: unavailable("Fatigue duration is not recorded or linked to this card."),
-    recovery: unavailable("Actual recovery-session durations are not linked to this card."),
-    core: unavailable("Core-specific recorded sets and plan targets have not been mapped."),
+    sleep: reading("sleep", "/10"), stress: reading("stress", "/10"), soreness: reading("soreness", "/10"),
+    fatigue: reading("fatigue", "/10"), recovery: reading("recovery", "min"), core: reading("core", "sets"),
+    fuel: reading("fuel", "kcal"), hydration: reading("hydration", "L"),
   };
 }
 export type BodyCommandEvidence = ReturnType<typeof readBodyCommandEvidence>;

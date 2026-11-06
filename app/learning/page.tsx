@@ -1,3 +1,4 @@
+import PublishedContentBank from "@/components/content/PublishedContentBank";
 import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import { ProfileProvider } from "@/components/profile/ProfileProvider";
@@ -243,6 +244,7 @@ export default function LearningDashboardPage() {
         <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_14%_0%,rgba(139,92,246,0.2),transparent_32%),radial-gradient(circle_at_84%_10%,rgba(34,211,238,0.16),transparent_28%),linear-gradient(180deg,#020713_0%,#07111f_50%,#020713_100%)]" />
 
         <div className="mx-auto w-full max-w-[1500px] space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+          <PublishedContentBank bank="education" title="Member lessons" />
           <section className="overflow-hidden rounded-[36px] border border-white/10 bg-[radial-gradient(circle_at_16%_0%,rgba(139,92,246,0.22),transparent_34%),radial-gradient(circle_at_88%_10%,rgba(34,211,238,0.16),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.98))] p-6 shadow-[0_35px_130px_rgba(0,0,0,0.62)] lg:p-8">
             <div className="grid gap-6 xl:grid-cols-[1fr_0.42fr] xl:items-end">
               <div>

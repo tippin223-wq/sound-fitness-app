@@ -1820,7 +1820,7 @@ export default function GoalsPage() {
           { href: ROUTES.dashboard.sessions, label: "Sessions", status: "Start" },
           { href: ROUTES.dashboard.exerciseLibrary, label: "Exercise Library", status: "Tools" },
           { href: ROUTES.dashboard.goals, label: "Goal Planning", status: "Goals" },
-          { href: ROUTES.dashboard.myPlan, label: "My Plan", status: "Organize" },
+          { href: ROUTES.dashboard.trainingPlans, label: "My Plan", status: "Organize" },
           { href: ROUTES.dashboard.phases, label: "Periodized Plan", status: "Phase" },
           { href: ROUTES.dashboard.calendar, label: "Calendar", status: "Schedule" },
           { href: ROUTES.dashboard.progress, label: "Progress", status: "Reflect" },

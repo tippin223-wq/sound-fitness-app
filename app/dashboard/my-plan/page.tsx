@@ -16,6 +16,7 @@ import { assignmentCompleted } from "@/lib/planning/logs";
 import { plannedExerciseCount, plannedWeekSummary } from "@/lib/planning/plannedWorkload";
 import { readPlanProfileSnapshot, type PlanProfileSnapshot } from "@/lib/planning/planProfileSummary";
 import TrainingJourneyNavigator from "@/components/dashboard/TrainingJourneyNavigator";
+import SharedProgramCatalog from "@/components/dashboard/SharedProgramCatalog";
 import { loadWorkoutTemplatesWithFallback } from "@/lib/data/workoutPersistence";
 import {
   readWorkoutBuilderTemplates,
@@ -472,6 +473,7 @@ export default function MyPlanPage() {
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white">
       <section className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         <TrainingJourneyNavigator currentStep="my-plan" variant="full" />
+        <SharedProgramCatalog />
         <PlanRecommendationCard />
         {planDraftPresent() && <aside aria-label="Saved plan draft" className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-4 text-sm text-cyan-100">
           <p>You have a saved plan editor draft. Open the editor to restore, export, or discard it.</p>

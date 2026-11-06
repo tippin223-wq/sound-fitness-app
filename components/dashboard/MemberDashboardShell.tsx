@@ -19,6 +19,7 @@ export default function MemberDashboardShell({
   const useEmbeddedHeader =
     pathname === ROUTES.dashboard.home ||
     pathname === ROUTES.dashboard.goals ||
+    pathname === ROUTES.dashboard.trainingPlans ||
     pathname === ROUTES.dashboard.sessions ||
     pathname === ROUTES.dashboard.profile ||
     pathname === ROUTES.dashboard.exerciseLibrary ||

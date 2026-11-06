@@ -1,0 +1,16 @@
+{
+  "reference": "Rain \u2014 Blender Studio",
+  "source": "https://studio.blender.org/blog/introducing-rain/",
+  "turnaround": "https://studio.blender.org/files/public/thumbnail/24/66/2466ddfd34bc19e9ac43636d87f4e6d3_m.webp",
+  "usage": "Visual design reference only; no Rain mesh or textures incorporated.",
+  "targets": [
+    "Soft rounded face with an adult jaw/chin transition",
+    "Neck tapers below the jaw and blends smoothly into shoulders",
+    "Visible swept hair sections, irregular soft hairline and ear clearance",
+    "Ponytail begins high on the back of the scalp and has a full curved taper"
+  ],
+  "preserve": [
+    "Existing avatar skin tone and athletic identity",
+    "Current customization and emote rig"
+  ]
+}

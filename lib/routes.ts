@@ -50,6 +50,7 @@ export const DASHBOARD_ROUTES = {
   help: route("/dashboard/help"),
   mobility: route("/dashboard/mobility"),
   performance: route("/dashboard/performance"),
+  trainingPlans: route("/dashboard/training-plans"),
   myPlan: route("/dashboard/my-plan"),
   createMyPlan: route("/dashboard/my-plan/create"),
   payments: route("/dashboard/payments"),

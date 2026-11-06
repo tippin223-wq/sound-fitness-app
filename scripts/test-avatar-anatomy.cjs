@@ -94,12 +94,17 @@ test('actual render loop animates the face and chest, preserves emotes, and stop
   const joint=()=>({position:vector(),rotation:vector(),scale:vector()});
   const head=joint(),left=joint(),right=joint(),torso=joint(),hips=joint(),root=joint(),lid=joint(),feature=joint();
   const state={active:true,paused:false,view:'front',emotePreset:'calm',appearance:{body:'male'}},reducedMotion={matches:false};
-  let frames=0;
-  const env={...motionApi,disposed:false,latest:{current:state},lastTime:0,idleSeconds:3.1,yaw:-.08,pose:{head:[0,0,0],leftArm:[.025,.12],rightArm:[.025,-.12]},reducedMotion,root,canvas:{},setDashboardWebGlCanvasActive:()=>{},headPivot:head,leftArmPivot:left,rightArmPivot:right,torsoPivot:torso,hipsPivot:hips,torsoCentre:[0,2.35,0],garments:[],upperBodyJoints:[head,left,right].map(joint=>({joint,restX:0,restY:3})),eyelids:[{lid,height:.015,centerY:3.2}],facialFeatures:[{mesh:feature,base:{x:.05,y:3.2},eyebrow:false}],elbows:[joint(),joint()],legPivots:[{hip:joint(),knee:joint()}],SOUND_AVATAR_BASE_Y:-1.18,highlightFadeStart:null,gl:{render:()=>frames++},scene:{},camera:{},window:{requestAnimationFrame:()=>1},animationFrame:0};
+  let frames=0,garmentUpdates=0,activityWrites=0;
+  const env={...motionApi,necklace:undefined,contextLost:false,clearDashboardWebGlFallback:()=>{},disposed:false,readyReported:false,loadTimeout:0,setLoadState:()=>{},onReadyChange:()=>{},avatarInViewport:true,canvasActive:null,document:{hidden:false},latest:{current:state},lastTime:0,idleSeconds:3.1,emoteSeconds:0,currentEmote:state.emotePreset,currentReplay:state.emoteReplay,manualYaw:0,lastView:state.view,yaw:-.08,pose:{head:[0,0,0],leftArm:[.025,.12],rightArm:[.025,-.12]},reducedMotion,root,canvas:{dataset:{}},setDashboardWebGlCanvasActive:()=>activityWrites++,headPivot:head,leftArmPivot:left,rightArmPivot:right,torsoPivot:torso,hipsPivot:hips,torsoCentre:[0,2.35,0],garments:[{update:()=>garmentUpdates++}],upperBodyJoints:[head,left,right].map(joint=>({joint,restX:0,restY:3,restZ:0})),eyelids:[{lid,height:.015,centerY:3.2}],eyeOffsets:{},expressionSmile:null,smileRestScale:null,facialFeatures:[{mesh:feature,base:{x:.05,y:3.2},eyebrow:false}],elbows:[joint(),joint()],wrists:[joint(),joint()],saluteRig:()=>{},legPivots:[{hip:joint(),knee:joint()}],SOUND_AVATAR_BASE_Y:-1.18,highlightFadeStart:null,gl:{render:()=>frames++},scene:{},cameraTarget:{y:.25,z:5.8,aimY:.16},cameraAimY:.16,headSculpt:{morphTargetInfluences:[0,0,0,0]},camera:{fov:31,aspect:1,position:{x:0,y:.25,z:5.8},lookAt:()=>{}},window:{requestAnimationFrame:()=>1,clearTimeout:()=>{}},animationFrame:0};
   const exported={};
-  const code=ts.transpileModule(`const restPose=${nodes.restPose.getText(ast)};const emotePoses=${nodes.emotePoses.getText(ast)};const render=${nodes.render.getText(ast)};exports.render=render;`,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+  const code=ts.transpileModule(`const restPose=${nodes.restPose.getText(ast)};const emotePoses=${nodes.emotePoses.getText(ast)};const render=${nodes.render.getText(ast)};exports.render=render;exports.setVisibility=value=>avatarInViewport=value;`,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
   new Function('exports',...Object.keys(env),code)(exported,...Object.values(env));
+  state.appearance.face='bright';
+  env.cameraTarget.y=1.39;env.cameraTarget.z=2;env.cameraTarget.aimY=1.3;
   exported.render(50);
+  assert.ok(env.camera.position.y>.25 && env.camera.position.y<1.39,'portrait zoom advances smoothly');
+  assert.ok(env.headSculpt.morphTargetInfluences[1]>0 && env.headSculpt.morphTargetInfluences[1]<1,'smile blends rather than flashing');
+  env.cameraTarget.y=.25;env.cameraTarget.z=5.8;env.cameraTarget.aimY=.16;
   assert.ok(lid.visible,'actual eyelid closes during blink');
   assert.notEqual(torso.scale.z,1,'chest breathes');
   assert.notEqual(head.rotation.y,0,'head looks around');
@@ -107,13 +112,74 @@ test('actual render loop animates the face and chest, preserves emotes, and stop
   assert.ok(Math.abs(head.position.x)>.005,'visible upper-body weight shift');
   assert.equal(root.position.y,-1.18,'the resting sway does not lift the shoes');
   reducedMotion.matches=true;exported.render(100);
-  assert.equal(lid.visible,false);assert.equal(torso.scale.z,1);assert.equal(head.rotation.y,0);
+  assert.ok(lid.visible && lid.scale.y<.005,'resting upper lids soften the open eyes');assert.equal(torso.scale.z,1);assert.equal(head.rotation.y,0);
   assert.equal(left.rotation.z,.12,'neutral arms stay close to the body');
   state.emotePreset='wave';exported.render(150);
-  assert.equal(right.rotation.z,2.35,'explicit wave still articulates');
+  assert.equal(right.rotation.z,.65,'wave keeps the shoulder relaxed below head height');
+  assert.equal(env.elbows[1].rotation.z,1.9,'wave lifts the forearm from a bent elbow');
+  assert.equal(env.elbows[1].rotation.y,Math.PI/2,'wave turns the palm toward the viewer');
+  assert.equal(env.wrists[1].rotation.z,0,'reduced-motion wave keeps a steady wrist');
+  state.emotePreset='celebrate';exported.render(175);
+  assert.equal(root.position.y,env.SOUND_AVATAR_BASE_Y,'celebration keeps the athlete planted');
+  assert.ok(env.elbows[0].rotation.z < -1 && env.elbows[1].rotation.z > 1,'celebration uses bent elbows rather than a rigid T pose');
+  assert.equal(env.elbows[0].rotation.order,'ZXY','celebration palm turn preserves the elbow plane');
+  assert.ok(lid.visible,'celebration carries a joyful eye expression');
   reducedMotion.matches=false;state.paused=true;state.emotePreset='calm';exported.render(200);
-  assert.equal(lid.visible,false);assert.equal(torso.rotation.z,0);assert.equal(feature.position.x,.05);
-  assert.equal(frames,4);
+  assert.ok(lid.visible && lid.scale.y<.005);assert.equal(torso.rotation.z,0);assert.equal(feature.position.x,.05);
+  assert.equal(frames,5);
+  assert.equal(env.canvas.dataset.soundAvatarReady,'true','readiness follows the first actual render');
+  state.paused=false;exported.setVisibility(false);
+  const writesBeforeHiddenFrames=activityWrites;
+  exported.render(250);exported.render(300);
+  assert.equal(frames,5,'offscreen avatar skips GPU submission');
+  assert.equal(garmentUpdates,5,'offscreen avatar skips CPU clothing deformation');
+  assert.equal(activityWrites,writesBeforeHiddenFrames,'hidden frames do not repeat DOM activity writes');
+  exported.setVisibility(true);exported.render(350);
+  assert.equal(frames,6,'returning to the avatar resumes rendering');
+  assert.equal(garmentUpdates,6);
+  env.document.hidden=true;exported.render(400);
+  assert.equal(frames,6,'background document skips rig and render work');
+  env.document.hidden=false;exported.render(450);
+  assert.equal(frames,7,'foreground resumes without rebuilding the scene');
+  reducedMotion.matches=true;state.emotePreset='stretch';exported.render(500);
+  assert.equal(left.rotation.y,Math.PI*.65,'left shoulder turns in the corrected stretch direction');
+  assert.equal(right.rotation.y,-Math.PI*.65,'right shoulder mirrors the corrected stretch rotation');
+  assert.equal(root.position.y,env.SOUND_AVATAR_BASE_Y,'stretch keeps both feet grounded');
+  assert.equal(left.rotation.order,'ZXY','stretch applies local axial rotation after elevation');
+  assert.equal(env.camera.position.z,5.8,'stretch never zooms the athlete smaller');
+  assert.ok(lid.visible && lid.scale.y > 0,'stretch carries a gentle eye expression');
+  state.emotePreset='bow';exported.render(550);
+  assert.equal(torso.rotation.x,.42,'Bow is a visible torso gesture rather than an idle/reset action');
+  assert.ok(head.position.z > .4,'head follows the hip hinge instead of floating upright');
+  assert.ok(head.position.y < 3,'head lowers with the bow');
+  assert.ok(head.rotation.x > torso.rotation.x,'head leads the respectful downward gaze');
+  assert.equal(root.position.y,env.SOUND_AVATAR_BASE_Y,'bow never lifts the feet');
+  reducedMotion.matches=false;state.emotePreset='wave';
+  let wristTravel=0;
+  for(let t=600;t<=2600;t+=50){exported.render(t);wristTravel=Math.max(wristTravel,Math.abs(env.wrists[1].rotation.z));}
+  assert.ok(wristTravel>.08 && wristTravel<.21,'wave has a small hand-led wrist movement');
+  assert.equal(env.elbows[1].rotation.order,'ZXY','palm turn follows the elbow bend rather than changing its plane');
+  assert.ok(right.rotation.z<.72,'shoulder stays restrained while the wrist waves');
+  reducedMotion.matches=true;state.emotePreset='salute';exported.render(2650);
+  assert.equal(env.elbows[1].rotation.z,2.15,'salute folds the forearm toward the brow');
+  assert.ok(Math.abs(env.wrists[1].rotation.z)<.05,'salute keeps the wrist straight rather than bending it backward');
+  assert.equal(left.rotation.z,.12,'non-saluting arm stays relaxed');
+  assert.ok(Math.abs(env.elbows[1].rotation.y)<.05,'salute preserves the forearm plane');
+  assert.ok(Math.abs(env.wrists[1].rotation.y-Math.PI)<1e-8,'salute orients the palm without backward wrist flexion');
+  reducedMotion.matches=false;state.emotePreset='calm';
+  Object.assign(env.camera.position,env.cameraTarget);
+  exported.render(2700);
+  const idleFrames=frames,idleUpdates=garmentUpdates;
+  exported.render(2716);
+  assert.equal(frames,idleFrames,'idle skips redundant 60 Hz draw submissions');
+  assert.equal(garmentUpdates,idleUpdates,'idle skips redundant mesh deformation');
+  exported.render(2750);
+  assert.equal(frames,idleFrames+1,'idle still updates at its lower cadence');
+  state.active=false;exported.render(2800);
+  assert.equal(frames,idleFrames+1,'retained inactive hero does not draw');
+  state.active=true;exported.render(2850);
+  assert.equal(frames,idleFrames+2,'returning to retained hero resumes the same scene');
+
 });
 
 test('muscle surfaces cover every selection with finite, fitted front/back geometry on both body profiles',async()=>{
@@ -164,21 +230,35 @@ test('muscle surfaces cover every selection with finite, fitted front/back geome
   }
 });
 
-test('an explicitly selected muscle stays illuminated after the selection pulse expires',()=>{
+test('selected and hovered muscle highlights expire without clearing the inspected muscle',()=>{
   const card=fs.readFileSync('components/dashboard/BodyCommandCenterCard.tsx','utf8');
   const ast=ts.createSourceFile('card.tsx',card,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
-  let expression,hoverExpression;
+  let expression,hoverExpression,pulseEffect;
   function visit(node){
     if(ts.isJsxAttribute(node)&&node.name.getText(ast)==='zoneGlowActive'&&node.initializer?.expression?.getText(ast).includes('avatarSelectionPulse'))expression=node.initializer.expression.getText(ast);
     if(ts.isVariableDeclaration(node)&&node.name.getText(ast)==='hoveredBodyPart')hoverExpression=node.initializer.getText(ast);
+    if(ts.isCallExpression(node)&&node.expression.getText(ast)==='useEffect'&&node.arguments[0]?.getText(ast).includes('avatarSelectionPulseMs'))pulseEffect=node.arguments[0].getText(ast);
     ts.forEachChild(node,visit);
   }
   visit(ast);
   assert.ok(expression);
   const active=new Function('avatarSelectionPulse','avatarMuscleFocusActive','hoveredBodyPart','menuHoveredMuscleInGroup','return '+expression);
-  assert.equal(active(false,true,null,null),true);
+  assert.equal(active(false,true,null,null),false);
+  assert.equal(active(true,true,null,null),true);
   assert.equal(active(false,false,null,null),false);
-  assert.equal(active(false,false,'back',null),true);
+  assert.equal(active(false,false,'back',null),false);
+  assert.equal(active(false,true,'back','lats'),false,'neither selection nor stationary hover bypasses expiry');
+  let lit=false,expired,delay,cleared=false;
+  const window={setTimeout(fn,ms){expired=fn;delay=ms;return 1;},clearTimeout(){cleared=true;}};
+  const effect=new Function('window','setAvatarSelectionPulse','avatarSelectionPulseToken','avatarHoveredBodyPart','menuHoveredGroup','menuHoveredMuscle','avatarSelectionPulseMs','return ('+pulseEffect+')()');
+  const cleanup=effect(window,value=>{lit=value;},1,null,null,'lats',2600);
+  assert.equal(lit,true);assert.equal(delay,2600);expired();assert.equal(lit,false);
+  cleanup();assert.equal(cleared,true,'a new selection cancels the old timer');
+  effect(window,value=>{lit=value;},0,'chest',null,null,2600);
+  assert.equal(lit,true,'hover alone starts a bounded preview');expired();assert.equal(lit,false);
+  lit=true;
+  effect(window,value=>{lit=value;},0,null,null,null,2600);
+  assert.equal(lit,false,'leaving an initial hover cannot strand a cancelled preview');
   const hover=new Function('avatarMuscleFocusActive','avatarHoveredBodyPart','menuHoveredGroup','return '+hoverExpression);
   assert.equal(hover(true,'back','back'),null,'restored category focus cannot replace the selected lat');
   assert.equal(hover(false,'back',null),'back');
@@ -228,4 +308,44 @@ test('shirt and pants are connected skinned surfaces which stay bound through jo
     }
     material.dispose();
   }
+});
+
+
+test('avatar highlights use per-muscle workload status independently of library category colors',()=>{
+  const source=fs.readFileSync('components/dashboard/BodyCommandCenterCard.tsx','utf8');
+  const ast=ts.createSourceFile('card.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+  const names=new Set(['sevenDayStatusTheme','bodyPartGroups','muscleMeta','muscleStatusRing','groupStatusRing']);
+  let declarations='',colors='';
+  function visit(node){
+    if(ts.isVariableDeclaration(node)&&names.has(node.name.getText(ast)))declarations+='const '+node.getText(ast)+';\n';
+    if(ts.isVariableDeclaration(node)&&node.name.getText(ast)==='avatarZoneGlowColors')colors=node.initializer.getText(ast);
+    if(ts.isFunctionDeclaration(node)&&['getSevenDayTrainingStatus','getBodyPartGroupLoad'].includes(node.name?.getText(ast)))declarations+=node.getText(ast)+'\n';
+    ts.forEachChild(node,visit);
+  }
+  visit(ast);
+  const api={};
+  new Function('exports',ts.transpileModule(declarations+'exports.meta=muscleMeta;exports.colors=()=>('+colors+');',{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(api);
+  assert.equal(api.colors().quads,'#94a3b8','unavailable workload stays neutral');
+  api.meta.quadriceps.load={completed:10,target:10,unit:'sets'};
+  api.meta.hamstring.load={completed:14,target:10,unit:'sets'};
+  assert.equal(api.colors().quads,'#fb923c','target volume uses the prime color');
+  assert.equal(api.colors().hamstrings,'#f87171','overworked muscle uses red within the same leg group');
+  assert.equal(api.colors().calves,'#94a3b8','missing calf data cannot inherit a sibling status');
+});
+
+test('avatar context recovery rebuilds a fresh scene, cancels on restore, and bounds retries',()=>{
+  const src=fs.readFileSync('components/dashboard/SoundFitnessAvatar3D.tsx','utf8');
+  const ast=ts.createSourceFile('avatar.tsx',src,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+  const declarations=[];
+  function visit(node){if(ts.isVariableDeclaration(node)&&['onContextLost','onContextRestored'].includes(node.name.getText(ast)))declarations.push(node.getText(ast));ts.forEachChild(node,visit);}visit(ast);
+  const timers=new Map();let next=0,attempt=0,state,ready,cleared=0;
+  const window={setTimeout(fn){timers.set(++next,fn);return next;},clearTimeout(id){timers.delete(id);}};
+  const recoveryAttempts={current:0},canvas={dataset:{}},exported={};
+  const code=ts.transpileModule('let contextLost=false,recoveryTimer;const '+declarations.join(';const ')+';exports.lost=onContextLost;exports.restored=onContextRestored;exports.isLost=()=>contextLost;',{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+  new Function('exports','window','disposed','setLoadState','onReadyChange','recoveryAttempts','setSceneAttempt','clearDashboardWebGlFallback','canvas','setDashboardWebGlCanvasActive','latest',code)(exported,window,false,v=>state=v,v=>ready=v,recoveryAttempts,fn=>attempt=fn(attempt),()=>cleared++,canvas,()=>{}, {current:{active:true,paused:false}});
+  const event={preventDefault(){}};
+  exported.lost(event);assert.equal(state,'loading');assert.equal(ready,false);assert.equal(exported.isLost(),true);
+  exported.restored();assert.equal(timers.size,0);assert.equal(state,'ready');assert.equal(exported.isLost(),false);assert.equal(cleared,1);
+  for(let i=0;i<4;i++){exported.lost(event);const fn=timers.get(next);timers.delete(next);fn();}
+  assert.equal(attempt,3);assert.equal(state,'error','persistent failures expose manual retry rather than looping forever');
 });

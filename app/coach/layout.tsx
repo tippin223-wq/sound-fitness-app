@@ -38,8 +38,7 @@ export default function CoachLayout({
         .eq("id", user.id)
         .single();
 
-      if (!profile || profile.role !== "coach") {
-        await supabase.auth.signOut();
+      if (!profile || !["coach", "admin"].includes(profile.role)) {
         router.replace(ROUTES.coach.login);
         return;
       }
@@ -56,7 +55,7 @@ export default function CoachLayout({
 
   return (
     <ProfileProvider>
-      <ProtectedHeader role="coach" />
+      {pathname !== ROUTES.coach.dashboard && <ProtectedHeader role="coach" />}
       {children}
     </ProfileProvider>
   );

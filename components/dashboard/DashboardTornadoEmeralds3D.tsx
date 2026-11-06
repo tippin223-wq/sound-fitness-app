@@ -968,6 +968,7 @@ export function DashboardGemStage3D({
   tones = DEFAULT_SHARED_GEM_TONES,
   vaultOpen = false,
   variant = "trigger",
+  framingScale = 1,
 }: {
   className?: string;
   onProminentToneChange?: (tone: DashboardTornadoGemTone) => void;
@@ -975,6 +976,7 @@ export function DashboardGemStage3D({
   tones?: readonly DashboardTornadoGemTone[];
   vaultOpen?: boolean;
   variant?: "reserves" | "trigger";
+  framingScale?: number;
 }) {
   const tonesKey = tones.join("|");
   const onProminentToneChangeRef = useRef(onProminentToneChange);
@@ -1015,7 +1017,7 @@ export function DashboardGemStage3D({
         0.1,
         24,
       );
-      camera.position.set(0, variant === "reserves" ? -0.72 : 0.03, 6.34);
+      camera.position.set(0, variant === "reserves" ? -0.72 : 0.03, 6.34 / Math.max(0.25, Math.min(4, framingScale)));
       camera.lookAt(0, variant === "reserves" ? -0.98 : 0, 0);
 
       scene.add(new THREE.AmbientLight(0xffffff, variant === "reserves" ? 1.18 : 1.05));
@@ -2466,7 +2468,7 @@ export function DashboardGemStage3D({
 
       return { scene, camera, update, dispose };
     };
-  }, [tonesKey, variant]);
+  }, [tonesKey, variant, framingScale]);
 
   return (
     <DashboardWebGlWidget

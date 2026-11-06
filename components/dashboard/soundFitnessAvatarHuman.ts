@@ -32,8 +32,74 @@ export function createSoundFitnessHuman(
   root.updateMatrixWorld(true);
   const skeleton = new THREE.Skeleton(bones);
   const skinMaterial = sources.find(mesh => mesh.name.includes("skin"))!.material;
+  // The authored hand has no finger bones. Add a reversible fist morph in
+  // each hand's bind frame, leaving the wrist/palm seam anchored.
+  const ownedGeometry = (source: Three.Mesh<Three.BufferGeometry, Three.MeshStandardMaterial>) => {
+    const geometry = source.geometry.clone();
+    const position = geometry.getAttribute("position");
+    const indices = geometry.getAttribute("skinIndex"), weights = geometry.getAttribute("skinWeight");
+    if (!indices || !weights) return geometry;
+    const torsoIndex = names.indexOf("torso shirt core");
+    // Keep the spine and scapular fabric attached to the rib cage as arms
+    // rise. Shoulder weighting ramps up only toward the outer shoulder.
+    if (source.name.includes("shirt") || source.name.includes("skin")) {
+      for (let i = 0; i < position.count; i++) {
+        const x = Math.abs(position.getX(i)), y = position.getY(i), z = position.getZ(i);
+        if (z >= -.015 || y < 2.12 || y > 2.66 || x > .45) continue;
+        const retain = THREE.MathUtils.smoothstep(x, .20, .46);
+        let torsoSlot = -1;
+        for (let j = 0; j < 4; j++) if (indices.getComponent(i,j) === torsoIndex) torsoSlot = j;
+        if (torsoSlot < 0) continue;
+        let returned = 0;
+        for (let j = 0; j < 4; j++) {
+          const binding = names[indices.getComponent(i,j)];
+          if (binding !== "left upper arm" && binding !== "right upper arm") continue;
+          const old = weights.getComponent(i,j), next = old * retain;
+          weights.setComponent(i,j,next); returned += old - next;
+        }
+        weights.setComponent(i,torsoSlot,weights.getComponent(i,torsoSlot)+returned);
+      }
+    }
+    if (!source.name.includes("skin")) return geometry;
+    const deltas = new Float32Array(position.count * 3);
+    const vertex = new THREE.Vector3(), local = new THREE.Vector3(), curled = new THREE.Vector3();
+    for (const side of ["left", "right"]) {
+      const handIndex = names.indexOf(side + " hand"), rest = restMatrices.get(side + " hand")!;
+      const inverseHand = rest.clone().invert(), bounds = new THREE.Box3();
+      for (let i=0;i<position.count;i++) {
+        let weight=0; for(let j=0;j<4;j++) if(indices.getComponent(i,j)===handIndex)weight+=weights.getComponent(i,j);
+        if(weight < .8)continue;
+        bounds.expandByPoint(vertex.fromBufferAttribute(position,i).applyMatrix4(inverseHand));
+      }
+      if(bounds.isEmpty())continue;
+      const length=bounds.max.y-bounds.min.y, hinge=bounds.max.y-length*.43, radius=length*.16;
+      const centerX=(bounds.min.x+bounds.max.x)/2;
+      for(let i=0;i<position.count;i++) {
+        let weight=0;for(let j=0;j<4;j++)if(indices.getComponent(i,j)===handIndex)weight+=weights.getComponent(i,j);
+        if(weight < .1)continue;
+        vertex.fromBufferAttribute(position,i);local.copy(vertex).applyMatrix4(inverseHand);
+        const t=THREE.MathUtils.clamp((hinge-local.y)/(length*.55),0,1);
+        if(t===0)continue;
+        const angle=t*Math.PI*1.45;
+        curled.copy(local);curled.y=hinge-Math.sin(angle)*radius;
+        curled.z=local.z+radius*(1-Math.cos(angle));
+        curled.x=centerX+(local.x-centerX)*(1-.25*t);
+        curled.applyMatrix4(rest).sub(vertex).multiplyScalar(THREE.MathUtils.smoothstep(weight,.1,.85));
+        deltas[i*3]=curled.x;deltas[i*3+1]=curled.y;deltas[i*3+2]=curled.z;
+      }
+    }
+    const targets=geometry.morphAttributes.position || [];
+    const fistIndex=targets.length;
+    const fist=new THREE.Float32BufferAttribute(deltas,3);
+    if(!geometry.morphTargetsRelative)for(let i=0;i<position.count;i++)fist.setXYZ(i,position.getX(i)+deltas[i*3],position.getY(i)+deltas[i*3+1],position.getZ(i)+deltas[i*3+2]);
+    geometry.morphAttributes.position=[...targets,fist];
+    // Match the position morph count when the source also supplies normals.
+    if(geometry.morphAttributes.normal)geometry.morphAttributes.normal.push(geometry.morphTargetsRelative ? new THREE.Float32BufferAttribute(new Float32Array(position.count*3),3) : geometry.getAttribute("normal").clone());
+    geometry.userData.fistIndex=fistIndex;
+    return geometry;
+  };
   const meshes = sources.map(source => {
-    const mesh = new THREE.SkinnedMesh(source.geometry, source === sources.find(mesh => mesh.name.includes("skin")) ? source.material.clone() : source.material);
+    const mesh = new THREE.SkinnedMesh(ownedGeometry(source), source === sources.find(mesh => mesh.name.includes("skin")) ? source.material.clone() : source.material);
     mesh.name = source.name;
     mesh.material.onBeforeCompile=source.material.onBeforeCompile;
     mesh.material.customProgramCacheKey=source.material.customProgramCacheKey;
@@ -64,6 +130,11 @@ export function createSoundFitnessHuman(
     female = value;
     for (const mesh of meshes) if (mesh.morphTargetInfluences) mesh.morphTargetInfluences[0] = value ? 1 : 0;
   };
+  const setFist = (amount: number) => {
+    const skin=meshes.find(mesh=>mesh.name.includes("skin"))!;
+    const index=skin.geometry.userData.fistIndex as number;
+    if(skin.morphTargetInfluences && Number.isInteger(index))skin.morphTargetInfluences[index]=THREE.MathUtils.clamp(amount,0,1);
+  };
   const setGloves = (enabled: boolean, color: Three.Color) => {
     const skin = meshes.find(mesh => mesh.name.includes("skin"))!;
     skin.material.color.copy(skinMaterial.color);
@@ -79,7 +150,38 @@ export function createSoundFitnessHuman(
     skin.geometry.setAttribute("color",new THREE.Float32BufferAttribute(colors,3));
     skin.material.needsUpdate = true;
   };
-  let print: Three.SkinnedMesh<Three.BufferGeometry,Three.MeshStandardMaterial> | null = null;
+  const printedShirt=meshes.find(mesh=>mesh.name.includes("shirt"))!;
+  const shirtMaterial=printedShirt.material;
+  const previousCompile=shirtMaterial.onBeforeCompile;
+  const previousCacheKey=shirtMaterial.customProgramCacheKey;
+  const artwork={texture:{value:null as Three.Texture|null},size:{value:new THREE.Vector2(.50,.17)},front:{value:new THREE.Vector2(0,2.49)},back:{value:new THREE.Vector4(0,2.44,.53,.53)},atlas:{value:0},backEnabled:{value:0}};
+  shirtMaterial.userData.shirtArtwork=artwork;
+  shirtMaterial.onBeforeCompile=(shader,renderer)=>{
+    previousCompile.call(shirtMaterial,shader,renderer);
+    shader.uniforms.soundShirtArtwork=artwork.texture;
+    shader.uniforms.soundShirtArtworkSize=artwork.size;
+    shader.uniforms.soundShirtFront=artwork.front;
+    shader.uniforms.soundShirtBack=artwork.back;
+    shader.uniforms.soundShirtAtlas=artwork.atlas;
+    shader.uniforms.soundShirtBackEnabled=artwork.backEnabled;
+    shader.vertexShader="varying vec3 vSoundShirtArtworkPosition; varying float vSoundShirtArtworkFacing;\n"+shader.vertexShader;
+    shader.vertexShader=shader.vertexShader.replace("#include <skinning_vertex>","vSoundShirtArtworkPosition=transformed; vSoundShirtArtworkFacing=normal.z;\n#include <skinning_vertex>");
+    shader.fragmentShader="uniform sampler2D soundShirtArtwork; uniform vec2 soundShirtArtworkSize; uniform vec2 soundShirtFront; uniform vec4 soundShirtBack; uniform float soundShirtAtlas; uniform float soundShirtBackEnabled; varying vec3 vSoundShirtArtworkPosition; varying float vSoundShirtArtworkFacing;\n"+shader.fragmentShader;
+    shader.fragmentShader=shader.fragmentShader.replace("#include <color_fragment>",`#include <color_fragment>
+      vec2 artworkUv=(vSoundShirtArtworkPosition.xy-soundShirtFront)/soundShirtArtworkSize+0.5;
+      if(vSoundShirtArtworkPosition.z>0.0 && vSoundShirtArtworkFacing>0.45 && all(greaterThanEqual(artworkUv,vec2(0.0))) && all(lessThanEqual(artworkUv,vec2(1.0)))) {
+        vec4 artworkSample=texture2D(soundShirtArtwork,vec2(artworkUv.x*mix(1.0,0.5,soundShirtAtlas),artworkUv.y));
+        diffuseColor.rgb=mix(diffuseColor.rgb,artworkSample.rgb,artworkSample.a);
+      }
+      vec2 backUv=(vec2(-vSoundShirtArtworkPosition.x,vSoundShirtArtworkPosition.y)-soundShirtBack.xy)/soundShirtBack.zw+0.5;
+      if(soundShirtBackEnabled>0.5 && vSoundShirtArtworkFacing< -0.45 && all(greaterThanEqual(backUv,vec2(0.0))) && all(lessThanEqual(backUv,vec2(1.0)))) {
+        vec4 backSample=texture2D(soundShirtArtwork,vec2(0.5+backUv.x*0.5,backUv.y));
+        diffuseColor.rgb=mix(diffuseColor.rgb,backSample.rgb,backSample.a);
+      }
+    `);
+  };
+  shirtMaterial.customProgramCacheKey=()=>previousCacheKey.call(shirtMaterial)+":fabric-artwork-v3";
+  shirtMaterial.needsUpdate=true;
   const bindOverlay = (overlay: Three.Mesh<Three.BufferGeometry, Three.MeshStandardMaterial>, surfaceIndex: number) => {
     // Fit selections to the actual garment, then copy its skin weights. This
     // keeps the selected muscle on the fabric through arm and leg movement.
@@ -189,19 +291,23 @@ export function createSoundFitnessHuman(
     overlay.removeFromParent();overlay.geometry.dispose();
     return selection;
   };
-  const setShirtPrint = (texture: Three.Texture, columns = 28) => {
-    if(print){print.removeFromParent();print.geometry.dispose();print.material.dispose();}
-    const material=new THREE.MeshStandardMaterial({map:texture,color:0xffffff,transparent:true,alphaTest:.02,roughness:.91,metalness:0,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
-    const geometry=new THREE.PlaneGeometry(.63,.20,columns,Math.round(columns*12/28));
-    geometry.translate(0,2.49,.45).applyMatrix4(restMatrices.get("torso shirt core")!.clone().invert());
-    const patch=new THREE.Mesh(geometry,material);
-    patch.name="Sound Fitness training shirt print";
-    parts.get("torso shirt core")!.add(patch);
-    print=bindOverlay(patch,meshes.findIndex(mesh=>mesh.name.includes("shirt")));
-    print.visible=true;print.renderOrder=3;
+  const setShirtPrint = (texture: Three.Texture) => {
+    const image=texture.image as {width?:number;height?:number}|undefined;
+    const square=(image?.width ?? 0)>0 && image?.width===image?.height;
+    artwork.texture.value=texture;
+    artwork.size.value.set(square ? .48 : .50,square ? .48 : .17);
+    const layout=texture.userData.shirtLayout as {atlas:boolean;front:number[];back:number[]|null}|undefined;
+    artwork.atlas.value=layout?.atlas?1:0;
+    artwork.backEnabled.value=layout?.back?1:0;
+    artwork.front.value.set(layout?.front[0]??0,layout?.front[1]??2.49);
+    if(layout)artwork.size.value.set(layout.front[2],layout.front[3]);
+    if(layout?.back)artwork.back.value.set(...layout.back as [number,number,number,number]);
   };
-  return {meshes,update,setBody,setGloves,setShirtPrint,bindOverlay,dispose:()=>{
-    if(print){print.removeFromParent();print.geometry.dispose();print.material.dispose();}
+  return {meshes,update,setBody,setFist,setGloves,setShirtPrint,bindOverlay,dispose:()=>{
+    shirtMaterial.onBeforeCompile=previousCompile;
+    shirtMaterial.customProgramCacheKey=previousCacheKey;
+    delete shirtMaterial.userData.shirtArtwork;
+    shirtMaterial.needsUpdate=true;
     clearTargets();meshes.find(mesh=>mesh.name.includes("skin"))!.material.dispose();
     for(const mesh of meshes){mesh.removeFromParent();mesh.geometry.dispose();}
     skeleton.dispose();bones.forEach(bone=>bone.removeFromParent());

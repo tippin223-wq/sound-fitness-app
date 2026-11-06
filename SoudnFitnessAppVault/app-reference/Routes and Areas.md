@@ -1,5 +1,9 @@
 # Routes and Areas
 
+## Approved member page outline
+
+The new target page tree is saved in `docs/member-page-outline.md` at the app repository root. Sessions, Nutrition, Recovery, Performance, Education and Rewards are peer domain hubs; Profile and Goals are shared foundations. Each uses the dashboard scrolling shell, with quick actions in popups. Prioritize header responsiveness before route consolidation. This outline supersedes treating every tool as a standalone page; it does not mean the routes have already been migrated.
+
 Route constants live in `lib/routes.ts`. Prefer those constants in code when practical.
 
 ## Public

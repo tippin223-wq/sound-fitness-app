@@ -1,0 +1,51 @@
+.panel {
+  display: grid !important;
+  grid-template-columns: minmax(0, 4fr) minmax(0, 1fr);
+  align-items: center !important;
+  padding-top: 36px !important;
+  width: min(420px, calc(100vw - 64px)) !important;
+  max-height: min(560px, calc(100dvh - 120px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+  transform: translateY(-50%) !important;
+}
+.panel::-webkit-scrollbar, .details::-webkit-scrollbar { display: none; }
+.panel :global(.dashboard-page-level-meter-panel__close) { top: 6px; right: 6px; width: 26px; height: 26px; }
+.details { overflow: visible !important; width: 100% !important; min-width: 0; padding: 0 !important; border: 0 !important; max-height: none !important; gap: 18px !important; scrollbar-width: none; }
+.levelOverview { min-width: 0; }
+.levelInfo { display: grid; gap: 7px; min-width: 0; border: 0; }
+.nextRewardName { color: #e2e8f0; font-size: 12px; font-weight: 700; }
+.levelReadout { display: inline-flex; align-items: center; justify-content: flex-start; gap: 10px; min-width: 0; }
+.levelEmblem { flex: 0 1 auto; width: auto; height: 58px; max-width: 55%; overflow: visible; filter: drop-shadow(2px 3px 2px rgba(0,0,0,.7)) drop-shadow(0 0 6px rgba(56,189,248,.2)); }
+.levelReadout[data-compact] { gap: 4px; }
+.levelReadout[data-compact] .levelEmblem { height: 24px; }
+.meterAnchor { position: relative; width: 100%; height: min(340px, 52dvh); justify-self: end; align-self: stretch; }
+.widget { position: absolute !important; inset: 0 !important; transform: none !important; width: 100% !important; max-width: 100%; max-height: 340px; pointer-events: none; }
+.orbitSection { container-type: inline-size; min-width: 0; width: 100%; }
+.orbitHeader { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.orbitHeader h3 { margin: 0; font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: #cffafe; }
+.orbitHeader button { display: grid; place-items: center; width: 30px; height: 36px; background: transparent; color: #a5f3fc; font-size: 24px; border: 0; cursor: pointer; }
+.orbit { position: relative; height: 150px; overflow: hidden; perspective: 550px; touch-action: pan-y; outline-offset: -2px; scrollbar-width: none; }
+.rewardCard {
+  position: absolute;
+  left: 50%; top: 16px;
+  width: 30cqw; min-height: 112px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  padding: 6px 3px;
+  border: 1px solid rgba(125,211,252,.22); border-radius: 14px;
+  background: linear-gradient(145deg, rgba(22,47,68,.92), rgba(2,6,23,.94));
+  color: #cbd5e1; font-size: clamp(8px, 4cqw, 11px); font-weight: 800; text-align: center;
+  transform: translateX(calc(-50% + var(--reward-offset) * 31cqw + var(--reward-drag))) translateZ(calc(var(--reward-offset) * var(--reward-offset) * -65px)) rotateY(calc(var(--reward-offset) * -24deg));
+  opacity: .55;
+  transition: transform 220ms ease, opacity 220ms ease, border-color 220ms ease;
+  cursor: pointer;
+}
+.rewardCard[data-active="true"] { opacity: 1; border-color: #a5f3fc; box-shadow: 0 0 18px rgba(34,211,238,.18), inset 0 1px 0 rgba(255,255,255,.12); z-index: 2; }
+.rewardArt { display: grid; place-items: center; width: 100%; height: 52px; }
+.rewardArt :global(.dashboard-page-analog-rail__reward-icon) { position: relative; width: clamp(28px, 20cqw, 56px); height: clamp(28px, 20cqw, 56px); inset: auto; transform: none; }
+.rewardArt svg { width: 80%; height: 80%; }
+.rewardDetail { display: grid; gap: 6px; text-align: center; font-size: 11px; color: #cbd5e1; min-height: 64px; }
+.rewardDetail strong { color: #fef3c7; }
+.rewardDetail small { color: #94a3b8; }
+@media (prefers-reduced-motion: reduce) { .rewardCard { transition: none; } }

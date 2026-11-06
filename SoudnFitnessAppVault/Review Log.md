@@ -4224,10 +4224,108 @@ Active website workspace: `C:\Users\josep\01_Business\Sound Fitness\Website\Soun
 - Updated camera fitting for narrow canvases, resized accessories to the adult head/hips, attached knee sleeves to the knee joints, and moved Avatar Lab preset chips below the canvas so they do not cover the feet. Saved appearance choices remain compatible and verification restored Male/Ember/Swept/Wristbands/Rest.
 - Browser verified front/back selection, individual lats/quads, details, the female preset, wave articulation and 390px phone fit. Proof screenshots are under test-results/avatar-3d-*.png. All three npm run test:avatar regressions and 996 existing planning/database/preflight checks pass. Final production compilation, TypeScript and 136-route generation pass after the authored face replacement. No TrainerHub, backend/schema or production changes; the avatar revision is saved locally for visual review.
 
+## Avatar toolbar clearance and library muscle colors — 2026-10-27
+
+- Reserved a 32px action row plus 8px gap outside the actual avatar canvas; removed responsive absolute side overlays. Verified default, 390x844 phone and 1200x800 wide views with live WebGL; toolbar/canvas measured 8px apart.
+- Extracted the existing exercise-library anatomy visuals into one shared palette. Avatar surfaces resolve their individual region colors, including mixed whole-leg/back selections; status rings/legend remain workload indicators. Verified all 31 region colors against the library in sRGB and captured test-results/avatar-toolbar-library-colors.jpg.
+- All 14 avatar tests pass; scoped ESLint completes with zero errors (120 existing warnings); no browser console errors. TypeScript remains blocked by the unrelated missing app/angles/AnglesApp module. No deployment or unrelated changes.
+
+## Taller avatar and bounded highlights — 2026-10-27
+
+- Replaced the toolbar row with a reserved 32px left action rail, preserving the complete stage height. Tightened narrow resting-pose camera framing while retaining wider emote clearance and comfortable margins.
+- Selected muscles and stationary hover now share the 2.6-second preview window and existing fade. Selection/filter/view state persists; new interaction restarts the preview. Added regression coverage for selected/hover expiry, cleanup and initial hover leave.
+- Verified live phone/default layouts and observed active glow become false with the exact muscle still selected. All 14 avatar tests pass. No deployment; unrelated changes preserved.
+
+
 ## Angles browser implementation — 2026-10-27
 
 - Added the authorized real localhost app at `/angles`: native-inspired Home, $10 Angles pricing plus the Sound Fitness pricing column, library, worker-based pose tracking, shared Supabase sign-in/TOTP and account-separated History with explicit summary sync. Camera/video cleanup, partial-rep interruption, idempotent saves, storage preservation and cloud tombstone/ownership safeguards are implemented. No billing activation or live backend changes.
 - TypeScript and scoped lint pass; all eleven isolated counter/storage/cloud tests pass. Browser checks verified Home, pricing columns, pricing-to-account navigation, library selection, empty History and real model inference/skeleton on the existing exercise video, with no browser console errors. No webcam access, personal password entry, production summary writes or physical measurement accuracy claims. See `docs/angles-web.md` for remaining validation and existing dependency advisories.
+
+## Wide avatar height and corrected color meanings — 2026-10-27
+
+- Short/wide two-column layout begins at 440px card content width, allowing the avatar to span both training controls and support signals. Current Codex canvas grows from about 175px to 349px high. Tightened vertical camera fit with head/foot clearance; preserved left action rail and phone layout.
+- Centered the coolness rail on the canvas axis (including the reserved 36px action lane). Training Areas ring, label, glyph muscle fill and aura now follow the shared exercise-library category palette. Restored per-region workload/coolness colors to avatar surfaces; missing data remains neutral and the 2.6-second highlight window stays intact.
+- Verified default Codex, 1200x800 and 390x844 views; browser console clean. TypeScript and scoped ESLint pass; avatar tests and a new actual workload-color regression cover independent prime/overworked/unknown muscle regions. No deployment or unrelated source changes.
+
+## Header title right-edge clipping — 2026-10-27
+
+- Found narrow idle runtime grid tracks constrained independently by viewport width, while the title remained max-content. The title extended outside a hidden-overflow selector and lost its right half.
+- Idle runtime styles now measure natural joystick/rail/title widths together, omit the absolutely positioned decoration track, and lift the premature title cap. Idle fitting accounts for compositor scale independently of the open zoom; open fit caching also keys by title. Updated the runtime stylesheet cache key.
+- Verified the complete Training / Sessions / Dashboard text at narrow 359px, 280px and wider 860px layouts. TypeScript passes; the actual idle fitter regression verifies complete-footprint bounds and avoids double shrinking after an open fit. No deployment or unrelated changes.
+
+## Account settings icon spacing — 2026-10-27
+
+- Moved the settings gear 0.25rem toward the account icon across desktop, narrow account paging and shared rewards layouts. Kept its low-left position and more separation than the attached coach badge. Updated entering/exiting anchors together and refreshed the runtime stylesheet key.
+- Visually checked the desktop account cluster and preserved unrelated work. No deployment.
+
+## Account reward counters and zero display — 2026-10-27
+
+- Dashboard reward snapshots now read soundPoints, soundTokens and emeralds from the active account-scoped Profile record, through the existing planning account/cloud store. Explicit valid zeros render as 0, with no recorded suffix. A successful empty cloud account has zero counters; loading/failed/invalid reads do not masquerade as zero. No balances, awards or claim eligibility are written or inferred.
+- Reward and claim panels identify account rewards and show all three recorded counters while retaining the distinction from a redeemable award ledger. Tests cover real account switching, independent counter values, malformed numbers, empty/synced versus failed reads, and no data mutation. Nine reward tests pass; TypeScript and helper lint pass. Full planning run: 998/1000, two existing dated Sessions-plan fixtures reject weeks outside the current four-week window.
+- Live backend verification remains blocked: the configured local Supabase public key returns HTTP 401 even without a bearer header. Vercel development has no Supabase entries; production entries exist but the environment pull returns empty/redacted values. Temporary pulled environment file removed; no environment files, live balances, database schema or production settings changed.
+
+## Supabase connection diagnosis corrected — 2026-10-28
+
+- The preceding 401 diagnosis was incorrect: the schema-inspection root requires a secret key. The current public key passes Auth health and zero-row profiles reads (HTTP 200). The app's actual missing dependency is planning_documents (404/PGRST205); the existing read-only preflight also confirms absent staged workout columns. Production dashboard reports Healthy. No keys or environment configuration changed.
+- Prepared test-results/planning-account-sync-repair.sql, limited to the owner-scoped planning table/save function, with atomic execution and existing-schema refusal. Isolated PGlite checks passed rollback, owner isolation, stale-write protection, least-privilege grants, denied anonymous execution and safe replay refusal. See docs/planning-backend-activation.md for exact hashes. No live SQL executed; Windows browser access-policy creation requires action-time confirmation. The restore sandbox is a separate project and was not modified.
+
+## Approved Supabase account-sync repair live — 2026-10-28
+
+- After explicit user confirmation, applied the exact reviewed transaction to phacfkbgqrnfbjdbaxzq / main Production. SQL editor reported success. Metadata verification confirms RLS, three owner policies, member SELECT/INSERT/UPDATE/save execution, denied member DELETE/TRUNCATE, denied anonymous read/save and security-invoker save behavior. Existing drafts, unrelated apps and the restore sandbox were preserved.
+- Reloaded the existing signed-in app session: Data & backups now shows Goals & Plan: Synced, and account reward evidence shows connected with 0 points. No test balances or dummy member records were written. Real owner save/retry/cross-account acceptance remains unverified; isolated coverage passed earlier.
+- Only planning_documents migration is active. Five other app migrations remain pending; old six-migration package must not be replayed. SQL editor execution did not register migration history. Detailed hashes, limitations and proof screenshots are recorded in docs/planning-backend-activation.md. No frontend deployment performed.
+
+## Dashboard row menu overlays full-width cards — 2026-10-28
+
+- Removed the reserved left rail gutter from dashboard rows and their floating headers, including the runtime narrow carousel override. Cards now use symmetric 8/16/24px responsive gutters; narrow hero content gains 52px (287 to 339px at a 359px viewport). Desktop content measures 1148px at 1200px viewport.
+- Added an isolated overlay menu with an always-available left Rows tab. Captured wheel/touch activity, page/nested scrolling and scroll keys reveal the menu for 1.6 seconds after activity; manual opening, mouse hover and keyboard focus keep it usable. Escape restores focus to the tab, outside clicks release manual opening, and hidden navigation is inert. Reduced-motion styles remove transitions; listeners/timers clean up on unmount.
+- Browser verified manual open/close, actual row selection, Escape, timed scroll-key reveal/dismissal, hidden-control accessibility and narrow/desktop widths. Native browser scroll automation did not produce a wheel reveal, so physical touch/wheel input remains a manual verification item. TypeScript and scoped component lint pass. Screenshots: test-results/row-menu-collapsed.jpg and row-menu-open.jpg. No deployment; unrelated work preserved.
+
+## Slim glass row-menu tab — 2026-10-28
+
+- Replaced arrow-plus-Rows text with a single SVG chevron that reverses when open. Slimmed the visible surface to 18px by 54px, retaining a 26px-wide hit area. Added translucent glass, backdrop blur, a fine cyan rim and restrained edge reflection. Accessible labels and focus outline remain.
+- Visually checked the real app and verified open/close; scoped lint passes. Screenshot: test-results/row-menu-glass-tab.jpg. No deployment.
+
+## Coolness key leading-edge alignment — 2026-10-28
+
+- Overflowing legend options now snap to their start edge. Selecting an option aligns it to the left, with trailing space allowing even Overworked to reach that position. Native scrolling updates the single active option; removed the selection effect that would fight scrolling. Added a subtle active surface/underline and retained selection through resize when all labels fit.
+- Real narrow browser verification: Overworked aligns within 0.5px and remains the sole active option; arrow wrap restores Cool at exactly 0px. TypeScript and scoped component lint pass. Screenshot: test-results/coolness-aligned.jpg. No deployment or workload data changes.
+
+## Coolness highlight clipping — 2026-10-28
+
+- Horizontal overflow was also clipping the vertical glow. Added 7px internal vertical paint clearance with compensating margins, more inline room around each label/dot, and replaced the active external drop shadow with contained text glow. Retained left-edge snapping and the active underline.
+- Browser verified the longest active label has 7px above/below and 26px right clearance, with its leading edge aligned within 0.1px. Screenshot: test-results/coolness-highlight-clearance.jpg. CSS-only fix; no deployment.
+
+## Stable closed row menu and raised bare trigger — 2026-10-28
+
+- Removed the global captured scroll listener that reacted to hydration/layout/carousel scrolling. Automatic opening now comes only from wheel/touch movement and scroll keys; initial state remains closed. Manual and accessibility behavior retained.
+- Removed the trigger's glass pseudo-element and border; kept a bare chevron in a transparent 26x44px target. ResizeObserver positions trigger and rail below the larger of header/content footprints with an 8px gap, including expanded header sizing. Browser measured expanded header bottom 132.8px and trigger top 141px.
+- Exempted overlay menu controls from the dashboard's stale swipe click guard and isolated trigger pointer events. Browser verified reload stays closed, direct pointer opening and closing work after the guard fix. Scoped lint and TypeScript pass. Screenshot: test-results/row-menu-raised-arrow.jpg. No deployment.
+
+## Header nav points connected — 2026-10-28
+
+- The nav rail point badge and accessible description still hard-coded Unavailable independently of the connected reward panel. Both now use dashboardRewardEvidence.pointsLabel from the same account-scoped subscription. ADMIN behavior preserved; unknown/failed balances remain distinct from a verified zero.
+- Live browser confirms the nav link reads Open Sessions. Sound Points: 0 and its visible badge is 0. All nine reward tests pass. Screenshot: test-results/nav-account-points.jpg. No database changes or deployment.
+
+## Training Constellation flush day focus — 2026-10-28
+
+- Aligned the selected day (today initially) to the bottom of the measured sticky track header on mount, card entry, resize and week/filter changes. Replaced the hard-coded 14px offset; added trailing room so Sunday can reach the same position. Mobile rows snap to their start, with compact 64px minimums for upcoming-day visibility; settled manual scrolling updates selection.
+- Arrow state updates now advance one adjacent day without performing scroll side effects inside the React state updater. One alignment effect owns positioning. Exactly one day has active styling/current semantics; Today retains its descriptive marker without a competing selected background. Day movement clears stale session selection.
+- Browser verified today at 0px header gap, one next press Wednesday to Thursday at 0px, and Sunday at 0.5px with next disabled. Today reset restores Wednesday. TypeScript passes. Screenshot: test-results/constellation-today-aligned.jpg. No deployment or saved calendar changes.
+
+## Dashboard background work and orange Today — 2026-10-28
+
+- Avatar rig/clothing work now skips offscreen or hidden-document frames via IntersectionObserver, not just GPU draw suppression. Canvas activity DOM flags update only when activity changes. Browser verified animating=true in the visible Body card, false after moving to Daily Tools, and true on return. Existing real render-loop tests now cover skipped garment work and foreground resume; all 15 avatar tests pass.
+- Replaced graphics startup's per-frame readiness scans (which continued after fallback if deferred widgets were absent) with coalesced mutation-triggered checks and a bounded fallback timer. Late widgets can still finish readiness; observers/timers clean up. Two new actual-effect regression tests pass. Row-arrow geometry avoids rewriting an unchanged CSS property. These remove specific wasted work; no production FPS or interaction-latency improvement is claimed.
+- Today label, date number, marker and jump button now use warm orange on mobile/desktop. Week-range layout unchanged. Programmatic/layout scroll-end events no longer change the highlighted constellation day; only user scroll intent does. Verified orange date/Today text and 0px top alignment in the real browser. Screenshot: test-results/constellation-orange-today.jpg. Scoped component lint passes; no deployment or member-data changes.
+
+## Coordinated dashboard and avatar preloading — 2026-10-28
+
+- Added one matching full-screen loader across PlanningProvider account initialization and dashboard graphics readiness. Initial graphics cover also waits for the expected body avatar's first-frame signal; the existing seven-second fallback releases the page if graphics are slow. Readiness remains mutation-driven with no polling loop or simulated percentage. Account startup errors still expose their retry control.
+- Avatar keeps a local cover while loading and fades it after the first actual rendered frame, following awaited model/skin/fabric/print assets and rig setup. Readiness no longer fires merely at scene construction. Failed loads show Avatar unavailable; a 20-second timeout avoids an endless spinner. Wrapper preserves absolute body-stage geometry and also supports Avatar Lab. Hidden loader animations stop; reduced-motion users get a static ring and instant reveal.
+- Fresh browser load captured the loader and completed reveal, with data-avatar-load-state=ready, data-sound-avatar-ready=true and graphics gate ready. TypeScript and scoped lint pass; all 18 targeted avatar/readiness tests pass, including cover waiting for the first avatar frame, late readiness, deadline release and cleanup. Screenshots: test-results/dashboard-loading-cover.jpg and dashboard-avatar-loaded.jpg. No deployment or member-data changes.
+
 
 ## Angles connected accounts — 2026-10-27
 
@@ -4235,3 +4333,175 @@ Active website workspace: `C:\Users\josep\01_Business\Sound Fitness\Website\Soun
 - Angles free signup stays inside the app and does not create a coaching relationship. Enrollment source is only a product origin label. Separate `angles_accounts` product grants default to free and cannot be edited by clients.
 - Applied only `20261027090000_angles_account_context.sql` to the existing shared Supabase project after a transaction-only trial. Live role/RLS/MFA/expiry checks passed; all fixtures rolled back. Existing website session verified in browser. No personal credentials entered or session signed out.
 - 13 isolated tests, TypeScript, scoped TS/TSX ESLint and CommonJS syntax checks passed. Email delivery/confirmation still needs a real mailbox check; checkout grants and coach/client consented sharing remain separate implementation work. Saved browser proof: `test-results/angles-connected-account.png`.
+
+## Top-row saved data and spacing — 2026-10-28
+
+- Replaced the Consistency card's static reward-unavailable label with the existing account-scoped points balance. Challenge cards now project saved calendar events for strength/cardio/performance, seven-day meal/protein/water logging coverage, and saved weekly check-ins from existing account data subscriptions. Each supported source has a direct record-page link. Existing workout-history and plan goal tracking remains based on validated saved targets.
+- Empty recorded counts show zero; missing targets show No targets. Invalid records retain Review records. Mobility, learning and community challenge rules remain explicitly unconfigured; no enrollment, award ledger or redemption service was invented. Achievements now labels unrecorded milestones Remaining and describes saved milestones without implying rewards. Favorites was verified to show 0 saved workouts with builder/history links.
+- Challenge rows use their actual row count, a bounded internal scroll area, compact short-card spacing, wrapped summary values and consistent source-link/value alignment. Browser verified zero nutrition/check-in counts and source links without summary overlap at the current narrow viewport. Screenshot: test-results/hero-data-linked.jpg.
+- All 27 targeted challenge/reward/milestone/favorite tests pass, including nonzero calendar and nutrition counts, empty check-ins, invalid-record handling, source routes and unchanged input. Scoped helper lint passes. No deployment or member-data writes.
+
+## Header-attached row-menu arrow — 2026-10-29
+
+- Changed the bare top-left row-menu trigger to a downward chevron (upward when open). It stays at the left edge when opened; the vertical navigation starts below its tap area.
+- Anchor now uses the current header shell bottom instead of retaining the expanded content footprint. Resize observation, header attribute changes, viewport resize and captured scroll updates keep the trigger eight pixels below the header; all observers/listeners clean up. Scroll geometry updates do not change menu visibility.
+- Browser verified the current header bottom at 98.59px and trigger top at 107px (8.41px clearance), plus opening the menu. TypeScript passes. Screenshot: test-results/row-menu-header-down-arrow.jpg. No deployment.
+
+## Stable Goal Focus / Position height — 2026-10-29
+
+- The mobile summary switch now reserves one 62px height for both Goal Focus and Position, including Position's third detail line. Desktop retains its existing side-by-side automatic layout.
+- Browser verified summary height stayed 62px and avatar canvas height stayed 132.84px before/after selecting Position. TypeScript passes. Screenshot: test-results/goal-position-stable-height.jpg. No deployment.
+
+## News highlight clipping — 2026-10-29
+
+- Removed the news feed row's upward hover translation that pushed its first row beyond the scrolling container's top edge. Highlight now uses its category border and glow in place; keyboard focus within a row receives the same treatment. Scroll containment and news content are unchanged.
+
+## Header joystick logo spacing — 2026-10-29
+
+- Reduced the mobile/tablet header joystick's left margin from +8px to -8px, bringing it 16px closer to the Sound Fitness crest and returning that space to the menu. The same margin applies in expanded/collapsed states to avoid a sideways jump. Vertical positioning and joystick controls are unchanged. No deployment.
+
+- Clarification: expanded joystick placement is correct. Restored its original margin and instead translated only the idle joystick 16px left. Expanded position and sibling menu layout stay unchanged; the smaller idle control closes the visual gap beside the crest. This supersedes the preceding margin change.
+
+## Tighter idle joystick gap — 2026-10-29
+
+- User screenshot and live DOM confirmed excess space remains in the idle header. Idle joystick now translates 48px left; expanded margin/placement remains unchanged. Versioned the raw runtime stylesheet import so the browser picks up these public CSS changes. The first live check confirmed the offset applying; user requested a further leftward adjustment, included here. No deployment.
+
+- Further user-requested adjustment: idle joystick offset increased from -48px to -56px, with a new runtime stylesheet version. Expanded placement unchanged.
+
+## Balanced expanded header joystick — 2026-10-29
+
+- Reduced expanded joystick scale from 0.88 to 0.68 (about 23% smaller) and translated its expanded position 40px left. Idle size/offset remains 0.528/-56px. Growth is now modest, with the expanded control nearer the logo and more clearance from navigation. Layout margins and nav geometry are unchanged. Updated runtime stylesheet version. No deployment.
+
+## Mobile open-header alignment — 2026-10-29
+
+- Open joystick moved 12px right from the previous close-to-logo setting and raised about 7px. Browser measured its vertical center within 0.5px of the nav joystick while active.
+- Single-panel phone selector reclaims unused leading stage space and centers the fitted nav in that lane. Scope is the selector panel with account paging; wider/two-block layouts remain unchanged for review. Idle joystick settings unchanged. Runtime stylesheet version refreshed. No deployment.
+
+## Idle joystick vertical alignment — 2026-10-29
+
+- Browser measured the idle header joystick center at 36.21px and nav joystick at 32.58px. Raised only the idle header joystick 3.6px to align their centers. Horizontal offsets, expanded alignment and nav sizing unchanged; runtime stylesheet version refreshed.
+
+## Preloader covers shared 3D controls — 2026-10-29
+
+- Raised the shared full-page loading cover from z-index 300 to 1000. Header joysticks render through the body-level shared WebGL stage at z-index 430, which previously painted above the cover despite their normal header stacking. Both account initialization and graphics startup use this loading style. Readiness/fallback timing and local avatar loading cover are unchanged.
+
+## Settings closer to account — 2026-10-29
+
+- Moved the header settings gear 0.7rem (11.2px before parent scaling) right toward the account avatar across mobile account layout variants. Matched outgoing page-animation anchors to avoid a jump when paging. Avatar placement, vertical alignment and gear size unchanged; runtime stylesheet version refreshed. No deployment.
+
+## Reward hover highlight — 2026-10-29
+
+- Removed the enclosing emerald hover border/background and whole-button upward shift from the header reward trigger. Gem/coin/bolt glow and animation remain free to expand without a mismatched enclosing highlight. Kept an explicit keyboard focus outline for accessibility. No deployment.
+
+## Coin rests facing forward — 2026-10-29
+
+- Added an optional static rest-pose callback to shared 3D widgets. Frozen zones apply it before drawing. The Sound/Treasure coin resets all rotation axes and its spin accumulator to the existing forward-facing rest pose, with a stable glint size. This prevents header freezing from preserving a coin edge-on mid-spin; normal hover exit still uses its existing settling animation. Static callbacks report false once settled, preserving idle frame skipping.
+
+## Reward glows follow 3D growth — 2026-10-29
+
+- Moved gem/coin/bolt colored halos from the small reward shell to each actual shared-stage widget anchor. Halos now inherit the same center, dimensions, translation and scaling as their corresponding rendered 3D item, rather than growing independently on the parent wrapper. Hover fade uses the existing 180ms motion timing. Removed old wrapper halo and refreshed the runtime stylesheet version. No deployment.
+
+## Avatar stage depth and faster header — 2026-10-29
+
+- Added a dedicated rounded recessed surface to the avatar viewport with a restrained cyan rim, overhead lighting, lower floor glow and inner/outer shadows. It uses existing stage bounds with no padding or added height, preserving avatar space and adjacent controls.
+- Header compositor focus bridge shortened 240→160ms; temporary transition pause shortened 420→260ms. Shell height transitions match 160ms and mobile account paging is 140ms rather than 190ms. Runtime stylesheet version refreshed. No deployment.
+
+## Open avatar spotlight styling — 2026-10-29
+
+- Replaced the recessed rounded avatar box with transparent-edged lighting: a faint torso spotlight, shallow cool elliptical floor light and soft contact shadow. Removed the frame, solid backdrop and inset/outer box shadows. Existing viewport geometry and controls unchanged. Supersedes the earlier recessed stage styling; no deployment.
+
+## Visible avatar environment — 2026-10-29
+
+- Added a noninteractive scene layer inside the avatar viewport: a stronger cyan atmospheric halo, soft diagonal light shafts, a tall luminous backdrop arc and an elliptical illuminated floor platform. All effects sit behind the transparent 3D canvas and remain inside existing stage geometry. No animation or extra render loop; no deployment.
+
+## Avatar drag rotation — 2026-10-29
+
+- Added horizontal pointer drag across the avatar canvas for unrestricted full-turn yaw rotation. One canvas-width drag is a full turn, with the angle retained after release. Pointer capture keeps rotation working beyond the canvas edge; drag input is isolated from the parent hero swipe. Touch retains vertical pan, with horizontal rotation on the character.
+- Normal short clicks still select a muscle; a rotation gesture suppresses selection/click. Explicit front/back changes reset manual yaw. Pointer listeners clean up on unmount. Updated actual-render test fixture for manual yaw; all 8 avatar anatomy/animation tests and TypeScript pass. No deployment.
+
+## Avatar loader blends into scene — 2026-10-29
+
+- Replaced the local avatar loader's opaque rectangular background with a transparent-edged elliptical halo. A compact double-ring indicator and smaller soft cyan label sit in the avatar environment; no box frame or visible square corners. The full-page preloader remains opaque above header graphics.
+- Avatar canvas stays hidden during loading/error and fades in after existing real first-frame readiness. Reduced-motion users get no rotation or fade. All three readiness tests pass; timing, error paths and avatar dimensions unchanged. No deployment.
+
+## Restrained emotes and hand control — 2026-10-29
+
+- Replaced Accessibility symbol on the emote trigger and Wave option with a hand icon; trigger now says Choose avatar emote.
+- Reduced wave/celebration/stretch shoulder excursions and rhythmic amplitude, slowed wave/nod timing, removed stretch lift and replaced sharp absolute-sine bouncing with a small smooth cosine celebration dip synchronized to knee bend. Motion follows the accumulated active animation clock, avoiding wall-clock jumps after pause/offscreen time. Reduced-motion/static-pose handling remains.
+- All eight avatar anatomy/animation tests pass, including the restrained wave pose. No deployment.
+
+## Compact admin rows — 2026-10-30
+
+- Removed the admin iframe's 720px minimum height so it follows the current viewport.
+- Added an admin-preview CSS module that puts row titles in flow, removes stacked top-padding reserves, reduces heading/card spacing, and sizes carousel stages to available viewport height. The calendar is capped at 440px with tighter internal gaps and remains collapsible.
+- Existing member styling and admin detail/table interactions retain their source behavior. ESLint passed for both changed pages, CSS parsed successfully, and diff whitespace checks passed.
+- Before-change browser measurements at 1280x720 confirmed Services/Messages/Assets content at 552px inside 482px panels, and Settings at 590px inside 502px. Final visual verification is pending: refreshing returned to app sign-in, and the autofilled account was refused with "Use the correct portal for this account." No authentication or role changes were made.
+
+## Emote spacing, glass picker and grounded gestures — 2026-10-30
+
+- Removed the fixed-position circular wheel that crowded seven buttons. Replaced it with a translucent blurred picker using responsive grid tracks, 8px gaps, labeled buttons and bounded internal scrolling. It occupies a separate grid row above the character; the toolbar retains its own column. Avatar temporarily uses the remaining stage space while open and regains the full area when closed. Wider/taller views fit additional columns automatically.
+- Real browser verified eight separate controls, two 40.5px columns at the current narrow viewport, no button rectangle overlap, a visible 84.48px avatar stage and 8px picker-to-avatar clearance. Backdrop blur/saturation are active. Proof: test-results/emote-glass-picker.jpg.
+- Fixed emote-dependent camera zoom by using one framing width. Reduced salute/celebration shoulder excursion, put wave motion mainly into the elbow, removed lower-body bouncing and kept feet at the base position. Each emote starts its own active-time clock rather than inheriting an arbitrary phase. Pause/reduced-motion/offscreen behavior retained.
+- TypeScript and all eight avatar tests pass, including a new grounded celebration assertion. No deployment or account-data writes.
+
+### Compact admin verification completed — 2026-10-30
+
+- Signed-in browser verification completed at 1280x720 and 1280x600. The admin document height equals the viewport height. Standard Services, Messages, Sound Assets and Settings panels have matching client/scroll heights (520px at 720px; 400px at 600px), with no vertical overflow. Calendar panel is 440px with matching client/scroll heights.
+- Corrected title measurement to recognize relative-positioned in-flow titles, avoiding an extra 85px padding reserve. Added an explicit calendar maximum height to prevent its flex rule from expanding it past the compact size.
+- Visually checked User Engagement, Services and Calendar; the Services front card and its Open Details control fit at 600px height. Reset the temporary browser viewport override and saved the final preview. Detail workspaces and the calendar time-grid retain their existing scrolling where needed.
+
+## App admin scope implementation — 2026-10-30
+
+- Implemented app-focused overview, user evidence table with search/product filtering, subscriptions/sales, seven app products, existing compact calendar, app messages/support, content links, account-scoped local announcement drafts, and app settings links. Removed displayed website journey, sample business finances/in-home services, generic marketing, and business header meters without deleting underlying website records.
+- Four isolated API tests pass: admin/MFA gate; exact app price matching excluding business/mixed carts; identity-based app evidence deduplication; and unavailable-source handling. Live anonymous GET returns 401. Browser showed authenticated report data with explicit missing account-reporting and App Only/Hybrid billing connections; Online Coaching currently reports verified zero matching records.
+- Browser verified all nine row panels at 1280x720 with equal client/scroll heights and no page overflow (calendar stays 440px). Product, user and subscription views visually checked; old lead-stage/finance/service/DTI controls absent from DOM. No data, role, subscription, or external publishing mutations were performed.
+- Final checks after scope changes: TypeScript passes; scoped ESLint passes without warnings; all four API tests pass; diff whitespace checks pass. Updated product preview saved for review. No deployment performed.
+
+## Avatar control placement and overlay wheel — 2026-10-30
+- Replaced the Body Command Center eyebrow with the existing tree background/theme control above the welcome heading.
+- Avatar Lab remains left of the athlete; emotes now sit on the right. Controls overlay the stage without reserving an extra column.
+- Supersedes the earlier in-flow emote picker: restored a circular glass wheel through a body portal, fixed over the page, with seven evenly spaced actions and a central close button. No scrollbar or intersecting buttons in the narrow browser verification.
+- Verified at 319px: editor and emote controls share the same vertical coordinate, theme picker opens and closes, emote selection works, and wheel parent is document.body.
+
+## Compact wheel and gesture refinement — 2026-10-30
+- Wheel diameter 230px (from 260), radius 33% (from 37), all eight controls including Close remain 48px. Browser verified zero overlaps and no scrollbar.
+- Salute and Stretch use directional/movement icons instead of gender symbols; seven emotes retained.
+- Gestures ease in, hold and release to idle, with distinct nod/wave/celebration timing, an overhead stretch and shoulder-plane salute elbow fold. Feet stay planted. Selecting the same wheel action replays via an explicit replay counter.
+- Eight anatomy/render-loop/clothing regression checks pass; TypeScript passes. Motion refinement is procedural, with further visual polish still possible.
+
+## Stretch, trouser artifact and shadow — 2026-10-30
+- Celebrate wheel label uses nowrap to keep the full word on one line. Calm is labeled Reset rather than presenting Rest as an emote.
+- Reproduced the feet artifact with a failing authored-model test: pants had nonzero arm bone weights. The asset generator now excludes arm transforms/weights from trouser geometry; rebuilt sound-avatar.glb and bumped model cache key to v8-pants-binding.
+- New regression verifies every trouser vertex has no arm influences and remains stationary while arms move overhead. All 16 avatar tests and TypeScript pass.
+- Stretch adds symmetric humeral rotation during the lift, with straighter elbows. Other emotes unchanged this turn.
+- Replaced solid floor disc with feathered alpha contact shadow, depth writes disabled and texture disposed on cleanup.
+- Browser verification blocked after reload redirected to sign-in; final stretch visual review still pending authenticated preview.
+
+## Stretch direction and genuine seventh gesture — 2026-10-30
+- Removed Reset from the wheel and replaced it with Bow: head inclination plus restrained torso bend. Calm remains internal idle only; seven visible gesture options remain.
+- Reversed stretch shoulder axial rotation (left +.75, right -.75) to correct the hand/arm turning direction during elevation.
+- Fixed parent reset timer truncating stretch: now 6.5s for stretch, 5.5s for focus, 4.2s otherwise; replay restarts the timer.
+- All 16 avatar tests pass; added render-loop assertions for mirrored stretch direction, grounded feet and actual Bow torso motion. Authenticated visual preview remains pending after prior sign-in redirect.
+
+## Stretch axial frame, overhead clearance and expression — 2026-10-30
+- Stretch uses ZXY shoulder rotation order so the axial twist is applied along the elevated arm rather than the prior world-frame yaw. Mirrored twist brings palms inward toward each other overhead. Other gestures retain XYZ order.
+- Camera smoothly adds vertical clearance and raises its aim during stretch, then returns to normal framing; avoids clipping raised fingers without permanently shrinking idle avatar.
+- Added a subtle stretch eye squint and eyebrow lift that release with the gesture.
+- Eight anatomy/render-loop checks and TypeScript pass, with assertions for stretch rotation order, additional overhead clearance, grounded feet and eye expression. Final visual review still requires the signed-in preview, which redirected to login last turn.
+
+## Fixed-size overhead stretch rendering — 2026-10-30
+- Removed animation-driven camera zoom/aim changes. Dashboard avatar canvas extends 50% above its normal slot, using an off-axis view offset so original pixel scale and foot position remain unchanged.
+- Avatar stage/viewport allow overflow; upper limbs can paint above the old boundary. Expanded canvas is enabled only on the dashboard stage, leaving Avatar Lab framing unchanged.
+- Stretch axial rotation is shared between shoulder (65%) and forearm (35%), preserving straight wrists and inward-facing palms at the overhead hold.
+- Anatomy/render-loop checks pass and a Three.js projection test verifies identical screen-space head/foot positions before/after the canvas extension. Signed-in visual verification remains outstanding.
+
+## Bow coordination and stronger expressions — 2026-10-30
+- Bow now hinges the torso and head/shoulder joint positions around hip height, with a downward head lead, 24-degree torso dip, hold and slower release. Arms hang from their moving shoulder anchors and feet remain fixed.
+- Stronger stretch eye/brow expression; bow has a softer lowered-eye expression and modest smile change. Smile animation preserves the selected face preset scale.
+- Render-loop regression checks verify head lowers/moves forward with the hinge, head pitch leads torso pitch and feet stay grounded. Eight anatomy/render-loop checks pass. Signed-in visual review remains pending.
+
+## Mobile calendar control clearance — 2026-11-01
+
+- Replaced the expanded calendar's absolutely positioned week/month controls and fixed title padding with an in-flow responsive grid. Narrow calendar containers give the title, range navigation, and week/month/collapse controls their own rows; wide calendars retain side-by-side view controls.
+- At calendar widths up to 520px, moved both time and day arrow groups into a separate footer below the week grid, with 44px touch targets. Existing date/time navigation and month/week behavior remain.
+- Browser checked 320px and 375px phone viewports, both week and month views; all four navigation arrows remain inside the card and below the time grid. At 1280px desktop, title and tabs have separate bounds. Temporary viewport overrides reset. TypeScript passes; ESLint has no errors and reports two pre-existing calendar warnings (unused todayEvents, scrollWeekDays effect dependency). No deployment.
