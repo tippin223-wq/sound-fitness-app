@@ -1,6 +1,7 @@
 "use client";
 
 import WeeklyRewardSpin from "./WeeklyRewardSpin";
+import { inspectSupportRecords } from "@/lib/planning/supportSignalRecords";
 import HeaderRewardCount from "./HeaderRewardCount";
 import BodyCommandGlyph from "@/components/dashboard/BodyCommandGlyph";
 import FuelLoadingCarousel from "@/components/dashboard/FuelLoadingCarousel";
@@ -12,7 +13,7 @@ import { useProgramProgress } from "@/lib/programs/useProgramProgress";
 import { WEEKLY_REWARDS } from "@/lib/weeklyRewardRarity";
 
 import ChallengeSetProgress from "./ChallengeSetProgress";
-import { achievementMilestones } from "@/lib/planning/achievementEvidence";
+import { lifetimeAchievementMilestones } from "@/lib/planning/achievementEvidence";
 import { dashboardCategoryEvidence } from "@/lib/planning/dashboardCategoryEvidence";
 import { dashboardCompoundEvidence } from "@/lib/planning/dashboardCompoundEvidence";
 import { dashboardDailySets } from "@/lib/planning/dashboardDailySets";
@@ -172,6 +173,52 @@ const DashboardTornadoEmeralds3D = dynamic(
 // Placeholder for the always-visible deferred GL icons (gems/coin/chest):
 // while their chunk fetches they used to render literally nothing, so the
 // points trigger showed blank gaps for a second or two at startup.
+function DashboardRouletteTrack({ children }: { children: React.ReactNode }) {
+  const trackRef = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const track = trackRef.current;
+    const marker = track?.parentElement?.parentElement?.querySelector<HTMLElement>(".dashboard-hero-space-needle-meter__roulette-marker");
+    if (!track || !marker || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let frame = 0;
+    let lastTime = 0;
+    let highlighted: HTMLElement | null = null;
+    const slots = Array.from(track.children) as HTMLElement[];
+    const tick = (time: number) => {
+      if (time - lastTime >= 40) {
+        lastTime = time;
+        const rect = track.getBoundingClientRect();
+        const markerRect = marker.getBoundingClientRect();
+        const scale = rect.width / track.offsetWidth;
+        const center = markerRect.left + markerRect.width / 2;
+        const idle = getComputedStyle(track).animationName !== "none";
+        const nearest = idle ? slots.find(slot => Math.abs(rect.left + (slot.offsetLeft + slot.offsetWidth / 2) * scale - center) <= slot.offsetWidth * scale * .12) : undefined;
+        if (nearest && nearest !== highlighted) {
+          highlighted?.removeAttribute("data-center-echo");
+          nearest.setAttribute("data-center-echo", "true");
+          highlighted = nearest;
+        }
+        if (!idle) { highlighted?.removeAttribute("data-center-echo"); highlighted = null; }
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  return <span ref={trackRef} className="dashboard-hero-space-needle-meter__roulette-track">{children}</span>;
+}
+
+function DashboardWeekDate({ date }: { date: Date }) {
+  const day = date.getDate();
+  const suffix = day % 100 >= 11 && day % 100 <= 13 ? "th" : day % 10 === 1 ? "st" : day % 10 === 2 ? "nd" : day % 10 === 3 ? "rd" : "th";
+  return <span className="inline-flex items-center gap-1 whitespace-nowrap" style={{ color: calendarMonthColor(date.getMonth()) }}>
+    <span className="relative isolate inline-block px-1">
+      <CalendarMonthIcon month={date.getMonth()} aria-hidden="true" className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-6 w-6 -translate-x-1/2 -translate-y-1/2 opacity-30" />
+      {date.toLocaleDateString("en-US", { month: "short" })}
+    </span>
+    <span>{day}<sup className="ml-px text-[.65em] lowercase">{suffix}</sup></span>
+  </span>;
+}
+
 const DashboardGlLoadingDisc = () => (
   <div
     aria-hidden="true"
@@ -17801,14 +17848,7 @@ export default function DashboardExperience({
   const handleDashboardCalendarDateChange = useCallback((date: Date) => {
     setDashboardCalendarDate((current) => calendarDateKey(current) === calendarDateKey(date) ? current : date);
   }, []);
-  const [activeTrainingConstellationDayIndex, setActiveTrainingConstellationDayIndex] =
-    useState(() => {
-      const todayDateKey = calendarDateKey(trainingCalendarToday);
-      const todayIndex = getConstellationWeek(trainingCalendarToday).findIndex(
-        (day) => day.dateKey === todayDateKey,
-      );
-      return todayIndex >= 0 ? todayIndex : 0;
-    });
+  const [activeTrainingConstellationDayIndex, setActiveTrainingConstellationDayIndex] = useState(0);
   const [activeTrainingConstellationTrackIndex, setActiveTrainingConstellationTrackIndex] =
     useState(0);
   const [selectedTrainingConstellationSessionId, setSelectedTrainingConstellationSessionId] =
@@ -17827,7 +17867,7 @@ export default function DashboardExperience({
       const scroller = dashboardTrainingConstellationScrollRef.current;
       if (!scroller) return;
 
-      const nextIndex = Math.max(0, Math.min(6, dayIndex));
+      const nextIndex = Math.max(0, Math.min(window.matchMedia("(max-width: 639px)").matches ? 27 : 6, dayIndex));
       const isMobileTimeline = window.matchMedia("(max-width: 639px)").matches;
       const maxScrollLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
       const maxScrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
@@ -17838,11 +17878,6 @@ export default function DashboardExperience({
       if (isMobileTimeline && dayRow) {
         const header = scroller.querySelector<HTMLElement>("[data-training-constellation-track-header]");
         const headerHeight = header?.offsetHeight ?? 0;
-        const lastRow = scroller.querySelector<HTMLElement>('[data-training-constellation-day-index="6"]');
-        const timeline = scroller.querySelector<HTMLElement>("[data-training-constellation-mobile-timeline]");
-        if (timeline && lastRow) {
-          timeline.style.paddingBottom = `${Math.max(12, scroller.clientHeight - headerHeight - lastRow.offsetHeight)}px`;
-        }
         scroller.style.scrollPaddingTop = `${headerHeight}px`;
         const scrollerRect = scroller.getBoundingClientRect();
         const rowRect = dayRow.getBoundingClientRect();
@@ -17875,7 +17910,7 @@ export default function DashboardExperience({
   const moveTrainingConstellationTimeline = useCallback((direction: -1 | 1) => {
     setPendingTrainingConstellationSchedule(null);
     setSelectedTrainingConstellationSessionId(null);
-    setActiveTrainingConstellationDayIndex((currentIndex) => Math.max(0, Math.min(6, currentIndex + direction)));
+    setActiveTrainingConstellationDayIndex((currentIndex) => Math.max(0, Math.min(window.matchMedia("(max-width: 639px)").matches ? 27 : 6, currentIndex + direction)));
   }, []);
   useEffect(() => {
     const scroller = dashboardTrainingConstellationScrollRef.current;
@@ -22928,9 +22963,6 @@ export default function DashboardExperience({
         };
   const dashboardWeeklySessionResetDate =
     getDashboardWeekResetDate(dashboardToday);
-  const dashboardWeeklySessionWeekLabel = dashboardClockLive
-    ? addDashboardDays(dashboardWeeklySessionResetDate, -6).toLocaleDateString("en-US", { month: "long", day: "numeric" })
-    : "…";
   const dashboardWeeklySessionResetLabel = dashboardClockLive
     ? formatHeaderMeterDeadline(dashboardWeeklySessionResetDate)
     : "soon";
@@ -23209,6 +23241,7 @@ export default function DashboardExperience({
     () => getConstellationSessions(
       normalizeCalendarItems(dashboardCalendarItems, dashboardCalendarDate, trainingCalendarToday, dashboardCalendarUserEntries),
       dashboardCalendarDate,
+      28,
     ),
     [dashboardCalendarItems, dashboardCalendarDate, trainingCalendarToday, dashboardCalendarUserEntries],
   );
@@ -26476,16 +26509,20 @@ export default function DashboardExperience({
     dashboardPageAnalogDragging,
     dashboardProfileHubAnalogDragging,
   ]);
-  const heroAchievements: AchievementBadgeItem[] = [
-    ...achievementMilestones({ goals: dashboardFoundationProgress.goalsCompletion === 100,
-      plan: Boolean(dashboardPlanEvidence.title), planIssue: dashboardPlanEvidence.issue,
-      workouts: dashboardSessionEvidence.total, historyIssue: dashboardSessionEvidence.issue }),
-    { actionLabel: "Open", category: "consistency", href: ROUTES.dashboard.achievements,
-      icon: "🏆", label: "View Achievements", description: "Review recorded milestones and award availability.",
-      progress: 0, status: "default", variant: "cta" },
-  ];
+  const [heroAchievementCategory, setHeroAchievementCategory] = useState<AchievementBadgeItem["category"]>("consistency");
+  const recoveryHistory = inspectSupportRecords();
+  const lifetimeAchievements = lifetimeAchievementMilestones({
+    workouts: dashboardSessionEvidence.total,
+    trainingDays: dashboardSessionEvidence.dates.length,
+    historyIssue: dashboardSessionEvidence.issue,
+    recoveryDays: new Set(recoveryHistory.rows.filter(row => row.kind === "recovery" && row.value > 0 && row.date <= getDashboardLocalDateKey(dashboardToday) && new Date(row.recordedAt).getTime() <= dashboardToday.getTime()).map(row => row.date)).size,
+    recoveryIssue: recoveryHistory.issue,
+  });
+  const heroAchievements = lifetimeAchievements.filter(item => item.category === heroAchievementCategory).slice(0, 5);
+  const lifetimeAchievementSignature = lifetimeAchievements.map(item => `${item.label}:${item.statusLabel}`).join("|");
+  useEffect(() => { setActiveHeroAchievementIndex(0); }, [lifetimeAchievementSignature, heroAchievementCategory]);
   const heroAchievementCount = heroAchievements.length;
-  const headerAchievementItems = heroAchievements.filter(
+  const headerAchievementItems = lifetimeAchievements.filter(
     (achievement) => achievement.variant !== "cta",
   );
   const headerAchievementTotal = Math.max(1, headerAchievementItems.length);
@@ -26500,12 +26537,6 @@ export default function DashboardExperience({
     (achievement) =>
       achievement.status === "completed" || (achievement.progress ?? 0) >= 100,
   ).length;
-  const heroAchievementsInProgress = headerAchievementItems.filter(
-    (achievement) => achievement.status !== "locked" && getHeaderAchievementProgress(achievement) < 100,
-  );
-  const nextHeroAchievement = headerAchievementItems
-    .filter((achievement) => achievement.status !== "completed" && getHeaderAchievementProgress(achievement) < 100)
-    .sort((a, b) => getHeaderAchievementProgress(b) - getHeaderAchievementProgress(a))[0];
   const headerAchievementProgress = clampDashboardPercent(
     headerAchievementItems.reduce(
       (sum, achievement) => sum + getHeaderAchievementProgress(achievement),
@@ -27631,6 +27662,12 @@ export default function DashboardExperience({
     dashboardHeaderCategoryLevelWheelLockRef.current = now;
     pauseDashboardHeaderCategoryLevelAutoOrbit();
     rotateDashboardHeaderCategoryLevels(primaryDelta > 0 ? "right" : "left");
+  };
+  const rotateHeroAchievementCategory = (direction: number) => {
+    const categories = ["consistency", "intensity", "recovery"] as const;
+    const current = heroAchievementCategory ?? activeHeroAchievement?.category ?? "consistency";
+    setHeroAchievementCategory(categories[(categories.indexOf(current) + direction + categories.length) % categories.length]);
+    setActiveHeroAchievementIndex(0);
   };
   const rotateHeroAchievement = (direction: DashboardOrbitDirection) => {
     if (heroAchievementCount < 2) return;
@@ -33668,7 +33705,7 @@ export default function DashboardExperience({
         <div className="dashboard-hero-card dashboard-hero-card--needle relative flex h-full min-h-[420px] min-w-0 items-center justify-center overflow-hidden rounded-[30px] border border-white/12 bg-[radial-gradient(ellipse_at_50%_6%,rgba(45,212,191,0.16),transparent_42%),radial-gradient(ellipse_at_50%_90%,rgba(250,204,21,0.08),transparent_38%),linear-gradient(180deg,rgba(15,23,42,0.66),rgba(2,6,23,0.72))] px-2 pb-5 pt-4 shadow-[0_18px_44px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.08)]">
           <div className={meterCardStyles.content}>
             <header className={meterCardStyles.heading}>
-              <p>Week of {dashboardWeeklySessionWeekLabel}</p>
+              <p>Week of {dashboardClockLive ? <DashboardWeekDate date={addDashboardDays(dashboardWeeklySessionResetDate, -6)} /> : "…"}</p>
               <h2>Consistency</h2>
             </header>
             <div className={meterCardStyles.needleStage}>
@@ -33699,13 +33736,13 @@ export default function DashboardExperience({
               <span className="dashboard-hero-space-needle-meter__roulette" aria-label="Weekly reward roulette. Complete workout days to improve prize rarity. Earned spins unlock after the week ends.">
                 <span aria-hidden="true" className="dashboard-hero-space-needle-meter__roulette-crown" />
                 <span aria-hidden="true" className="dashboard-hero-space-needle-meter__roulette-window">
-                  <span className="dashboard-hero-space-needle-meter__roulette-track">
+                  <DashboardRouletteTrack>
                     {Array.from({ length: 8 }, () => WEEKLY_REWARDS).flat().map((slot,index)=>(
-                      <span className="dashboard-hero-space-needle-meter__roulette-slot" title={`${slot.label} · ${slot.tier} · unlocks at ${slot.minimum + 1} workout day${slot.minimum ? "s" : ""}`} data-reward-id={slot.id} data-reward-tier={slot.tier} key={`${slot.id}-${index}`}>
+                      <span className="dashboard-hero-space-needle-meter__roulette-slot" title={`${slot.label} · ${slot.tier} · unlocks at ${slot.minimum + 1} workout day${slot.minimum ? "s" : ""}`} data-reward-id={slot.id} data-reward-tier={slot.tier} key={`${slot.id}-${index}`} >
                         <span className="dashboard-hero-space-needle-meter__roulette-slot-icon" />
                       </span>
                     ))}
-                  </span>
+                  </DashboardRouletteTrack>
                 </span>
                 <span aria-hidden="true" className="dashboard-hero-space-needle-meter__roulette-marker" />
                 <span className="dashboard-hero-space-needle-meter__roulette-result">
@@ -33812,10 +33849,14 @@ export default function DashboardExperience({
         <div className="dashboard-hero-card dashboard-hero-card--achievements isolate relative flex h-full min-h-[420px] min-w-0 flex-col overflow-hidden rounded-[30px] border border-white/12 bg-[radial-gradient(ellipse_at_10%_12%,rgba(250,204,21,0.09),transparent_34%),radial-gradient(ellipse_at_92%_24%,rgba(34,211,238,0.10),transparent_38%),linear-gradient(180deg,rgba(15,23,42,0.64),rgba(2,6,23,0.66))] pb-2 pt-2 shadow-[0_18px_44px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.08)] before:pointer-events-none before:absolute before:inset-0 before:z-0 before:rounded-[30px] before:bg-[radial-gradient(ellipse_at_10%_12%,rgba(250,204,21,0.10),transparent_34%),radial-gradient(ellipse_at_92%_24%,rgba(34,211,238,0.12),transparent_38%),radial-gradient(ellipse_at_50%_58%,rgba(14,165,233,0.13),transparent_48%),radial-gradient(ellipse_at_50%_78%,rgba(2,6,23,0.36),transparent_76%)] before:[mask-image:radial-gradient(ellipse_at_center,black_0%,black_58%,rgba(0,0,0,0.7)_78%,transparent_100%)] before:content-['']">
           <div className={`${meterCardStyles.content} ${meterCardStyles.achievements}`}>
           <header className={meterCardStyles.heading}>
-            <p>Your milestones</p>
+            <p>Lifetime progress</p>
             <h2>Achievements</h2>
           </header>
           <div className={meterCardStyles.achievementStage}>
+          <div className={meterCardStyles.cloudCategoryControls}>
+            <button type="button" aria-label="Previous achievement category" onClick={event => { event.stopPropagation(); rotateHeroAchievementCategory(-1); }}><ChevronLeft aria-hidden="true" /></button>
+            <button type="button" aria-label="Next achievement category" onClick={event => { event.stopPropagation(); rotateHeroAchievementCategory(1); }}><ChevronRight aria-hidden="true" /></button>
+          </div>
           <div
             aria-label={`${dashboardHeroAchievementCloudTone.label} achievement cloud, ${dashboardHeroAchievementCloudWeather.label} weather`}
             className={`dashboard-hero-achievement-cloud-bank dashboard-hero-achievement-cloud-bank--${dashboardHeroAchievementCloudWeather.id}`}
@@ -34060,16 +34101,6 @@ export default function DashboardExperience({
             <span>{activeHeroAchievementIndex + 1} / {heroAchievementCount}</span>
             <button type="button" aria-label="Next achievement" onClick={(event) => { event.stopPropagation(); rotateHeroAchievement("right"); }}><ChevronRight aria-hidden="true" /></button>
           </div>
-          <dl className={meterCardStyles.stats}>
-            <div><dt>Recorded</dt><dd>{headerAchievementsEarned}<small> / {headerAchievementTotal}</small></dd></div>
-            <div><dt>Remaining</dt><dd>{heroAchievementsInProgress.length}</dd></div>
-            <div><dt>Locked</dt><dd>{headerAchievementItems.filter((achievement) => achievement.status === "locked").length}</dd></div>
-          </dl>
-          <div className={meterCardStyles.nextMilestone}>
-            <div><span>{nextHeroAchievement ? "Next milestone" : "Collection complete"}</span><strong>{nextHeroAchievement?.label ?? "All milestones recorded"}</strong></div>
-            <strong>{nextHeroAchievement ? `${Math.round(getHeaderAchievementProgress(nextHeroAchievement))}%` : "100%"}</strong>
-            <progress aria-label="Next achievement progress" max={100} value={nextHeroAchievement ? getHeaderAchievementProgress(nextHeroAchievement) : 100} />
-          </div>
           <footer className={meterCardStyles.footer}>
             <Link href={ROUTES.dashboard.achievements} onClick={(event) => event.stopPropagation()}>View achievements<ChevronRight aria-hidden="true" /></Link>
           </footer>
@@ -34282,7 +34313,8 @@ export default function DashboardExperience({
     ];
 
     const dashboardTrainingConstellationDays = trainingConstellationWeek;
-    const constellationWeekLabel = `${trainingConstellationWeek[0].fullDate.split(", ")[1]} – ${trainingConstellationWeek[6].fullDate.split(", ")[1]}`;
+    const constellationTimelineDays = getConstellationWeek(dashboardCalendarDate, 28);
+
     const trainingConstellationTodayDateKey = calendarDateKey(dashboardToday);
     const trainingConstellationTodayIndex =
       dashboardTrainingConstellationDays.findIndex(
@@ -34488,18 +34520,6 @@ export default function DashboardExperience({
     const renderDashboardCommandCenterSummaryPanel = () => (
       <div className="relative min-w-0">
         <div className="relative z-10 grid min-w-0 gap-2">
-          {/* The hero indicator strip floats over this block's top-right
-              (8.5rem wide below 760px, a four-slot window of ~12.1rem plus
-              its offset above). Reserve that footprint and let the heading
-              size itself from what is left (container-query width) so it
-              grows into the space and shrinks instead of running under the
-              buttons. */}
-          <div className="@container grid min-w-0 gap-2 pr-[9rem] min-[760px]:pr-[13.5rem]">
-            <h3 className={`${welcomeStyles.heading} max-w-[36rem] break-words text-[clamp(0.85rem,6.2cqw,3rem)] font-black uppercase leading-none tracking-normal`}>
-              Welcome back, <span className={welcomeStyles.name}>{firstName}</span>
-            </h3>
-          </div>
-
           {/* Both mobile panes share the three-line Position footprint so
               changing the visible pane cannot resize the avatar stage. */}
           <div className="dashboard-hero-active-profile flex h-[62px] w-full max-w-[44rem] shrink-0 flex-nowrap items-center gap-x-2 border-t border-white/10 pt-2 min-[520px]:h-auto">
@@ -34827,7 +34847,7 @@ export default function DashboardExperience({
     };
 
     const renderDashboardTrainingConstellationPanel = () => (
-      <div className="dashboard-hero-card dashboard-hero-card--training-constellation relative z-10 flex h-full min-h-[420px] w-full max-w-full flex-col overflow-hidden rounded-[30px] border border-cyan-100/16 bg-[radial-gradient(circle_at_48%_12%,rgba(56,189,248,0.2),transparent_38%),radial-gradient(circle_at_10%_78%,rgba(52,211,153,0.11),transparent_32%),radial-gradient(circle_at_90%_36%,rgba(251,191,36,0.12),transparent_30%),linear-gradient(135deg,rgba(8,13,28,0.94),rgba(2,6,23,0.88))] p-3 max-[759px]:pt-12 shadow-[0_24px_70px_rgba(0,0,0,0.34),0_0_42px_rgba(56,189,248,0.11),inset_0_1px_0_rgba(255,255,255,0.09)] sm:p-4">
+      <div className="dashboard-hero-card dashboard-hero-card--training-constellation relative z-10 flex h-full min-h-[420px] w-full max-w-full flex-col overflow-hidden rounded-[30px] border border-cyan-100/16 bg-[radial-gradient(circle_at_48%_12%,rgba(56,189,248,0.2),transparent_38%),radial-gradient(circle_at_10%_78%,rgba(52,211,153,0.11),transparent_32%),radial-gradient(circle_at_90%_36%,rgba(251,191,36,0.12),transparent_30%),linear-gradient(135deg,rgba(8,13,28,0.94),rgba(2,6,23,0.88))] p-3 shadow-[0_24px_70px_rgba(0,0,0,0.34),0_0_42px_rgba(56,189,248,0.11),inset_0_1px_0_rgba(255,255,255,0.09)] sm:p-4">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 overflow-hidden"
@@ -34892,7 +34912,7 @@ export default function DashboardExperience({
                   <ChevronLeft aria-hidden="true" className="h-3.5 w-3.5" />
                 </button>
                 <span aria-live="polite" aria-atomic="true" className="min-w-0 text-center leading-tight">
-                  {constellationWeekLabel}
+                  <DashboardWeekDate date={new Date(`${trainingConstellationWeek[0].dateKey}T12:00:00`)} /> – <DashboardWeekDate date={new Date(`${trainingConstellationWeek[6].dateKey}T12:00:00`)} />
                 </span>
                 <button
                   aria-label="Next constellation week"
@@ -34965,7 +34985,105 @@ export default function DashboardExperience({
           </div>
         </div>
 
-        <div className="relative z-10 mt-2 min-h-0 flex-1 overflow-hidden">
+        <div
+          className="relative z-30 mt-2 flex items-center justify-center gap-2 sm:hidden"
+          data-dashboard-orbiter-local-scroll="true"
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          onPointerMove={(event) => event.stopPropagation()}
+          onPointerUp={(event) => event.stopPropagation()}
+          onWheel={(event) => event.stopPropagation()}
+        >
+          <button
+            aria-label="Move down to the next constellation day"
+            className="grid h-8 w-8 place-items-center border-0 bg-transparent p-0 text-cyan-100 drop-shadow-[0_0_8px_rgba(34,211,238,0.28)] transition hover:-translate-y-0.5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 disabled:cursor-not-allowed disabled:text-slate-600 disabled:drop-shadow-none"
+            disabled={
+              activeTrainingConstellationDayIndex ===
+              (typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches ? constellationTimelineDays.length : dashboardTrainingConstellationDays.length) - 1
+            }
+            onClick={(event) => {
+              event.stopPropagation();
+              moveTrainingConstellationTimeline(1);
+            }}
+            type="button"
+          >
+            <ChevronDown aria-hidden="true" className="h-4 w-4" />
+          </button>
+
+          <div className="min-w-[8.5rem] text-center">
+            <div className="text-[7px] font-black uppercase tracking-[0.18em] text-slate-500">
+              Vertical Focus
+            </div>
+            <div className="mt-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
+              {constellationTimelineDays[activeTrainingConstellationDayIndex].day}{" "}
+              {constellationTimelineDays[activeTrainingConstellationDayIndex].date}
+            </div>
+          </div>
+
+          <button
+            aria-label="Move up to the previous constellation day"
+            className="grid h-8 w-8 place-items-center border-0 bg-transparent p-0 text-emerald-100 drop-shadow-[0_0_8px_rgba(52,211,153,0.28)] transition hover:-translate-y-0.5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 disabled:cursor-not-allowed disabled:text-slate-600 disabled:drop-shadow-none"
+            disabled={activeTrainingConstellationDayIndex === 0}
+            onClick={(event) => {
+              event.stopPropagation();
+              moveTrainingConstellationTimeline(-1);
+            }}
+            type="button"
+          >
+            <ChevronUp aria-hidden="true" className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div
+          className="relative z-30 mt-2 hidden items-center justify-center gap-2 sm:flex"
+          data-dashboard-orbiter-local-scroll="true"
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          onPointerMove={(event) => event.stopPropagation()}
+          onPointerUp={(event) => event.stopPropagation()}
+          onWheel={(event) => event.stopPropagation()}
+        >
+          <button
+            aria-label="Show previous constellation day"
+            className="grid h-8 w-8 place-items-center rounded-full border border-emerald-200/24 bg-emerald-300/8 text-emerald-100 shadow-[0_0_16px_rgba(52,211,153,0.08)] transition hover:border-emerald-200/55 hover:bg-emerald-300/16 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-slate-950/30 disabled:text-slate-600 disabled:shadow-none"
+            disabled={activeTrainingConstellationDayIndex === 0}
+            onClick={(event) => {
+              event.stopPropagation();
+              moveTrainingConstellationTimeline(-1);
+            }}
+            type="button"
+          >
+            <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+          </button>
+
+          <div className="min-w-[8.5rem] text-center">
+            <div className="text-[7px] font-black uppercase tracking-[0.18em] text-slate-500">
+              Timeline Focus
+            </div>
+            <div className="mt-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
+              {constellationTimelineDays[activeTrainingConstellationDayIndex].day}{" "}
+              {constellationTimelineDays[activeTrainingConstellationDayIndex].date}
+            </div>
+          </div>
+
+          <button
+            aria-label="Show next constellation day"
+            className="grid h-8 w-8 place-items-center rounded-full border border-cyan-200/24 bg-cyan-300/8 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.08)] transition hover:border-cyan-200/55 hover:bg-cyan-300/16 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-slate-950/30 disabled:text-slate-600 disabled:shadow-none"
+            disabled={
+              activeTrainingConstellationDayIndex ===
+              (typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches ? constellationTimelineDays.length : dashboardTrainingConstellationDays.length) - 1
+            }
+            onClick={(event) => {
+              event.stopPropagation();
+              moveTrainingConstellationTimeline(1);
+            }}
+            type="button"
+          >
+            <ChevronRight aria-hidden="true" className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="relative z-10 mt-2 -mx-3 -mb-3 min-h-0 flex-1 overflow-hidden sm:-mx-4 sm:-mb-4" data-training-constellation-edge-timeline>
           {visibleTrainingConstellationLanes.length === 0 ? (
             <div className="grid h-full min-h-0 place-content-center gap-2 px-4 text-center" role="status">
               <p className="text-sm font-bold text-slate-200">No tracks selected</p>
@@ -35003,7 +35121,7 @@ export default function DashboardExperience({
               if (nearest) setActiveTrainingConstellationDayIndex(Number(nearest.dataset.trainingConstellationDayIndex));
             }}
           >
-            <div className="relative min-h-full w-full min-w-0 pb-3 pt-1 sm:hidden" data-training-constellation-mobile-timeline>
+            <div className="relative min-h-full w-full min-w-0 sm:hidden" data-training-constellation-mobile-timeline>
               <div
                 data-training-constellation-track-header
                 className="sticky top-0 z-20 grid border-b border-white/10 bg-slate-950/88 pb-1.5 pt-1 backdrop-blur-lg"
@@ -35066,22 +35184,26 @@ export default function DashboardExperience({
                     </span>
                   ))}
                 </div>
-                {dashboardTrainingConstellationDays.map((day, dayIndex) => {
+                {constellationTimelineDays.map((day, dayIndex) => {
                   const isActiveDay = activeTrainingConstellationDayIndex === dayIndex;
                   const isToday = day.dateKey === trainingConstellationTodayDateKey;
+                  const monthColor = calendarMonthColor(Number(day.dateKey.slice(5, 7)) - 1);
                   return (
+                    <div key={`timeline-${day.dateKey}`} className="snap-start snap-always" data-training-constellation-day-index={dayIndex}>
+                    {dayIndex % 7 === 0 && <div className="relative z-10 border-y-2 px-3 py-2 text-[9px] font-black uppercase tracking-wider" style={{ color: monthColor, borderColor: `${monthColor}88`, background: `linear-gradient(90deg, ${monthColor}30, #020617dd)` }}>Week of <DashboardWeekDate date={new Date(`${day.dateKey}T12:00:00`)} /></div>}
                     <div
-                      className={`relative grid min-h-[64px] snap-start snap-always items-stretch border-b border-white/[0.055] py-1 transition-colors last:border-b-0 ${
+                      className={`relative grid min-h-[64px] items-stretch border-b border-white/20 py-1 transition-colors last:border-b-0 ${
                         isActiveDay && isToday
                           ? "bg-orange-300/[0.06] shadow-[inset_2px_0_0_rgba(253,186,116,0.75)]"
                           : isActiveDay
                             ? "bg-cyan-300/[0.055]"
                             : ""
                       }`}
-                      data-training-constellation-day-index={dayIndex}
                       aria-current={isActiveDay ? "date" : undefined}
                       key={`mobile-training-day-${day.day}`}
                       style={{
+                        background: `linear-gradient(110deg, ${monthColor}${isActiveDay ? "30" : "18"}, ${monthColor}08)`,
+                        borderBottomColor: `${monthColor}55`,
                         gridTemplateColumns: `2rem repeat(${visibleTrainingConstellationLanes.length}, minmax(0, 1fr))`,
                       }}
                     >
@@ -35130,6 +35252,7 @@ export default function DashboardExperience({
                         />
                       ))}
                     </div>
+                    </div>
                   );
                 })}
               </div>
@@ -35141,7 +35264,7 @@ export default function DashboardExperience({
                   className="flex items-center px-2 text-[7px] font-black uppercase tracking-[0.18em] text-slate-500"
                   data-dashboard-tooltip="Week"
                 >
-                  {constellationWeekLabel}
+                  <DashboardWeekDate date={new Date(`${trainingConstellationWeek[0].dateKey}T12:00:00`)} /> – <DashboardWeekDate date={new Date(`${trainingConstellationWeek[6].dateKey}T12:00:00`)} />
                 </div>
                 {dashboardTrainingConstellationDays.map((item, dayIndex) => {
                   const isActiveDay = activeTrainingConstellationDayIndex === dayIndex;
@@ -35463,108 +35586,15 @@ export default function DashboardExperience({
           ) : null}
         </div>
 
-        <div
-          className="relative z-30 mt-2 flex items-center justify-center gap-2 sm:hidden"
-          data-dashboard-orbiter-local-scroll="true"
-          onClick={(event) => event.stopPropagation()}
-          onPointerDown={(event) => event.stopPropagation()}
-          onPointerMove={(event) => event.stopPropagation()}
-          onPointerUp={(event) => event.stopPropagation()}
-          onWheel={(event) => event.stopPropagation()}
-        >
-          <button
-            aria-label="Move down to the next constellation day"
-            className="grid h-8 w-8 place-items-center border-0 bg-transparent p-0 text-cyan-100 drop-shadow-[0_0_8px_rgba(34,211,238,0.28)] transition hover:-translate-y-0.5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 disabled:cursor-not-allowed disabled:text-slate-600 disabled:drop-shadow-none"
-            disabled={
-              activeTrainingConstellationDayIndex ===
-              dashboardTrainingConstellationDays.length - 1
-            }
-            onClick={(event) => {
-              event.stopPropagation();
-              moveTrainingConstellationTimeline(1);
-            }}
-            type="button"
-          >
-            <ChevronDown aria-hidden="true" className="h-4 w-4" />
-          </button>
 
-          <div className="min-w-[8.5rem] text-center">
-            <div className="text-[7px] font-black uppercase tracking-[0.18em] text-slate-500">
-              Vertical Focus
-            </div>
-            <div className="mt-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
-              {dashboardTrainingConstellationDays[activeTrainingConstellationDayIndex].day}{" "}
-              {dashboardTrainingConstellationDays[activeTrainingConstellationDayIndex].date}
-            </div>
-          </div>
-
-          <button
-            aria-label="Move up to the previous constellation day"
-            className="grid h-8 w-8 place-items-center border-0 bg-transparent p-0 text-emerald-100 drop-shadow-[0_0_8px_rgba(52,211,153,0.28)] transition hover:-translate-y-0.5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 disabled:cursor-not-allowed disabled:text-slate-600 disabled:drop-shadow-none"
-            disabled={activeTrainingConstellationDayIndex === 0}
-            onClick={(event) => {
-              event.stopPropagation();
-              moveTrainingConstellationTimeline(-1);
-            }}
-            type="button"
-          >
-            <ChevronUp aria-hidden="true" className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div
-          className="relative z-30 mt-2 hidden items-center justify-center gap-2 sm:flex"
-          data-dashboard-orbiter-local-scroll="true"
-          onClick={(event) => event.stopPropagation()}
-          onPointerDown={(event) => event.stopPropagation()}
-          onPointerMove={(event) => event.stopPropagation()}
-          onPointerUp={(event) => event.stopPropagation()}
-          onWheel={(event) => event.stopPropagation()}
-        >
-          <button
-            aria-label="Show previous constellation day"
-            className="grid h-8 w-8 place-items-center rounded-full border border-emerald-200/24 bg-emerald-300/8 text-emerald-100 shadow-[0_0_16px_rgba(52,211,153,0.08)] transition hover:border-emerald-200/55 hover:bg-emerald-300/16 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-slate-950/30 disabled:text-slate-600 disabled:shadow-none"
-            disabled={activeTrainingConstellationDayIndex === 0}
-            onClick={(event) => {
-              event.stopPropagation();
-              moveTrainingConstellationTimeline(-1);
-            }}
-            type="button"
-          >
-            <ChevronLeft aria-hidden="true" className="h-4 w-4" />
-          </button>
-
-          <div className="min-w-[8.5rem] text-center">
-            <div className="text-[7px] font-black uppercase tracking-[0.18em] text-slate-500">
-              Timeline Focus
-            </div>
-            <div className="mt-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
-              {dashboardTrainingConstellationDays[activeTrainingConstellationDayIndex].day}{" "}
-              {dashboardTrainingConstellationDays[activeTrainingConstellationDayIndex].date}
-            </div>
-          </div>
-
-          <button
-            aria-label="Show next constellation day"
-            className="grid h-8 w-8 place-items-center rounded-full border border-cyan-200/24 bg-cyan-300/8 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.08)] transition hover:border-cyan-200/55 hover:bg-cyan-300/16 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-slate-950/30 disabled:text-slate-600 disabled:shadow-none"
-            disabled={
-              activeTrainingConstellationDayIndex ===
-              dashboardTrainingConstellationDays.length - 1
-            }
-            onClick={(event) => {
-              event.stopPropagation();
-              moveTrainingConstellationTimeline(1);
-            }}
-            type="button"
-          >
-            <ChevronRight aria-hidden="true" className="h-4 w-4" />
-          </button>
-        </div>
       </div>
     );
 
     const renderDashboardChallengesPanel = () => (
-      <div className={`dashboard-hero-card dashboard-hero-card--training-challenges ${meterCardStyles.challengeCard}`}>
+      <div
+        className={`dashboard-hero-card dashboard-hero-card--training-challenges ${meterCardStyles.challengeCard}`}
+        style={{ "--hero-card-color": activeDashboardChallengeCategory.color } as CSSProperties}
+      >
         <div className={`${meterCardStyles.content} ${meterCardStyles.challengeContent}`}>
           <header className={meterCardStyles.heading}>
             <p>Your next milestones</p>
@@ -36254,7 +36284,7 @@ export default function DashboardExperience({
       <div
         aria-label="Dashboard hero horizontal orbit"
         data-dashboard-orbiter-row="0"
-        className="dashboard-hero-horizontal-orbit relative z-10 mx-auto h-full min-h-0 w-full max-w-[1180px] overflow-visible"
+        className="dashboard-hero-horizontal-orbit relative z-10 mx-auto flex h-full min-h-0 w-full max-w-[1180px] flex-col overflow-visible"
       >
         <div className="sr-only">
           Hero card orbit. Current card:{" "}
@@ -36268,6 +36298,8 @@ export default function DashboardExperience({
             ? `News & Events open. ${dashboardHeroNewsUpcomingCount} upcoming events and ${dashboardHeroNewsWorldCount} headlines.`
             : ""}
         </div>
+        <div className="relative mb-2 flex h-12 shrink-0 items-center" data-dashboard-hero-toolbar="true">
+          <h3 className={`${welcomeStyles.heading} min-w-0 max-w-[36rem] pr-[9rem] text-[clamp(0.85rem,3.5vw,1.6rem)] font-black uppercase leading-tight min-[760px]:pr-[14rem]`}>Welcome back, <span className={welcomeStyles.name}>{firstName}</span></h3>
         <div
           aria-label="Choose dashboard hero card"
           className="pointer-events-none absolute right-3 top-1.5 z-[80] flex h-11 items-center min-[760px]:right-4 min-[760px]:top-2 min-[760px]:h-11"
@@ -36437,9 +36469,10 @@ export default function DashboardExperience({
             </div>
           </div>
         </div>
+        </div>
         <div
           aria-label="Dashboard hero card orbit selector"
-          className="relative z-10 h-full w-full cursor-grab select-none overflow-visible outline-none [perspective:1700px] [touch-action:pan-y] active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-cyan-200/45"
+          className="relative z-10 min-h-0 flex-1 w-full cursor-grab select-none overflow-visible outline-none [perspective:1700px] [touch-action:pan-y] active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-cyan-200/45"
           ref={dashboardHeroCardSelectorRef}
           onClickCapture={(event) => {
             if (dashboardHeroCardPointerMovedRef.current) {
@@ -36545,7 +36578,16 @@ export default function DashboardExperience({
             const isActivePanel = distance === 0;
             const direction = Math.sign(distance);
             const panelX = isActivePanel ? 0 : distance * 348;
-            const panelY = 0;
+            // Keep the orbit toolbar fixed while each card uses its own content budget.
+            // The avatar and continuous calendar retain their usable viewport height.
+            const compactPanelHeight = ({
+              needle: 500,
+              challenges: 520,
+              achievements: 360,
+              favorites: 460,
+              widgets: 560,
+              command: 560,
+            } as Record<string, number>)[panel.id];
             const panelScale = isActivePanel
               ? 1
               : absDistance === 1
@@ -36559,22 +36601,27 @@ export default function DashboardExperience({
               <section
                 aria-hidden={!isActivePanel}
                 aria-label={panel.label}
-                className={`absolute inset-0 flex min-w-full shrink-0 ${
+                className={`${meterCardStyles.themedPanel} absolute inset-0 flex min-w-full shrink-0 ${
                   panel.id === "command" ? "items-start" : "items-stretch"
                 } ${
                   panel.id === "command" ? "justify-start" : "justify-center"
                 } [transform-style:preserve-3d]`}
                 data-dashboard-orbit-card-index={panelIndex}
+                data-dashboard-hero-panel={panel.id}
                 key={panel.id}
                 style={{
+                  "--hero-card-color": ({ needle: "#34d399", achievements: "#fbbf24", favorites: "#38bdf8", constellation: "#a78bfa", widgets: "#a78bfa", body: "#38bdf8", command: "#38bdf8" } as Record<string, string>)[panel.id] ?? activeDashboardChallengeCategory.color,
+                  height: compactPanelHeight ? `min(100%, ${compactPanelHeight}px)` : "100%",
+                  top: "50%",
+                  bottom: "auto",
                   opacity: panelOpacity,
                   pointerEvents: isActivePanel ? "auto" : "none",
-                  transform: `translateX(${panelX}px) translateY(${panelY}px) scale(${panelScale}) rotateY(${panelRotateY}deg)`,
+                  transform: `translateX(${panelX}px) translateY(-50%) scale(${panelScale}) rotateY(${panelRotateY}deg)`,
                   transition:
                     "transform 240ms cubic-bezier(0.2, 0.82, 0.2, 1), opacity 180ms ease",
                   visibility: isPanelVisible ? "visible" : "hidden",
                   zIndex: isActivePanel ? 30 : 12 - absDistance,
-                }}
+                } as CSSProperties}
               >
                 {/* Preserve the expensive avatar scene between lateral moves.
                     Its visibility observer suspends hidden deformation/draws;

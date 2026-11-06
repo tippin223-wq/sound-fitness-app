@@ -231,3 +231,11 @@ assert.equal(edited.title, "Renamed strength");
 assert.equal(edited.time, "5:15 PM");
 assert.equal(derive([]).some((session) => session.id === "user-entry"), false);
 console.log("PASS: training types, nutrition exclusion without calendar data loss, same-day sessions, mutations, actual time/status, local dates, DST, and year boundaries");
+
+const extended = constellation.getConstellationWeek(new Date(2026, 10, 25), 28);
+assert.equal(extended.length, 28);
+assert.equal(extended[0].dateKey, "2026-11-23");
+assert.equal(extended[7].dateKey, "2026-11-30");
+assert.equal(extended[8].dateKey, "2026-12-01");
+assert.equal(extended[27].dateKey, "2026-12-20");
+console.log("PASS: continuous four-week constellation crosses month boundaries in order");

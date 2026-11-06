@@ -22,9 +22,9 @@ const eventLanes: Record<DashboardCalendarItem["type"], TrainingConstellationLan
   "check-in": "check-in",
 };
 
-export function getConstellationWeek(date: Date) {
+export function getConstellationWeek(date: Date, dayCount = 7) {
   const monday = calendarWeekStart(date);
-  return Array.from({ length: 7 }, (_, index) => {
+  return Array.from({ length: dayCount }, (_, index) => {
     const day = calendarAddDays(monday, index);
     return {
       day: day.toLocaleDateString("en-US", { weekday: "short" }),
@@ -37,8 +37,8 @@ export function getConstellationWeek(date: Date) {
   });
 }
 
-export function getConstellationSessions(events: CalendarEvent[], date: Date) {
-  const days = getConstellationWeek(date);
+export function getConstellationSessions(events: CalendarEvent[], date: Date, dayCount = 7) {
+  const days = getConstellationWeek(date, dayCount);
   const dayIndexes = new Map(days.map((day, index) => [day.dateKey, index]));
   const eventIndexByDate = new Map<string, number>();
 

@@ -208,7 +208,7 @@ export default function WeeklyRewardSpin() {
     </button>
     <p>{status?.availableSpins ?? 0} {(status?.availableSpins ?? 0) === 1 ? "spin" : "spins"}</p>
     <div role="status" aria-live="polite">{error ? <><p>{error}</p></> : null}</div>
-    <button className={styles.rarityLink} type="button" onClick={() => setRarityOpen(true)}>Rarity & odds</button>
+    <button className={styles.rarityLink} type="button" onClick={() => setRarityOpen(true)}>Rules & odds</button>
     <button className={styles.rarityLink} type="button" onClick={() => setAmountsOpen(true)}>Prize amounts</button>
     {amountsOpen && <RewardAmounts onClose={() => setAmountsOpen(false)} />}
     {rarityOpen && <RarityGuide days={days} onClose={() => setRarityOpen(false)} />}

@@ -8,7 +8,7 @@
   height: 100%;
   min-height: 0;
   width: 100%;
-  padding: 48px 14px 14px;
+  padding: 16px 14px 14px;
   overflow: hidden;
   container-type: size;
   container-name: challenge-card;
@@ -61,7 +61,7 @@
   height: 100%;
   min-height: 0;
   display: block;
-  padding: 48px 14px 14px;
+  padding: 16px 14px 14px;
 }
 
 .content {
@@ -181,21 +181,21 @@
 .needleStage :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="rare"]) { background: color-mix(in srgb, #60a5fa 50%, #071322); border-color: #60a5fa; }
 .needleStage :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="epic"]) { background: color-mix(in srgb, #c084fc 50%, #071322); border-color: #c084fc; }
 .needleStage :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="legendary"]) { background: color-mix(in srgb, #fbbf24 50%, #071322); border-color: #fbbf24; }
-.needleStage:has(.spinControl[data-unlocked-tier="-1"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="common"]) { opacity: .25; filter: saturate(.45); }
-.needleStage:has(.spinControl[data-unlocked-tier="-1"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="uncommon"]) { opacity: .25; filter: saturate(.45); }
-.needleStage:has(.spinControl[data-unlocked-tier="-1"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="rare"]) { opacity: .25; filter: saturate(.45); }
-.needleStage:has(.spinControl[data-unlocked-tier="-1"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="epic"]) { opacity: .25; filter: saturate(.45); }
-.needleStage:has(.spinControl[data-unlocked-tier="-1"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="legendary"]) { opacity: .25; filter: saturate(.45); }
-.needleStage:has(.spinControl[data-unlocked-tier="0"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="uncommon"]) { opacity: .25; filter: saturate(.45); }
-.needleStage:has(.spinControl[data-unlocked-tier="0"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="rare"]) { opacity: .25; filter: saturate(.45); }
-.needleStage:has(.spinControl[data-unlocked-tier="0"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="epic"]) { opacity: .25; filter: saturate(.45); }
-.needleStage:has(.spinControl[data-unlocked-tier="0"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="legendary"]) { opacity: .25; filter: saturate(.45); }
-.needleStage:has(.spinControl[data-unlocked-tier="1"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="rare"]) { opacity: .25; filter: saturate(.45); }
-.needleStage:has(.spinControl[data-unlocked-tier="1"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="epic"]) { opacity: .25; filter: saturate(.45); }
-.needleStage:has(.spinControl[data-unlocked-tier="1"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="legendary"]) { opacity: .25; filter: saturate(.45); }
-.needleStage:has(.spinControl[data-unlocked-tier="2"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="epic"]) { opacity: .25; filter: saturate(.45); }
-.needleStage:has(.spinControl[data-unlocked-tier="2"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="legendary"]) { opacity: .25; filter: saturate(.45); }
-.needleStage:has(.spinControl[data-unlocked-tier="3"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="legendary"]) { opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="-1"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="common"]) { --reward-idle-opacity: .25; opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="-1"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="uncommon"]) { --reward-idle-opacity: .25; opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="-1"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="rare"]) { --reward-idle-opacity: .25; opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="-1"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="epic"]) { --reward-idle-opacity: .25; opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="-1"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="legendary"]) { --reward-idle-opacity: .25; opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="0"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="uncommon"]) { --reward-idle-opacity: .25; opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="0"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="rare"]) { --reward-idle-opacity: .25; opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="0"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="epic"]) { --reward-idle-opacity: .25; opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="0"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="legendary"]) { --reward-idle-opacity: .25; opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="1"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="rare"]) { --reward-idle-opacity: .25; opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="1"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="epic"]) { --reward-idle-opacity: .25; opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="1"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="legendary"]) { --reward-idle-opacity: .25; opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="2"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="epic"]) { --reward-idle-opacity: .25; opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="2"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="legendary"]) { --reward-idle-opacity: .25; opacity: .25; filter: saturate(.45); }
+.needleStage:has(.spinControl[data-unlocked-tier="3"]) :global(.dashboard-hero-space-needle-meter__roulette-slot[data-reward-tier="legendary"]) { --reward-idle-opacity: .25; opacity: .25; filter: saturate(.45); }
 .rarityTable { overflow: auto; margin: 18px -15px; }
 .rarityTable table { width: 100%; border-collapse: collapse; font-size: 9px; }
 .rarityTable caption { margin-bottom: 10px; color: #b8d9da; font-size: 12px; }
@@ -483,6 +483,145 @@
 .challengeContent .challengeList { grid-auto-rows: min-content; gap: 7px; }
 .challengeContent .challengeItem { padding: 8px 10px; gap: 3px; }
 .challengeContent .challengeItem h4 { font-size: 12px; }
-.needleStage:has(.spinControl[data-live-prizes="currencies"]) :global(.dashboard-hero-space-needle-meter__roulette-slot:is([data-reward-id="clothing"], [data-reward-id="accessory"], [data-reward-id="sonic-surge"], [data-reward-id="streak-shield"], [data-reward-id="boost-chip"])) { opacity: .18; filter: grayscale(1); }
+.needleStage:has(.spinControl[data-live-prizes="currencies"]) :global(.dashboard-hero-space-needle-meter__roulette-slot:is([data-reward-id="clothing"], [data-reward-id="accessory"], [data-reward-id="sonic-surge"], [data-reward-id="streak-shield"], [data-reward-id="boost-chip"])) { --reward-idle-opacity: .18; opacity: .18; filter: grayscale(1); }
 
-.needleStage:has(.spinControl[data-unlocked-tier="-1"]:not([data-spin-result])) :global(.dashboard-hero-space-needle-meter__roulette-slot) { opacity: .2; filter: saturate(.35); }
+.needleStage:has(.spinControl[data-unlocked-tier="-1"]:not([data-spin-result])) :global(.dashboard-hero-space-needle-meter__roulette-slot) { --reward-idle-opacity: .2; opacity: .2; filter: saturate(.35); }
+
+
+/* Carry the selected card's identity through the entire surface. */
+.themedPanel :global(.dashboard-hero-card) {
+  border-color: color-mix(in srgb, var(--hero-card-color) 42%, transparent);
+  box-shadow: 0 18px 44px #0006,
+    0 0 30px color-mix(in srgb, var(--hero-card-color) 12%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--hero-card-color) 25%, transparent);
+}
+.themedPanel :is(:global(.dashboard-hero-card--needle), :global(.dashboard-hero-card--achievements), :global(.dashboard-hero-card--favorite-workouts), :global(.dashboard-hero-card--training-challenges), :global(.dashboard-hero-card--training-constellation), :global(.dashboard-hero-card--widgets)) {
+  background: radial-gradient(ellipse at 15% 0%, color-mix(in srgb, var(--hero-card-color) 27%, transparent), transparent 62%),
+    radial-gradient(ellipse at 95% 85%, color-mix(in srgb, var(--hero-card-color) 13%, transparent), transparent 58%),
+    linear-gradient(145deg, #101b2bf5, #020617f5);
+}
+.themedPanel :global(.dashboard-hero-card--achievements)::before { opacity: .3; }
+.themedPanel .challengeContent { --meter-accent: var(--hero-card-color); }
+
+
+/* Keep the elevator rails behind every stacked weekday marker. */
+.needleStage :global(.dashboard-hero-space-needle-meter__blip-track) { isolation: isolate; }
+.needleStage :global(.dashboard-hero-space-needle-meter__blip-track)::before,
+.needleStage :global(.dashboard-hero-space-needle-meter__blip-track)::after { z-index: 0; }
+.needleStage :global(.dashboard-hero-space-needle-meter__blip) { z-index: 1; }
+
+
+.needleStage :global(.dashboard-hero-space-needle-meter__blip-track)::before { z-index: -2; opacity: .22; }
+.needleStage :global(.dashboard-hero-space-needle-meter__blip-track)::after { z-index: -1; opacity: .15; }
+@media (prefers-reduced-motion: reduce) {
+  .needleStage :global(.dashboard-hero-space-needle-meter__roulette-slot) { animation: none !important; }
+}
+
+/* Start the echo at the measured marker, independent of viewport and reel sizing. */
+.needleStage :global(.dashboard-hero-space-needle-meter__roulette-slot[data-center-echo]) {
+  animation: reward-measured-echo .48s ease-out;
+}
+@keyframes reward-measured-echo {
+  0% { opacity: 1; filter: brightness(2) saturate(1); box-shadow: inset 0 0 8px #ecfeffcc, 0 0 12px #a5f3fc; }
+  100% { opacity: var(--reward-idle-opacity, 1); filter: brightness(1); box-shadow: inset 0 0 0 transparent, 0 0 20px transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .needleStage :global(.dashboard-hero-space-needle-meter__roulette-slot[data-center-echo]) { animation: none; }
+}
+
+
+/* Give the action priority; keep supporting rules compact beneath it. */
+.spinControl { gap: 4px; }
+.spinControl > button:not(.rarityLink) {
+  width: 68px;
+  height: 68px;
+  border: 1px solid #a7f3d0b3;
+  background: radial-gradient(circle at 30% 20%, #a7f3d04d, #065f4666 55%, #071522 90%);
+  box-shadow: 0 0 24px #34d39940, inset 0 1px 2px #ecfdf580, inset 0 -5px 10px #02061780;
+}
+.spinControl > button:not(.rarityLink) > span { font-size: 25px; line-height: 25px; }
+.spinControl > button:not(.rarityLink) > strong { font-size: 11px; line-height: 14px; letter-spacing: .04em; }
+.spinControl > button:not(.rarityLink):disabled { opacity: .65; box-shadow: inset 0 1px 2px #ecfdf540, 0 0 16px #34d39918; }
+.spinControl > div { font-size: 11px; font-weight: 800; color: #d1fae5; }
+.spinControl > .rarityLink {
+  min-height: 23px;
+  width: 100%;
+  padding: 3px 2px;
+  border-radius: 7px;
+  border: 1px solid #a7f3d019;
+  background: #02061740;
+  color: #a7c6bf;
+  font-size: 8px;
+  line-height: 12px;
+  text-decoration: none;
+  font-weight: 600;
+}
+.spinControl > .rarityLink:hover { color: #ecfdf5; border-color: #a7f3d066; background: #34d39918; }
+
+.needleStage :global(.dashboard-hero-space-needle-meter__roulette-track) { position: relative; }
+
+
+/* Reserve space for Spin instead of positioning it over the tower. */
+.needleStage {
+  grid-template-columns: minmax(0, 1fr) 80px;
+  column-gap: 12px;
+}
+.needleStage > :global(.dashboard-hero-space-needle-meter) {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+.needleStage > .spinControl {
+  grid-column: 2;
+  grid-row: 1;
+  position: relative;
+  left: auto;
+  top: auto;
+  transform: none;
+  width: 76px;
+  align-self: center;
+}
+
+
+/* Keep the pair together instead of stretching across the card. */
+.needleStage {
+  grid-template-columns: minmax(0, 180px) 76px;
+  justify-content: center;
+  column-gap: 8px;
+}
+.needleStage > .spinControl { justify-self: start; }
+
+
+/* Reserve independent rows for clouds, badges and navigation. */
+.achievements { grid-template-rows: auto minmax(0, 1fr) 32px auto auto; }
+.achievementStage { grid-template-rows: 42px minmax(190px, 1fr); min-height: 244px; }
+.achievementOrbit { min-height: 190px; overflow: hidden; }
+.achievementControls { min-height: 32px; background: none; border-radius: 0; }
+.cloudCategoryControls { position: absolute; inset: 0 8px auto; height: 42px; display: flex; justify-content: space-between; align-items: center; z-index: 30; pointer-events: none; }
+.cloudCategoryControls button { pointer-events: auto; display: grid; place-items: center; width: 32px; height: 32px; color: #fde68a; background: #02061766; border-radius: 50%; border: 1px solid #fde68a33; }
+.cloudCategoryControls svg { width: 16px; height: 16px; }
+.cloudCategoryControls button:focus-visible { outline: 2px solid #fde68a; outline-offset: 2px; }
+
+.achievements { overflow-y: auto; scrollbar-width: none; }
+.achievements::-webkit-scrollbar { display: none; }
+
+
+/* Let the badge stage use its content height instead of expanding the gap. */
+.achievements {
+  grid-template-rows: auto 196px 30px auto;
+  align-content: start;
+  gap: 7px;
+}
+.achievementStage {
+  grid-template-rows: 32px 156px;
+  row-gap: 8px;
+  min-height: 196px;
+  height: 196px;
+}
+.achievementStage :global(.dashboard-hero-achievement-cloud-bank) { height: 36px; }
+.achievementOrbit { height: 156px; min-height: 156px; }
+.cloudCategoryControls { height: 36px; }
+.achievementControls { min-height: 30px; }
+.achievements .stats { padding-block: 7px; }
+
+.achievementItem[data-active-achievement="true"] { height: 136px; }

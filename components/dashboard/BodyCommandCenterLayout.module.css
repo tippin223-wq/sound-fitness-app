@@ -1151,3 +1151,25 @@
 .fatigueBarSegment:focus-visible { outline: 2px solid #e0faff; outline-offset: 2px; }
 .fatigueBarMarker { pointer-events: none; }
 .fatigueTooltip { position: absolute; bottom: calc(100% + 4px); left: 0; right: 0; z-index: 30; padding: 8px 10px; border: 1px solid #67e8f955; border-radius: 9px; background: #071522f5; color: #e0f2fe; font-size: 10px; line-height: 1.4; text-align: center; box-shadow: 0 4px 18px #0008; pointer-events: none; }
+
+/* Keep each loader centered in the space below its own navigation title. */
+.categoryBody { justify-content: center; }
+.compactMuscleRail { align-content: center !important; }
+.categoryTrio > .categoryRing { position: relative; isolation: isolate; }
+.categoryTrio > .categoryRing::before,
+.compactMuscleActive > button::before {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  z-index: -1;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(ellipse, color-mix(in srgb, currentColor 28%, transparent) 0%, color-mix(in srgb, currentColor 12%, transparent) 48%, transparent 72%);
+  filter: blur(7px);
+}
+@container body-controls (max-width: 239px) {
+  .categoryBody { justify-content: center; }
+  .compactMuscleRail { align-content: center !important; }
+}
+
+.compactMuscleActive > button { isolation: isolate; }

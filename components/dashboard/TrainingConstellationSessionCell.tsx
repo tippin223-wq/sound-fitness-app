@@ -20,7 +20,16 @@ export default function TrainingConstellationSessionCell({
   return (
     <div className={`relative z-10 flex min-w-0 flex-col justify-center gap-1 border-r border-white/[0.045] py-1 last:border-r-0 ${compact ? "px-0.5" : "px-1"} ${tooltipOnly ? "overflow-visible" : ""} ${isToday ? "bg-emerald-300/[0.045] shadow-[inset_1px_0_0_rgba(110,231,183,0.16),inset_-1px_0_0_rgba(110,231,183,0.16)]" : ""}`}>
       <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-1/2 h-px opacity-40" style={{ background: color, boxShadow: `0 0 8px ${color}` }} />
-      {sessions.length ? sessions.map((session) => (
+      {sessions.length > 1 ? (
+        <div className="relative flex min-w-0 flex-col items-center gap-1">
+          <div role="group" aria-label={`${sessions.length} sessions on ${sessions[0].fullDate}`} className="relative grid h-11 w-11 shrink-0 place-items-center gap-0.5 rounded-full border-2 bg-slate-950 p-1.5 ring-[3px] ring-slate-950/90" style={{ borderColor: color, borderStyle: sessions.every(session => session.status === "complete") ? "solid" : "dashed", boxShadow: `0 0 ${sessions.some(session => session.id === selectedId) ? 16 : 7}px ${color}`, gridTemplateColumns: `repeat(${Math.ceil(Math.sqrt(sessions.length))}, minmax(0, 1fr))` }}>
+            {sessions.map(session => <button key={session.id} type="button" aria-label={`Open ${session.title} session details, ${session.fullDate}, ${session.time}, ${session.statusText}`} aria-pressed={selectedId === session.id} data-dashboard-tooltip={`${session.title} · ${session.time} · ${session.statusText}`} onClick={() => onSelect(session.id)} className={`grid h-full min-h-0 w-full min-w-0 place-items-center rounded-full transition hover:brightness-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${selectedId === session.id ? "bg-white/20 ring-1 ring-white/70" : ""}`}>
+              <Star aria-hidden="true" className="h-full max-h-3.5 w-full max-w-3.5 fill-current" style={{ color, opacity: session.status === "complete" || session.id === selectedId ? 1 : 0.8 }} />
+            </button>)}
+          </div>
+          {!tooltipOnly && <span className="text-[9px] font-bold text-slate-200">{sessions.length} sessions</span>}
+        </div>
+      ) : sessions.length ? sessions.map((session) => (
         <button
           aria-label={`Open ${session.title} session details, ${session.fullDate}, ${session.time}, ${session.statusText}`}
           aria-pressed={selectedId === session.id}
