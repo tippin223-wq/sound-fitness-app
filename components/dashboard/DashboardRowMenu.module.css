@@ -64,3 +64,192 @@
 @media (prefers-reduced-motion: reduce) {
   .panel, .tab { transition: none; }
 }
+
+.joystickTab {
+  position: absolute;
+  top: var(--dashboard-row-menu-top, 9rem);
+  left: 4px;
+  width: 36px;
+  height: 36px;
+  pointer-events: auto;
+}
+.joystickTab :global([data-dashboard-page-analog]) {
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  border: 1px solid rgba(165,243,252,.2) !important;
+  box-shadow: 0 0 14px rgba(34,211,238,.12), inset 0 1px 0 rgba(255,255,255,.15) !important;
+  transform: none !important;
+}
+.joystickTab :global(.dashboard-header-scroll-button__webgl) {
+  width: 100% !important;
+  height: 100% !important;
+  inset: 0 !important;
+}
+
+/* Four independent 28px hit targets surround the drag surface. */
+.joystickTab { width: 76px; height: 76px; left: 0; }
+.joystickTab :global([data-dashboard-page-analog]) {
+  position: absolute !important;
+  top: 22px;
+  left: 22px;
+  width: 32px !important;
+  height: 32px !important;
+}
+.joystickTab :global([data-card-joystick-arrow]) {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 2px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(2,12,24,.55);
+  color: #a5f3fc;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.joystickTab :global([data-card-joystick-arrow] svg) { width: 24px; height: 24px; filter: drop-shadow(0 0 5px #22d3ee66); }
+.joystickTab :global([data-card-joystick-arrow]:hover) { background: #164e63bb; color: white; }
+.joystickTab :global([data-card-joystick-arrow]:active) { transform: scale(.9); }
+.joystickTab :global([data-card-joystick-arrow]:disabled) { opacity: .25; cursor: default; }
+.joystickTab :global([data-card-joystick-arrow="up"]) { top: 0; left: 24px; }
+.joystickTab :global([data-card-joystick-arrow="right"]) { top: 24px; right: 0; }
+.joystickTab :global([data-card-joystick-arrow="down"]) { bottom: 0; left: 24px; }
+.joystickTab :global([data-card-joystick-arrow="left"]) { top: 24px; left: 0; }
+.root:has(.joystickTab) .panel :global(.dashboard-page-orbit-shell) { top: calc(var(--dashboard-row-menu-top, 9rem) + 82px); }
+
+.joystickTab :global([data-dashboard-page-analog]) {
+  top: 19px;
+  left: 19px;
+  width: 38px !important;
+  height: 38px !important;
+}
+
+/* Bare directional arrows, with their larger invisible hit areas retained. */
+.joystickTab :global([data-card-joystick-arrow]),
+.joystickTab :global([data-card-joystick-arrow]:hover) {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.joystickTab :global([data-card-joystick-arrow="up"]:disabled) {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* The drag knob floats freely without a surrounding bezel or DOM halo. */
+.joystickTab :global([data-dashboard-page-analog]) {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.joystickTab :global([data-dashboard-page-analog]::before),
+.joystickTab :global([data-dashboard-page-analog]::after) {
+  display: none !important;
+}
+
+
+
+.joystickTab :global([data-card-joystick-arrow]:disabled) {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Legacy joystick animations must never move the anchor containing the base. */
+.root.root .joystickTab :global([data-dashboard-page-analog]),
+.root.root .joystickTab :global([data-dashboard-page-analog] .dashboard-header-scroll-button__webgl) {
+  animation: none !important;
+  transform: none !important;
+  translate: none !important;
+  rotate: none !important;
+  scale: none !important;
+}
+
+/* Extruded arrow strokes preserve the bare controls and their hit areas. */
+.joystickTab :global([data-card-joystick-arrow] svg) {
+  overflow: visible;
+  stroke-width: 2.8;
+  transform: translateY(-1px);
+  filter: drop-shadow(0 1px 0 #598b9c) drop-shadow(0 2px 0 #284f64) drop-shadow(0 3px 0 #102d41) drop-shadow(0 4px 3px rgba(0,0,0,.7)) drop-shadow(0 0 5px rgba(103,232,249,.25));
+  transition: transform 100ms ease-out, filter 100ms ease-out;
+}
+.joystickTab :global([data-card-joystick-arrow]:not(:disabled):hover svg) {
+  transform: translateY(-2px);
+  filter: drop-shadow(0 1px 0 #93c5d3) drop-shadow(0 2px 0 #426b80) drop-shadow(0 3px 0 #173b53) drop-shadow(0 5px 4px rgba(0,0,0,.7)) drop-shadow(0 0 7px rgba(103,232,249,.5));
+}
+.joystickTab :global([data-card-joystick-arrow]:not(:disabled):active svg) {
+  transform: translateY(2px) scale(.92);
+  filter: drop-shadow(0 1px 0 #284f64) drop-shadow(0 1px 2px rgba(0,0,0,.65));
+}
+@media (prefers-reduced-motion: reduce) {
+  .joystickTab :global([data-card-joystick-arrow] svg) { transition: none; }
+}
+
+/* The card joystick deliberately has no legacy header-joystick classes. */
+.joystickTab :global(.dashboard-card-joystick-scene) {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: none;
+  animation: none !important;
+  transform: none !important;
+  transition: none !important;
+}
+.joystickTab :global(.dashboard-card-joystick-knob) {
+  transition: none !important;
+  animation: none !important;
+  transform: none !important;
+}
+
+
+/* One centered halo and rim; reset inherited masks and pseudo geometry. */
+.panel :global(.dashboard-page-orbit-node[aria-current="true"]) {
+  isolation: isolate;
+  filter: brightness(1.15);
+}
+.panel :global(.dashboard-page-orbit-node[aria-current="true"]::before) {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  width: auto;
+  height: auto;
+  z-index: 0;
+  pointer-events: none;
+  mask: none;
+  border: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(103,232,249,.3), rgba(34,211,238,.12) 50%, transparent 74%);
+  box-shadow: none;
+  transform: none;
+  animation: activeRowAura 2.6s ease-in-out infinite;
+}
+.panel :global(.dashboard-page-orbit-node[aria-current="true"]::after) {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  width: auto;
+  height: auto;
+  opacity: 1;
+  z-index: 0;
+  pointer-events: none;
+  border: 1px solid rgba(165,243,252,.85);
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: 0 0 8px rgba(34,211,238,.55), inset 0 0 5px rgba(125,211,252,.2);
+  filter: none;
+  transform: none;
+}
+@keyframes activeRowAura {
+  0%, 100% { opacity: .55; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .panel :global(.dashboard-page-orbit-node[aria-current="true"]::before) { animation: none; }
+}

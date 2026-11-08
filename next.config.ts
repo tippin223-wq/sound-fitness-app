@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Keep production verification builds separate from a running local preview.
+  distDir: process.env.SF_DIST_DIR || ".next",
   // Strict Mode double-invokes every mount effect in dev. On this page that
   // means ~50 WebGL scenes are created → disposed → recreated on every load,
   // and each Supabase auth call fires twice, orphaning the auth-token lock into

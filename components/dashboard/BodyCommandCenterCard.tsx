@@ -1717,7 +1717,7 @@ function BodyStatStack({
       // An odd number of complete slots puts the selection in the middle
       // and both edge neighbours fully inside the visible rail at rest.
       const fittingSlots = Math.floor(available / 104);
-      const visibleCount = Math.max(3, Math.min(7, fittingSlots % 2 ? fittingSlots : fittingSlots - 1));
+      const visibleCount = Math.max(1, Math.min(7, fittingSlots % 2 ? fittingSlots : fittingSlots - 1));
       scroller.style.setProperty("--support-slot-width", `${(available - (visibleCount - 1) * 8) / visibleCount}px`);
       const sidePad = 0;
       scroller.style.width = `${available}px`;
@@ -1961,7 +1961,7 @@ function HyperRealAvatarFigure({
         appearance={appearance}
         bodyPartGlowActive={zoneGlowActive}
         bodyPartGlowColors={zoneGlowColors}
-        className="absolute inset-x-0 bottom-0 z-10 h-full w-full opacity-100 transition-opacity duration-500"
+        className="absolute inset-x-0 bottom-0 z-10 h-full w-full origin-bottom scale-[0.88] opacity-100 transition-opacity duration-500"
         emotePreset={emotePreset}
         emoteReplay={emoteReplay}
         glowFocus={glowFocus}
@@ -2597,15 +2597,15 @@ function AvatarLabChoice({
       aria-label={sapphireCost ? `${label}. Locked. ${sapphireCost} Sapphires to unlock. Preview only.` : undefined}
       data-wardrobe-preview-item={previewItem}
       onBlur={onPreviewEnd}
-      className={`relative flex min-h-14 min-w-0 items-center gap-2 overflow-hidden rounded-[10px] border px-2.5 py-2 text-left transition ${
+      className={`relative flex min-h-14 min-w-0 items-center gap-2 overflow-hidden border-b-2 px-2.5 py-2 text-left transition ${
         active
-          ? "border-cyan-200/72 bg-cyan-300/16 text-white shadow-[0_0_18px_rgba(34,211,238,0.22),inset_0_1px_0_rgba(255,255,255,0.1)]"
-          : "border-white/10 bg-white/[0.035] text-slate-300 hover:border-cyan-200/34 hover:bg-cyan-300/8"
+          ? "border-cyan-200/72 text-white"
+          : "border-transparent text-slate-300 hover:border-cyan-200/34"
       } ${sapphireCost ? "min-h-20 pt-7" : ""}`}
       onClick={onClick}
       type="button"
     >
-      <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-[8px] border border-white/10 bg-slate-950/54 ${sapphireCost ? "opacity-50 saturate-50" : ""}`}>
+      <span className={`grid h-8 w-8 shrink-0 place-items-center ${sapphireCost ? "opacity-50 saturate-50" : ""}`}>
         {preview}
       </span>
       <span className={`min-w-0 flex-1 text-[9px] font-black uppercase tracking-[0.08em] ${sapphireCost ? "opacity-60" : ""}`}>
@@ -2639,7 +2639,7 @@ function AvatarLabOptionRail({label, children}: {label: string; children: ReactN
     const index = Math.max(0, options.findIndex(option => option.getAttribute("aria-pressed") === "true"));
     const selected = options[index];
     setPosition(previous => previous.index === index && previous.count === options.length ? previous : {index, count: options.length});
-    if (selected) rail.scrollTo({left: Math.max(0, selected.offsetLeft - (rail.clientWidth-selected.offsetWidth)/2), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
+    if (selected) rail.scrollTo({left: Math.max(0, selected.getBoundingClientRect().left - rail.getBoundingClientRect().left + rail.scrollLeft - (rail.clientWidth-selected.offsetWidth)/2), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
   }, [children]);
   function step(direction: number) {
     const options = Array.from(railRef.current?.querySelectorAll<HTMLButtonElement>("button[aria-pressed]") ?? []);
@@ -2647,13 +2647,13 @@ function AvatarLabOptionRail({label, children}: {label: string; children: ReactN
     options[Math.max(0, Math.min(options.length-1, index+direction))]?.click();
   }
   return <div role="group" aria-label={label} className="min-w-0">
-    <div ref={railRef} className="relative flex min-w-0 snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain px-1 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>button]:w-[calc(50%-4px)] [&>button]:shrink-0 [&>button]:snap-center">
+    <div ref={railRef} className="relative flex min-w-0 snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain px-[50%] py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>button]:w-max [&>button]:shrink-0 [&>button]:snap-center [&>button]:whitespace-nowrap">
       {children}
     </div>
     <div className="mt-1 flex items-center justify-center gap-4">
-      <button type="button" aria-label={`Previous ${label} option`} disabled={position.index === 0} onClick={()=>step(-1)} className="grid h-8 w-9 place-items-center rounded-lg border border-cyan-100/15 bg-cyan-200/5 text-cyan-100 transition hover:bg-cyan-200/15 disabled:opacity-25"><ChevronLeft aria-hidden="true" className="h-4 w-4"/></button>
+      <button type="button" aria-label={`Previous ${label} option`} disabled={position.index === 0} onClick={()=>step(-1)} className="grid h-8 w-9 place-items-center text-cyan-100 transition hover:text-white active:scale-90 disabled:opacity-25"><ChevronLeft aria-hidden="true" className="h-4 w-4"/></button>
       <span aria-live="polite" className="min-w-9 text-center text-[9px] font-bold tabular-nums text-cyan-100/70">{position.count ? `${position.index+1} / ${position.count}` : ""}</span>
-      <button type="button" aria-label={`Next ${label} option`} disabled={position.index >= position.count-1} onClick={()=>step(1)} className="grid h-8 w-9 place-items-center rounded-lg border border-cyan-100/15 bg-cyan-200/5 text-cyan-100 transition hover:bg-cyan-200/15 disabled:opacity-25"><ChevronRight aria-hidden="true" className="h-4 w-4"/></button>
+      <button type="button" aria-label={`Next ${label} option`} disabled={position.index >= position.count-1} onClick={()=>step(1)} className="grid h-8 w-9 place-items-center text-cyan-100 transition hover:text-white active:scale-90 disabled:opacity-25"><ChevronRight aria-hidden="true" className="h-4 w-4"/></button>
     </div>
   </div>;
 }
@@ -2664,7 +2664,7 @@ function AvatarClothingColors({label, value, onChange}: {
   onChange: (color: SoundFitnessAvatarClothingColor) => void;
 }) {
   return <fieldset className="mt-3 min-w-0">
-    <legend className="mb-2 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72">{label}</legend>
+    <legend className={`mb-2 ${layoutStyles.avatarOptionTitle}`}>{label}</legend>
     <AvatarLabOptionRail label={label}>
       {(Object.entries(soundFitnessAvatarClothingColors) as [SoundFitnessAvatarClothingColor, typeof soundFitnessAvatarClothingColors.navy][]).map(([id,color]) =>
         <button key={id} type="button" aria-label={`${label}: ${color.label}`} aria-pressed={value === id} onClick={()=>onChange(id)}
@@ -2725,10 +2725,10 @@ function AvatarLabMenu({
         className="relative flex h-[min(760px,calc(100dvh-16px))] max-h-[calc(100dvh-16px)] min-h-0 w-full max-w-[820px] flex-col overflow-hidden rounded-[18px] border border-cyan-100/34 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.2),transparent_32%),radial-gradient(circle_at_92%_12%,rgba(251,191,36,0.12),transparent_28%),linear-gradient(145deg,rgba(8,15,30,0.98),rgba(2,6,23,0.98))] shadow-[0_26px_80px_rgba(0,0,0,0.68),0_0_42px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.12)]"
         role="dialog"
       >
-        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-3 py-2.5">
+        <header className="absolute inset-x-0 top-0 z-40 flex items-center justify-between gap-3 bg-gradient-to-b from-slate-950/85 to-transparent px-3 py-2.5">
           <div className="flex min-w-0 items-center gap-2.5">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-cyan-100/28 bg-cyan-300/12 text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.18)]">
-              <Sparkles aria-hidden="true" className="h-4.5 w-4.5" />
+            <span className="grid h-9 w-9 shrink-0 place-items-center text-cyan-100 drop-shadow-[0_0_8px_rgba(34,211,238,0.3)]">
+              <UserRoundPen aria-hidden="true" className="h-5 w-5" strokeWidth={1.8} />
             </span>
             <span className="min-w-0">
               <span className="block text-[8px] font-black uppercase tracking-[0.2em] text-cyan-200/72">
@@ -2741,7 +2741,7 @@ function AvatarLabMenu({
           </div>
           <button
             aria-label="Close Avatar Lab"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-white/12 bg-slate-950/52 text-slate-200 transition hover:border-cyan-100/42 hover:text-cyan-100"
+            className="grid h-9 w-9 shrink-0 place-items-center text-slate-200 transition hover:text-cyan-100 active:scale-90"
             onClick={onClose}
             type="button"
           >
@@ -2749,25 +2749,22 @@ function AvatarLabMenu({
           </button>
         </header>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,42%)_minmax(0,1fr)] overflow-hidden min-[700px]:grid-cols-2 min-[700px]:grid-rows-1">
-          <div className="relative flex min-h-0 flex-col border-b border-white/8 p-2 min-[700px]:border-b-0 min-[700px]:border-r">
-            <div data-avatar-lab-preview="true" className="relative isolate min-h-0 w-full flex-1 overflow-hidden rounded-[14px] bg-cover bg-center" style={{ backgroundImage: `linear-gradient(rgba(2,6,23,.30),rgba(2,6,23,.42)),url("${backgroundImage}")` }}>
+        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,60%)_minmax(0,1fr)] overflow-hidden">
+          <div className="relative flex min-h-0 flex-col border-b border-white/8">
+            <div data-avatar-lab-preview="true" className="relative isolate min-h-0 w-full flex-1 overflow-hidden bg-cover bg-center" style={{ backgroundImage: `linear-gradient(rgba(2,6,23,.30),rgba(2,6,23,.42)),url("${backgroundImage}")` }}>
               <div className={layoutStyles.avatarEnvironment} aria-hidden="true" />
               <SoundFitnessAvatar3D
                 appearance={previewShirt ? { ...appearance, shirt: previewShirt } : appearance}
-                className="absolute inset-0 z-10 h-full w-full rounded-[14px]"
+                className="absolute inset-x-0 top-14 bottom-12 z-10 w-full"
                 emotePreset={emotePreset}
                 portrait={activeTab === "face"}
                 interactive
               />
               {previewShirt ? <p role="status" className="absolute inset-x-2 bottom-2 z-20 rounded-lg border border-sky-200/30 bg-slate-950/90 px-2 py-1.5 text-center text-[10px] text-sky-100">Try-on only · outfit not saved</p> : null}
             </div>
-          </div>
-
-          <div className="flex min-h-0 min-w-0 flex-col overflow-hidden p-2.5">
             <div
               aria-label="Avatar customization categories"
-              className="grid shrink-0 grid-cols-7 overflow-hidden rounded-[10px] border border-white/10 bg-slate-950/48"
+              className="absolute inset-x-2 bottom-0 z-30 grid grid-cols-7 bg-gradient-to-t from-slate-950/95 to-slate-950/25"
               role="tablist"
             >
               {avatarLabTabs.map(({ icon: Icon, id, label }) => {
@@ -2775,10 +2772,10 @@ function AvatarLabMenu({
                 return (
                   <button
                     aria-selected={active}
-                    className={`grid min-h-12 min-w-0 place-items-center gap-0.5 border-r border-white/8 px-1 py-1.5 text-[7px] font-black uppercase tracking-[0.06em] transition last:border-r-0 ${
+                    className={`grid min-h-12 min-w-0 place-items-center gap-0.5 px-1 py-1.5 text-[7px] font-black uppercase tracking-[0.06em] transition last:border-r-0 ${
                       active
-                        ? "bg-cyan-300/16 text-cyan-100 shadow-[inset_0_-2px_0_rgba(103,232,249,0.9)]"
-                        : "text-slate-500 hover:bg-white/[0.04] hover:text-slate-200"
+                        ? "text-cyan-100 shadow-[inset_0_-2px_0_rgba(103,232,249,0.9)]"
+                        : "text-slate-500 hover:text-slate-200"
                     }`}
                     key={id}
                     onClick={() => { setPreviewShirt(null); setActiveTab(id); }}
@@ -2792,10 +2789,13 @@ function AvatarLabMenu({
               })}
             </div>
 
+          </div>
+
+          <div className="flex min-h-0 min-w-0 flex-col overflow-hidden p-2.5">
             <div key={activeTab} data-dashboard-orbiter-local-scroll="true" data-avatar-lab-options="true" className="mt-2.5 min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pr-1 [scrollbar-color:rgba(34,211,238,0.38)_rgba(15,23,42,0.36)] [scrollbar-width:thin]">
               {activeTab === "body" ? (
                 <>
-                  <div className="mb-2 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72">
+                  <div className={`mb-2 ${layoutStyles.avatarOptionTitle}`}>
                     Athlete Profile
                   </div>
                   <AvatarLabOptionRail label="Athlete Profile">
@@ -2826,7 +2826,7 @@ function AvatarLabMenu({
 
               {activeTab === "face" ? (
                 <>
-                  <div className="mb-2 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72">
+                  <div className={`mb-2 ${layoutStyles.avatarOptionTitle}`}>
                     Facial Features
                   </div>
                   <AvatarLabOptionRail label="Facial Features">
@@ -2848,7 +2848,7 @@ function AvatarLabMenu({
                       />
                     );})}
                   </AvatarLabOptionRail>
-                  <div className="mb-2 mt-3 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72">
+                  <div className={`mb-2 mt-3 ${layoutStyles.avatarOptionTitle}`}>
                     Eyes
                   </div>
                   <AvatarLabOptionRail label="Eyes">
@@ -2867,16 +2867,13 @@ function AvatarLabMenu({
                       />
                     ))}
                   </AvatarLabOptionRail>
-                  <p className="mt-3 text-[9px] leading-4 text-slate-400">
-                    Expressions set the smile, cheeks and pupils; the figure keeps its idle sway.
-                  </p>
                 </>
               ) : null}
 
               {activeTab === "outfit" ? (
                 <>
                   <div
-                    className="mb-2 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72"
+                    className={`mb-2 ${layoutStyles.avatarOptionTitle}`}
                     id={`${outfitSectionId}-shirt`}
                   >
                     Shirt Style
@@ -2903,7 +2900,7 @@ function AvatarLabMenu({
                   </AvatarLabOptionRail>
                   <AvatarClothingColors label="Shirt Color" value={appearance.shirtColor} onChange={(color)=>updateAppearance("shirtColor",color)}/>
                   <div
-                    className="mb-2 mt-3 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72"
+                    className={`mb-2 mt-3 ${layoutStyles.avatarOptionTitle}`}
                     id={`${outfitSectionId}-pants`}
                   >
                     Jogger Color
@@ -2927,7 +2924,7 @@ function AvatarLabMenu({
                     ))}
                   </AvatarLabOptionRail>
                   <div
-                    className="mb-2 mt-3 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72"
+                    className={`mb-2 mt-3 ${layoutStyles.avatarOptionTitle}`}
                     id={`${outfitSectionId}-shoes`}
                   >
                     Shoe Color
@@ -2955,7 +2952,7 @@ function AvatarLabMenu({
 
               {activeTab === "skin" ? (
                 <>
-                  <div className="mb-2 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72">
+                  <div className={`mb-2 ${layoutStyles.avatarOptionTitle}`}>
                     Skin Tone
                   </div>
                   <AvatarLabOptionRail label="Skin Tone">
@@ -2979,7 +2976,7 @@ function AvatarLabMenu({
 
               {activeTab === "hair" ? (
                 <>
-                  <div className="mb-2 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72">
+                  <div className={`mb-2 ${layoutStyles.avatarOptionTitle}`}>
                     Hair Style
                   </div>
                   <AvatarLabOptionRail label="Hair Style">
@@ -2999,7 +2996,7 @@ function AvatarLabMenu({
                       />
                     ))}
                   </AvatarLabOptionRail>
-                  <div className="mb-2 mt-3 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72">
+                  <div className={`mb-2 mt-3 ${layoutStyles.avatarOptionTitle}`}>
                     Hair Colour
                   </div>
                   <AvatarLabOptionRail label="Hair Color">
@@ -3023,7 +3020,7 @@ function AvatarLabMenu({
 
               {activeTab === "gear" ? (
                 <>
-                  <div className="mb-2 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72">
+                  <div className={`mb-2 ${layoutStyles.avatarOptionTitle}`}>
                     Gear Style
                   </div>
                   <AvatarLabOptionRail label="Gear Style">
@@ -3049,7 +3046,7 @@ function AvatarLabMenu({
 
               {activeTab === "motion" ? (
                 <>
-                  <div className="mb-2 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72">
+                  <div className={`mb-2 ${layoutStyles.avatarOptionTitle}`}>
                     Emote Loop
                   </div>
                   <div role="group" aria-label="Emote Loop" className="grid grid-cols-2 gap-1.5">
@@ -3078,7 +3075,7 @@ function AvatarLabMenu({
         <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-white/10 bg-slate-950/46 px-3 py-2">
           <div className="flex items-center gap-1.5">
             <button
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-[9px] border border-white/12 bg-white/[0.035] px-2.5 text-[8px] font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-amber-200/38 hover:text-amber-100"
+              className="inline-flex min-h-9 items-center gap-1.5 px-2.5 text-[8px] font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-amber-200/38 hover:text-amber-100"
               onClick={onReset}
               type="button"
             >
@@ -3086,7 +3083,7 @@ function AvatarLabMenu({
               Reset
             </button>
             <Link
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-[9px] border border-white/12 bg-white/[0.035] px-2.5 text-[8px] font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-cyan-200/38 hover:text-cyan-100"
+              className="inline-flex min-h-9 items-center gap-1.5 px-2.5 text-[8px] font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-cyan-200/38 hover:text-cyan-100"
               href={bodyMapHref}
             >
               Body Map
@@ -3094,7 +3091,7 @@ function AvatarLabMenu({
             </Link>
           </div>
           <button
-            className="inline-flex min-h-9 items-center gap-2 rounded-[9px] border border-cyan-100/58 bg-cyan-300/18 px-4 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-50 shadow-[0_0_20px_rgba(34,211,238,0.2)] transition hover:bg-cyan-300/26"
+            className="inline-flex min-h-9 items-center gap-2 px-4 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:text-white active:scale-95"
             onClick={onClose}
             type="button"
           >
@@ -4232,7 +4229,7 @@ function MuscleGroupPanel({
       onPointerMove={muscleHover.clearIfOffTarget}
     >
       {compact ? (
-        <div className={`mb-1 grid items-center gap-1 ${compactShowsAll ? "grid-cols-1" : "grid-cols-[24px_minmax(0,1fr)_24px]"}`}>
+        <div className={`${layoutStyles.controlTitleRow} mb-1 grid items-center gap-1 ${compactShowsAll ? "grid-cols-1" : "grid-cols-[24px_minmax(0,1fr)_24px]"}`}>
           {compactShowsAll ? null : (
             <ScrollControlButton
               direction="left"

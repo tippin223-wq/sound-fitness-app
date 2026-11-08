@@ -1,5 +1,5 @@
 export const CONTENT_BANKS = [
-  { id: "news", name: "News & events", group: "Communication", description: "Dashboard articles, announcements and dated events with photos", fields: ["Kind", "Topic", "Image URL", "Image description", "Published at", "Source", "Link URL", "Link label", "Starts at", "Ends at", "Location", "Price", "Capacity", "Spots left"] },
+  { id: "news", name: "News & events", group: "Communication", description: "Dashboard articles, announcements and dated events with photos", fields: ["Kind", "Topic", "Article text", "Image URL", "Image description", "Photo credit", "Photo source URL", "Photo license", "Photo license URL", "Published at", "Source", "Source URL", "Link URL", "Link label", "Starts at", "Ends at", "Location", "Price", "Capacity", "Spots left"] },
   { id: "chyron", name: "Chyron", group: "Communication", description: "Quotes, tips, trivia and announcements", fields: ["Message", "Author", "Type", "Link"] },
   { id: "challenges", name: "Challenges", group: "Progress & rewards", description: "Challenge sets, targets and difficulty", fields: ["Category", "Difficulty", "Target", "Completion rule", "Reward reference"] },
   { id: "rewards", name: "Rewards", group: "Progress & rewards", description: "Currency amounts, rarity and item rewards", fields: ["Reward type", "Rarity", "Amount", "Display amount", "Item reference"] },

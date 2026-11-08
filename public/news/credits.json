@@ -1,0 +1,14 @@
+{
+  "provider": "Unsplash",
+  "license": "https://unsplash.com/license",
+  "assets": {
+    "strength-training.jpg": "https://images.unsplash.com/photo-1517836357463-d25dfeac3438",
+    "balanced-nutrition.jpg": "https://images.unsplash.com/photo-1490645935967-10de6ba17061",
+    "sleep-recovery.jpg": "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85",
+    "fitness-watch.jpg": "https://images.unsplash.com/photo-1523275335684-37898b6baf30",
+    "sports-court.jpg": "https://images.unsplash.com/photo-1546519638-68e109498ffc",
+    "swimming.jpg": "https://images.unsplash.com/photo-1530549387789-4c1017266635",
+    "cycling.jpg": "https://images.unsplash.com/photo-1485965120184-e220f721d03e",
+    "tennis.jpg": "https://images.unsplash.com/photo-1554068865-24cecd4e34b8"
+  }
+}

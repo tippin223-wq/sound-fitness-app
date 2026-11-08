@@ -255,7 +255,15 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
+  // Only private page trees need session work. Public media (including GLB,
+  // MP4, WASM and model files) must go directly to the CDN, not a function.
+  // Keep auth checks on prefetches too; an RSC request can contain private data.
   matcher: [
-    "/((?!api|_next/static|_next/image|_next/data|favicon.ico|robots.txt|sitemap.xml|manifest.json|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|map|txt|xml|json|woff|woff2|ttf)$).*)",
+    "/admin/:path*",
+    "/coach/:path*",
+    "/dashboard/:path*",
+    "/member/:path*",
+    "/performance/:path*",
+    "/recovery/:path*",
   ],
 };

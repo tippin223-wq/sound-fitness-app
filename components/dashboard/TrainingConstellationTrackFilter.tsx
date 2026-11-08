@@ -125,7 +125,7 @@ export default function TrainingConstellationTrackFilter({
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={`Filter training tracks: ${label}`}
-        className="inline-flex min-h-8 items-center gap-2 rounded-xl border border-cyan-200/20 bg-slate-950/80 px-3 py-2 text-[9px] font-black uppercase tracking-[0.13em] text-cyan-100 transition hover:border-cyan-200/45 hover:bg-cyan-300/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200"
+        className="inline-flex min-h-7 items-center gap-1 border-0 bg-transparent px-1 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-cyan-100 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200"
         onClick={() => setOpen((current) => !current)}
         onKeyDown={(event) => {
           if (event.key === "ArrowDown") {
@@ -136,7 +136,7 @@ export default function TrainingConstellationTrackFilter({
         ref={triggerRef}
         type="button"
       >
-        <Filter aria-hidden="true" className="h-3.5 w-3.5 text-cyan-200" />
+        <Filter aria-hidden="true" className="h-3 w-3 text-cyan-200" />
         {label}
         <ChevronDown aria-hidden="true" className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>

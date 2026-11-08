@@ -8450,3 +8450,17 @@ html body .dashboard-header-vortex-shell[data-header-focus-flipping="true"] {
 @media (prefers-reduced-motion: reduce) {
   html body .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus] { transition: none !important; }
 }
+
+/* Idle nav shares the visible midline of the crest and menu joystick.
+   Preserve its fitted lane, horizontal position and expanded placement. */
+@media (max-width: 940px) {
+  html body .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus="content"] .dashboard-header-selector-joystick {
+    translate: 20px 10.8px !important;
+  }
+}
+
+@media (max-width: 767px) {
+  html body .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus="content"] .dashboard-header-selector-joystick {
+    translate: 20px .8px !important;
+  }
+}

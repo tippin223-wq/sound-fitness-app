@@ -36759,3 +36759,106 @@ html
     transition: none !important;
   }
 }
+
+
+/* Member text scale: enlarge type, not rem units, cards, icons or controls. */
+[data-member-app] :is([class*="text-[5px]"], [class*="text-[5.5px]"], [class*="text-[6px]"], [class*="text-[6.5px]"], [class*="text-[7px]"], [class*="text-[7.5px]"], [class*="text-[8px]"]) {
+  font-size: 11px !important;
+  letter-spacing: .025em;
+}
+[data-member-app] :is([class*="text-[9px]"], [class*="text-[10px]"], [class*="text-[11px]"], [class~="text-xs"]) {
+  font-size: 13px !important;
+  letter-spacing: .025em;
+}
+[data-member-app] :is([class*="text-[12px]"], [class~="text-sm"]) { font-size: 15px; }
+
+/* Keep shared reward artwork fitted to the restored account dropdown rows. */
+.dashboard-profile-claim-dropdown__icon > :is(img, svg) {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  flex-shrink: 0;
+}
+
+/* The compact card joystick shares the title band when the indicator strip is hidden. */
+[data-card-navigation-open] .dashboard-hero-horizontal-orbit :is(h2, [data-card-joystick-title]) {
+  min-height: 40px;
+  padding-inline-start: 68px;
+  display: flex;
+  align-items: center;
+}
+[data-card-navigation-open] [data-dashboard-hero-toolbar] [role="tablist"] {
+  left: calc(50% + 36px);
+  max-width: calc(100% - 80px);
+}
+
+[data-card-navigation-open] [data-dashboard-hero-toolbar][data-news-toolbar="true"] h2 {
+  min-height: 44px;
+  padding-inline-start: 0;
+}
+[data-card-joystick-title] { column-gap: .25em; }
+
+[data-card-navigation-open] .dashboard-hero-horizontal-orbit header > p {
+  padding-inline-start: 68px;
+}
+
+/* Floating card indicators need their own contrast over bright card artwork. */
+[data-card-navigation-open] [data-dashboard-hero-toolbar] [role="tablist"] {
+  padding-inline: 10px;
+  border: 0;
+  border-radius: 0;
+  background: linear-gradient(90deg, transparent, rgba(2,7,19,.82) 18%, rgba(2,7,19,.82) 82%, transparent);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+/* Keep horizontal navigation icons unboxed, including each individual option. */
+[data-card-navigation-open] [data-dashboard-hero-toolbar] [role="tablist"],
+[data-card-navigation-open] [data-dashboard-hero-indicator-index] {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Contrast belongs to the shared strip; individual navigation icons stay bare. */
+[data-card-navigation-open] [data-dashboard-hero-toolbar] [role="tablist"] {
+  background: linear-gradient(90deg, transparent, rgba(2,7,19,.84) 18%, rgba(2,7,19,.84) 82%, transparent) !important;
+}
+
+/* Reserve the joystick's horizontal footprint in each card's title band. */
+[data-card-navigation-open] [data-dashboard-orbiter-row] header:has(> h2),
+[data-card-navigation-open] [data-dashboard-orbiter-row] header:has(> div > h2) {
+  padding-inline-start: 68px;
+  min-width: 0;
+}
+[data-card-navigation-open] [data-dashboard-orbiter-row] header :is(h2, p) {
+  padding-inline-start: 0;
+}
+[data-card-navigation-open] [data-dashboard-hero-toolbar][data-news-toolbar="true"] h2 {
+  left: 84px;
+  max-width: calc(100% - 96px);
+  padding-inline-start: 0;
+}
+
+/* The constellation header owns the clearance; do not indent its heading twice. */
+[data-card-navigation-open] .dashboard-hero-horizontal-orbit header h2 {
+  padding-inline-start: 0;
+}
+
+/* Card symbols are part of the title, with no separate icon tile. */
+[data-card-navigation-open] .dashboard-hero-horizontal-orbit h2:has(.dashboard-card-title-icon),
+[data-card-navigation-open] [data-card-joystick-title] {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.dashboard-card-title-icon {
+  display: inline-block;
+  width: 23px;
+  height: 23px;
+  flex: 0 0 23px;
+  filter: drop-shadow(0 0 6px currentColor);
+}

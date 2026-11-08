@@ -18,7 +18,7 @@ import {
   useRef,
   useState,
 } from "react";
-import Link from "next/link";
+import Link from "@/components/IntentLink";
 import { Bandage, Salad } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";

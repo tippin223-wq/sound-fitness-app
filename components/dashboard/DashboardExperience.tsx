@@ -1,6 +1,8 @@
 "use client";
 
-import WeeklyRewardSpin from "./WeeklyRewardSpin";
+import WeeklyRewardSpin, { RewardArtwork } from "./WeeklyRewardSpin";
+import NewsPhotoCredit from "./NewsPhotoCredit";
+import NewsDiscussion, { NewsArticleActions, NewsArticleOpen } from "./NewsDiscussion";
 import { inspectSupportRecords } from "@/lib/planning/supportSignalRecords";
 import HeaderRewardCount from "./HeaderRewardCount";
 import BodyCommandGlyph from "@/components/dashboard/BodyCommandGlyph";
@@ -13,7 +15,7 @@ import { useProgramProgress } from "@/lib/programs/useProgramProgress";
 import { WEEKLY_REWARDS } from "@/lib/weeklyRewardRarity";
 
 import ChallengeSetProgress from "./ChallengeSetProgress";
-import { lifetimeAchievementMilestones } from "@/lib/planning/achievementEvidence";
+import { readAchievementMilestones, nextAchievementPaths } from "@/lib/planning/achievementEvidence";
 import { dashboardCategoryEvidence } from "@/lib/planning/dashboardCategoryEvidence";
 import { dashboardCompoundEvidence } from "@/lib/planning/dashboardCompoundEvidence";
 import { dashboardDailySets } from "@/lib/planning/dashboardDailySets";
@@ -37,7 +39,7 @@ import AppAdminRows from "./AppAdminRows";
 import CoachDashboardRows from "./CoachDashboardRows";
 import { COACH_ROWS, coachWebsite } from "@/lib/coachDashboard";
 import { APP_ADMIN_ROWS } from "@/lib/appAdmin";
-import Link from "next/link";
+import Link from "@/components/IntentLink";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Activity,
@@ -104,12 +106,10 @@ import DashboardCalendar, {
 } from "@/components/dashboard/DashboardCalendar";
 import { useDashboardCalendarEntries } from "@/components/dashboard/useDashboardCalendarEntries";
 import TrainingConstellationSessionCell from "@/components/dashboard/TrainingConstellationSessionCell";
-import TrainingConstellationTrackFilter from "@/components/dashboard/TrainingConstellationTrackFilter";
 import meterCardStyles from "@/components/dashboard/HeroMeterCards.module.css";
 import masterJourneyStyles from "@/components/dashboard/MasterJourneyLayout.module.css";
 import { normalizeCalendarItems, calendarDateKey, calendarAddDays, calendarWeekStart, formatCalendarTime, parseCalendarDate } from "@/lib/dashboard-calendar";
 import { getConstellationWeek, getConstellationSessions, type TrainingConstellationLane } from "@/lib/training-constellation";
-import DashboardAccessibilityNavigator from "@/components/dashboard/DashboardAccessibilityNavigator";
 import dynamic from "next/dynamic";
 import BodyCommandCenterCard, { DailyCheckInPopup } from "@/components/dashboard/BodyCommandCenterCard";
 import DashboardScrollIndicator from "@/components/dashboard/DashboardScrollIndicator";
@@ -119,7 +119,7 @@ import { getSegmentedRingDashes } from "@/components/dashboard/segmentedRing";
 import DashboardLogo3D from "@/components/dashboard/DashboardLogo3D";
 import DashboardMeterMenuIcon3D from "@/components/dashboard/DashboardMeterMenuIcon3D";
 import { DashboardGearIcon3D } from "@/components/dashboard/DashboardProfileActionIcons3D";
-import DashboardScrollButton3D from "@/components/dashboard/DashboardScrollButton3D";
+import DashboardScrollButton3D, { type DashboardScrollButtonGlyph } from "@/components/dashboard/DashboardScrollButton3D";
 import DashboardTabIcon from "@/components/dashboard/DashboardTabIcon";
 import DashboardRowNavigationIcon from "@/components/dashboard/DashboardRowNavigationIcon";
 import AdaptiveColumnIndicators from "@/components/dashboard/AdaptiveColumnIndicators";
@@ -5115,6 +5115,7 @@ const dashboardDailyToolLaunchers: readonly DashboardDailyToolLauncher[] = [
   { description: "Write a training journal entry.", href: ROUTES.dashboard.journal, icon: Pencil, id: "journal", label: "Journal", tone: "violet" },
   { description: "Book a session.", href: ROUTES.dashboard.sessionBooking, icon: CalendarCheck, id: "book", label: "Book", tone: "cyan" },
   { description: "Charts, trends and recent activity.", href: ROUTES.dashboard.stats, icon: Activity, id: "stats", label: "Stats", tone: "sky" },
+  { description: "Plan completion, check-ins and training milestones.", href: ROUTES.dashboard.progress, icon: ListChecks, id: "progress", label: "Progress", tone: "amber" },
   { description: "Message your coach.", href: ROUTES.dashboard.coachMessaging, icon: MessageCircle, id: "messages", label: "Messages", tone: "fuchsia" },
   { description: "Community feed.", href: ROUTES.dashboard.social, icon: Users, id: "social", label: "Social", tone: "fuchsia" },
   { description: "Badges, streaks and rewards.", href: ROUTES.dashboard.achievements, icon: Star, id: "rewards", label: "Rewards", tone: "amber" },
@@ -5161,6 +5162,7 @@ const dashboardNewsFilterToneStyles: Record<
   DashboardNewsFeedFilter,
   { active: string; idle: string }
 > = {
+  sports: {active: "border-blue-200/55 bg-blue-300/20 text-blue-50", idle: "border-blue-200/22 text-blue-100/72"},
   all: {
     active:
       "border-cyan-100/55 bg-cyan-300/20 text-cyan-50 shadow-[0_0_20px_rgba(34,211,238,0.24)]",
@@ -5203,6 +5205,18 @@ const dashboardNewsFilterToneStyles: Record<
   },
 };
 
+const dashboardNewsTopicIcons = {
+  all: LayoutGrid,
+  events: CalendarDays,
+  training: Dumbbell,
+  nutrition: Apple,
+  recovery: HeartPulse,
+  gear: Gauge,
+  sports: Activity,
+  community: Users,
+  world: Globe,
+} as const;
+
 const dashboardNewsTopicToneStyles: Record<
   DashboardNewsFeedTopic,
   {
@@ -5215,6 +5229,7 @@ const dashboardNewsTopicToneStyles: Record<
     soft: string;
   }
 > = {
+  sports: { badge: "border-blue-200/30 bg-blue-300/12 text-blue-100", border: "rgba(96,165,250,.56)", chip: "border-blue-200/28 bg-blue-300/12 text-blue-100", glow: "rgba(96,165,250,.13)", label: "Sports", meta: "text-blue-100/72", soft: "rgba(96,165,250,.085)" },
   community: {
     badge:
       "border-fuchsia-200/30 bg-fuchsia-300/12 text-fuchsia-100/85 shadow-[0_0_14px_rgba(232,121,249,0.14)]",
@@ -5231,7 +5246,7 @@ const dashboardNewsTopicToneStyles: Record<
     border: "rgba(167, 139, 250, 0.56)",
     chip: "border-violet-200/28 bg-violet-300/12 text-violet-100",
     glow: "rgba(167, 139, 250, 0.13)",
-    label: "Gear",
+    label: "Fitness Tech",
     meta: "text-violet-100/72",
     soft: "rgba(167, 139, 250, 0.085)",
   },
@@ -5251,7 +5266,7 @@ const dashboardNewsTopicToneStyles: Record<
     border: "rgba(45, 212, 191, 0.56)",
     chip: "border-teal-200/28 bg-teal-300/12 text-teal-100",
     glow: "rgba(45, 212, 191, 0.13)",
-    label: "Recovery",
+    label: "Health & Recovery",
     meta: "text-teal-100/72",
     soft: "rgba(45, 212, 191, 0.08)",
   },
@@ -12852,7 +12867,7 @@ function DashboardHeaderMenuView({
                 <button
                   aria-controls="dashboard-claim-rewards-dropdown"
                   aria-expanded={dashboardClaimRewardsDropdownOpen}
-                  aria-label={"Open reward status. Claims unavailable without a verified reward ledger"}
+                  aria-label="Open account rewards"
                   className="dashboard-profile-claim-trigger dashboard-profile-claim-trigger--webgl shrink-0 text-slate-200"
                   data-dashboard-tooltip="Reward status"
                   data-dropdown-open={
@@ -12881,7 +12896,35 @@ function DashboardHeaderMenuView({
                 </button>
 
                 {dashboardClaimRewardsDropdownOpen ? (
-                  <div id="dashboard-claim-rewards-dropdown" role="region" aria-label="Reward status" className="dashboard-profile-claim-dropdown"><p>{dashboardRewardEvidence.canClaim ? "Weekly rewards" : "Account rewards"}</p><p>{dashboardRewardEvidence.description}</p><p>Coins: {dashboardRewardEvidence.tokensLabel} · Bolts: {dashboardRewardEvidence.pointsLabel}</p><p>Sapphire: {dashboardRewardEvidence.sapphireLabel} · Topaz: {dashboardRewardEvidence.topazLabel}</p><p>Ruby: {dashboardRewardEvidence.rubyLabel} · Emerald: {dashboardRewardEvidence.emeraldsLabel}</p><p>Claim earned weekly spins on the Consistency card.</p></div>
+                  <div id="dashboard-claim-rewards-dropdown" role="region" aria-label="Account rewards"
+                    className="dashboard-profile-claim-dropdown absolute right-0 top-[calc(100%+0.5rem)] z-[270] w-[19rem] max-w-[calc(100vw-1.5rem)] p-4 text-slate-100">
+                    <div className="dashboard-profile-claim-dropdown__header">
+                      <span className="dashboard-profile-claim-dropdown__title">Account rewards</span>
+                      <button type="button" aria-label="Close account rewards" className="grid h-7 w-7 place-items-center rounded-full text-slate-400 transition hover:bg-white/10 hover:text-white focus-visible:outline-cyan-200" onClick={() => setDashboardClaimRewardsDropdownOpen(false)}>
+                        <X aria-hidden="true" className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="max-h-[min(26rem,calc(100dvh-12rem))] overflow-y-auto overscroll-contain [scrollbar-width:thin]" data-dashboard-orbiter-local-scroll="true" onWheel={(event) => event.stopPropagation()}>
+                      <ul className="dashboard-profile-claim-dropdown__list">
+                        {[
+                          { label: "Sound coins", value: dashboardRewardEvidence.tokensLabel, id: "sound-points", color: "#fbbf24" },
+                          { label: "Sound bolts", value: dashboardRewardEvidence.pointsLabel, id: "recovery-credit", color: "#38bdf8" },
+                          { label: "Sapphires", value: dashboardRewardEvidence.sapphireLabel, id: "emerald", gemType: "sapphire", color: "#38bdf8" },
+                          { label: "Topaz", value: dashboardRewardEvidence.topazLabel, id: "emerald", gemType: "topaz", color: "#fbbf24" },
+                          { label: "Rubies", value: dashboardRewardEvidence.rubyLabel, id: "emerald", gemType: "ruby", color: "#fb7185" },
+                          { label: "Emeralds", value: dashboardRewardEvidence.emeraldsLabel, id: "emerald", gemType: "emerald", color: "#34d399" },
+                        ].map((reward) => (
+                          <li className="dashboard-profile-claim-dropdown__item" key={reward.label}>
+                            <span aria-hidden="true" className="dashboard-profile-claim-dropdown__icon"><RewardArtwork id={reward.id} gemType={reward.gemType} /></span>
+                            <span className="dashboard-profile-claim-dropdown__meta"><span className="dashboard-profile-claim-dropdown__label">{reward.label}</span></span>
+                            <span className="text-sm font-black tabular-nums" style={{ color: reward.color }}>{reward.value}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="mt-3 text-xs leading-relaxed text-slate-400">Claim earned weekly spins on the Consistency card.</p>
+                      <details className="mt-2 text-xs leading-relaxed text-slate-500"><summary className="cursor-pointer text-cyan-100/70">Account connection</summary><p className="mt-1">{dashboardRewardEvidence.description}</p></details>
+                    </div>
+                  </div>
                 ) : null}
 
                 {/* Latched-but-closed: kept mounted (scenes stay registered
@@ -15470,10 +15513,7 @@ function DashboardWeeklyRecapRowView({
             <button type="button" aria-label="Next recap week" className="grid h-7 w-7 shrink-0 place-items-center text-cyan-100/75 hover:text-cyan-100 focus-visible:outline focus-visible:outline-cyan-200" onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); onWeekChange(1); }}><ChevronRight className="h-3.5 w-3.5" /></button>
           </div>
           <div className="-mt-1 flex min-h-8 min-w-0 shrink-0 items-center pb-0 sm:min-h-9">
-            <div className="flex min-w-0 items-center gap-2.5" style={{ color: activeWeeklyRecapIndex === 1 ? "#6ee7b7" : activeWeeklyRecapIndex === 2 ? "#fde047" : activeWeeklyRecapIndex === 3 ? "#93c5fd" : "#67e8f9" }}>
-              <span aria-hidden="true" className="grid h-7 w-7 shrink-0 place-items-center text-current">
-                {activeWeeklyRecapIndex === 0 ? <Dumbbell className="h-5 w-5" /> : activeWeeklyRecapIndex === 1 ? <Apple className="h-5 w-5" /> : activeWeeklyRecapIndex === 2 ? <ClipboardCheck className="h-5 w-5" /> : <Activity className="h-5 w-5" />}
-              </span>
+            <div className="flex min-w-0 items-center gap-2.5 pl-[60px]" style={{ color: activeWeeklyRecapIndex === 1 ? "#6ee7b7" : activeWeeklyRecapIndex === 2 ? "#fde047" : activeWeeklyRecapIndex === 3 ? "#93c5fd" : "#67e8f9" }}>
               <h2 className="min-w-0 line-clamp-2 text-xl font-black leading-6 tracking-tight text-current sm:text-2xl sm:leading-7">{dashboardWeeklyRecapCards[activeWeeklyRecapIndex]?.title}</h2>
             </div>
           </div>
@@ -16973,6 +17013,7 @@ export default function DashboardExperience({
   // costs zero React renders instead of one full-page render per pointermove.
   const dashboardPageAnalogElementRef = useRef<HTMLButtonElement | null>(null);
   const dashboardPageAnalogRollRef = useRef(0);
+  const dashboardPageAnalogDragOffsetRef = useRef({ x: 0, y: 0 });
   const [
     dashboardCalendarOrbitCommand,
     setDashboardCalendarOrbitCommand,
@@ -17818,8 +17859,14 @@ export default function DashboardExperience({
   // sibling boolean is folded into the orbit distance instead. Invariant:
   // news open implies activeDashboardHeroCardIndex === 0.
   const [dashboardHeroNewsOpen, setDashboardHeroNewsOpen] = useState(false);
-  const [dashboardNewsFeedFilter, setDashboardNewsFeedFilter] =
+  const [dashboardNewsFeedFilter, setDashboardNewsFeedFilterValue] =
     useState<DashboardNewsFeedFilter>("all");
+  const [featuredNewsIndex, setFeaturedNewsIndex] = useState(0);
+  const featuredNewsWheelAt = useRef(0);
+  const setDashboardNewsFeedFilter = useCallback((filter: DashboardNewsFeedFilter) => {
+    setDashboardNewsFeedFilterValue(filter);
+    setFeaturedNewsIndex(0);
+  }, []);
   // Loader seam: a future async feed becomes useState(seed) + one effect.
   const publishedNews = usePublishedContent("news");
   const dashboardNewsFeed = useMemo(() => mergePublishedNews(getDashboardNewsFeed(), publishedNews), [publishedNews]);
@@ -17829,7 +17876,8 @@ export default function DashboardExperience({
   ] = useState(false);
   useEffect(() => {
     if (!dashboardHeroNewsOpen) setDashboardNewsEventPopupOpen(false);
-  }, [dashboardHeroNewsOpen]);
+    else setDashboardNewsFeedFilter("all");
+  }, [dashboardHeroNewsOpen, setDashboardNewsFeedFilter]);
   useEffect(() => {
     if (!dashboardNewsEventPopupOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -17849,6 +17897,25 @@ export default function DashboardExperience({
     setDashboardCalendarDate((current) => calendarDateKey(current) === calendarDateKey(date) ? current : date);
   }, []);
   const [activeTrainingConstellationDayIndex, setActiveTrainingConstellationDayIndex] = useState(0);
+  const [dashboardNavigationIndicatorsOpen, setDashboardNavigationIndicatorsOpen] = useState(false);
+  const [dashboardScrollIndicatorAxis, setDashboardScrollIndicatorAxis] = useState<"horizontal" | "vertical" | null>(null);
+  const dashboardIndicatorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const revealDashboardScrollIndicators = useCallback((axis: "horizontal" | "vertical") => {
+    setDashboardNavigationIndicatorsOpen(false);
+    setDashboardScrollIndicatorAxis(axis);
+    if (dashboardIndicatorTimeoutRef.current) clearTimeout(dashboardIndicatorTimeoutRef.current);
+    dashboardIndicatorTimeoutRef.current = setTimeout(() => setDashboardScrollIndicatorAxis(null), 5000);
+  }, []);
+  const changeDashboardNavigationIndicators = useCallback((open: boolean) => {
+    setDashboardNavigationIndicatorsOpen(open);
+    setDashboardScrollIndicatorAxis(null);
+    if (dashboardIndicatorTimeoutRef.current) clearTimeout(dashboardIndicatorTimeoutRef.current);
+  }, []);
+  useEffect(() => () => {
+    if (dashboardIndicatorTimeoutRef.current) clearTimeout(dashboardIndicatorTimeoutRef.current);
+  }, []);
+
+  const [constellationScrolledAwayFromToday, setConstellationScrolledAwayFromToday] = useState(false);
   const [activeTrainingConstellationTrackIndex, setActiveTrainingConstellationTrackIndex] =
     useState(0);
   const [selectedTrainingConstellationSessionId, setSelectedTrainingConstellationSessionId] =
@@ -17899,12 +17966,11 @@ export default function DashboardExperience({
   );
   const moveTrainingConstellationWeek = useCallback((direction: -1 | 1) => {
     setDashboardCalendarDate((current) => calendarAddDays(calendarWeekStart(current), direction * 7));
-    // The calendar owns its cursor after mounting; reset it with the new shared
-    // date so revisiting an already-mounted calendar shows this same week.
     setDashboardCalendarResetKey((key) => key + 1);
     setActiveTrainingConstellationDayIndex(0);
     setSelectedTrainingConstellationSessionId(null);
     setPendingTrainingConstellationSchedule(null);
+    setConstellationScrolledAwayFromToday(false);
     dashboardTrainingConstellationScrollRef.current?.scrollTo({ left: 0, top: 0, behavior: "instant" });
   }, []);
   const moveTrainingConstellationTimeline = useCallback((direction: -1 | 1) => {
@@ -20131,6 +20197,7 @@ export default function DashboardExperience({
     dashboardOrbiterWheelArmRef.current = null;
     dashboardOrbiterRowChangeLockRef.current = now;
     resetDashboardOrbiterRowToStart(clampedDashboardOrbiterRow);
+    revealDashboardScrollIndicators("vertical");
     setActiveDashboardOrbiterRow(nextRow);
     // Navigating during row staging: mount the prefix up to the target row in
     // this commit so the user never lands on an empty grid slot.
@@ -20143,6 +20210,7 @@ export default function DashboardExperience({
     return true;
   };
   const moveDashboardOrbiterRow = (direction: -1 | 1) => {
+    revealDashboardScrollIndicators("vertical");
     const nextRow = Math.max(
       0,
       Math.min(
@@ -20279,6 +20347,12 @@ export default function DashboardExperience({
       if (headerOnly || event.defaultPrevented || event.ctrlKey || event.metaKey) return;
 
       const target = event.target;
+      if (target instanceof Element && !target.closest(".dashboard-header-vortex-shell, [data-dashboard-row-menu], input, select, textarea, [contenteditable='true']")) {
+        const x = Math.abs(event.deltaX);
+        const y = Math.abs(event.deltaY);
+        if (Math.max(x, y) >= 8) revealDashboardScrollIndicators(x > y ? "horizontal" : "vertical");
+      }
+
       if (
         target instanceof HTMLElement &&
         target.closest("input,select,textarea,[contenteditable='true']")
@@ -20297,6 +20371,31 @@ export default function DashboardExperience({
           "#dashboard-profile-hub-orbital-overlay, #dashboard-header-meter-panel",
         )
       ) {
+        return;
+      }
+
+      // News owns vertical browsing across its header, filters and stories,
+      // including at the feed edges; never hand that gesture to row paging.
+      if (target instanceof Element && target.closest("[data-news-feature-controls]")) {
+        event.preventDefault();
+        return;
+      }
+      const activeNewsPanel = target instanceof Element
+        ? target.closest("[data-dashboard-row='hero'], [aria-label='Dashboard hero horizontal orbit']")
+            ?.querySelector<HTMLElement>("#dashboard-hero-news-panel[aria-hidden='false']")
+        : null;
+      if (activeNewsPanel && Math.abs(event.deltaY) >= Math.abs(event.deltaX) && !event.shiftKey) {
+        const newsFeed = activeNewsPanel.querySelector<HTMLElement>("#dashboard-hero-news-feed");
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        dashboardOrbiterWheelArmRef.current = null;
+        if (newsFeed) {
+          newsFeed.scrollTop = Math.max(0, Math.min(
+            newsFeed.scrollHeight - newsFeed.clientHeight,
+            newsFeed.scrollTop + dashboardWheelDeltaPixels(event, newsFeed),
+          ));
+        }
         return;
       }
 
@@ -20361,6 +20460,7 @@ export default function DashboardExperience({
 
       const direction = event.deltaY > 18 ? 1 : event.deltaY < -18 ? -1 : 0;
       if (direction === 0) return;
+      revealDashboardScrollIndicators("vertical");
 
       const nextRow = Math.max(
         0,
@@ -20545,6 +20645,7 @@ export default function DashboardExperience({
     return getDashboardHeroCardNextIndex(direction, currentIndex) !== currentIndex;
   };
   const rotateDashboardHeroCards = (direction: DashboardOrbitDirection) => {
+    revealDashboardScrollIndicators("horizontal");
     if (dashboardHeroNewsOpenRef.current) {
       // Further "left" pulls return false so the joystick hold-repeat stops.
       return direction === "right" ? closeDashboardHeroNews() : false;
@@ -26300,6 +26401,7 @@ export default function DashboardExperience({
     return false;
   };
   const writeDashboardPageAnalogOffset = (x: number, y: number) => {
+    dashboardPageAnalogDragOffsetRef.current = { x, y };
     const element = dashboardPageAnalogElementRef.current;
     if (!element) return;
     element.style.setProperty("--dashboard-analog-offset-x", `${x}px`);
@@ -26510,15 +26612,8 @@ export default function DashboardExperience({
     dashboardProfileHubAnalogDragging,
   ]);
   const [heroAchievementCategory, setHeroAchievementCategory] = useState<AchievementBadgeItem["category"]>("consistency");
-  const recoveryHistory = inspectSupportRecords();
-  const lifetimeAchievements = lifetimeAchievementMilestones({
-    workouts: dashboardSessionEvidence.total,
-    trainingDays: dashboardSessionEvidence.dates.length,
-    historyIssue: dashboardSessionEvidence.issue,
-    recoveryDays: new Set(recoveryHistory.rows.filter(row => row.kind === "recovery" && row.value > 0 && row.date <= getDashboardLocalDateKey(dashboardToday) && new Date(row.recordedAt).getTime() <= dashboardToday.getTime()).map(row => row.date)).size,
-    recoveryIssue: recoveryHistory.issue,
-  });
-  const heroAchievements = lifetimeAchievements.filter(item => item.category === heroAchievementCategory).slice(0, 5);
+  const lifetimeAchievements = readAchievementMilestones(dashboardToday);
+  const heroAchievements = nextAchievementPaths(lifetimeAchievements.filter(item => item.category === heroAchievementCategory));
   const lifetimeAchievementSignature = lifetimeAchievements.map(item => `${item.label}:${item.statusLabel}`).join("|");
   useEffect(() => { setActiveHeroAchievementIndex(0); }, [lifetimeAchievementSignature, heroAchievementCategory]);
   const heroAchievementCount = heroAchievements.length;
@@ -29906,7 +30001,19 @@ export default function DashboardExperience({
       </div>
     </div>));
 
-  const renderDashboardPageAnalog = () => {
+  const renderDashboardPageAnalog = (toggleIndicators: () => void) => {
+    const cardGlyph: DashboardScrollButtonGlyph = clampedDashboardOrbiterRow === 0
+      ? dashboardHeroNewsOpen ? "news" : (["body", "constellation", "consistency", "challenges", "achievements", "favorites"] as const)[activeDashboardHeroCardIndex] ?? "body"
+      : clampedDashboardOrbiterRow === 1 ? "tools"
+      : clampedDashboardOrbiterRow === 2 ? activeWeeklyRecapIndex === 1 ? "fuel" : activeWeeklyRecapIndex === 2 ? "tools" : "constellation"
+      : clampedDashboardOrbiterRow === 3 ? /nutrition|fuel/i.test(activeCommandCenter.title) ? "fuel" : /recovery/i.test(activeCommandCenter.title) ? "recovery" : /education|learning/i.test(activeCommandCenter.title) ? "favorites" : /performance|cardio/i.test(activeCommandCenter.title) ? "consistency" : "constellation"
+      : clampedDashboardOrbiterRow === 4 ? "calendar"
+      : clampedDashboardOrbiterRow === 5 ? (["constellation", "fuel", "recovery", "consistency", "challenges", "achievements"] as const)[activeMySoundIndex] ?? "selector"
+      : clampedDashboardOrbiterRow === 6 ? /goal/i.test(dashboardSystemCards[activeSystemCenterIndex]?.title ?? "") ? "challenges" : "settings" : "selector";
+    const challengeGlyphColors: Record<string, string> = { strength: "#38bdf8", cardio: "#fb7185", mobility: "#a78bfa", recovery: "#34d399", consistency: "#fbbf24", nutrition: "#a3e635", performance: "#60a5fa", learning: "#fb923c" };
+    const cardGlyphColor = cardGlyph === "challenges" && clampedDashboardOrbiterRow === 0
+      ? challengeGlyphColors[activeDashboardChallengeCategoryId] ?? "#fbbf24"
+      : ({ body: "#22d3ee", constellation: "#34d399", consistency: "#2dd4bf", achievements: "#fbbf24", favorites: "#38bdf8", news: "#67e8f9", fuel: "#6ee7b7", recovery: "#fbbf24", settings: "#a78bfa", calendar: "#5eead4", tools: "#fbbf24" } as Partial<Record<DashboardScrollButtonGlyph, string>>)[cardGlyph] ?? "#67e8f9";
     const canPageJoystickScrollUp = clampedDashboardOrbiterRow > 0;
     const canPageJoystickScrollDown =
       clampedDashboardOrbiterRow < dashboardOrbiterRows.length - 1;
@@ -29931,16 +30038,9 @@ export default function DashboardExperience({
           : "0deg";
     return (
       <button
-        aria-label="Accessibility page row navigator"
-        className={`dashboard-header-scroll-button dashboard-header-scroll-button--page pointer-events-auto relative z-10 grid h-[4.35rem] w-[4.35rem] shrink-0 place-items-center overflow-visible rounded-l-[28px] rounded-r-none border border-r-0 border-cyan-100/16 bg-slate-950/88 text-cyan-50 shadow-[-12px_14px_30px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.09)] outline-none transition hover:-translate-x-1 hover:border-amber-100/34 hover:bg-cyan-950/95 active:scale-95 focus-visible:ring-2 focus-visible:ring-cyan-100/65 [perspective:620px] [touch-action:none] ${
-          dashboardPageAnalogDragging
-            ? "dashboard-header-scroll-button--dragging cursor-grabbing border-amber-100/44 bg-amber-300/10"
-            : "cursor-pointer"
-        } ${
-          dashboardPageAnalogActiveDirection
-            ? `dashboard-header-scroll-button--${dashboardPageAnalogActiveDirection}`
-            : ""
-        }`}
+        aria-label="Toggle card navigation indicators; drag to navigate cards"
+        aria-expanded={dashboardNavigationIndicatorsOpen || dashboardScrollIndicatorAxis !== null}
+        className={`dashboard-card-joystick-knob pointer-events-auto outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/65 ${dashboardPageAnalogDragging ? "cursor-grabbing" : "cursor-grab"}`}
         data-dashboard-page-analog="true"
         onClick={(event) => {
           if (dashboardPageAnalogPointerMovedRef.current) {
@@ -29949,23 +30049,15 @@ export default function DashboardExperience({
             return;
           }
 
-          const direction =
-            getDashboardJoystickClickDirection(event) ?? "right";
-          if (
-            (direction === "up" && !canPageJoystickScrollUp) ||
-            (direction === "down" && !canPageJoystickScrollDown)
-          ) {
-            return;
-          }
-          if (runDashboardPageAnalogDirection(direction)) {
-            pulseDashboardPageAnalogDirection(direction);
-          }
+          event.stopPropagation();
+          hideDashboardTooltip();
+          toggleIndicators();
         }}
         onBlur={() => {
-          startTransition(() => setDashboardPageAnalogHovered(false));
           resetDashboardPageAnalogDrag();
         }}
         onKeyDown={(event) => {
+          event.stopPropagation();
           if (event.key === "ArrowUp") {
             event.preventDefault();
             if (runDashboardPageAnalogDirection("up")) {
@@ -29995,13 +30087,9 @@ export default function DashboardExperience({
           }
         }}
         onLostPointerCapture={handleDashboardPageAnalogPointerEnd}
-        onMouseEnter={() => startTransition(() => setDashboardPageAnalogHovered(true))}
-        onMouseLeave={() => startTransition(() => setDashboardPageAnalogHovered(false))}
         onPointerCancel={handleDashboardPageAnalogPointerEnd}
         onPointerDown={handleDashboardPageAnalogPointerDown}
-        onPointerEnter={() => startTransition(() => setDashboardPageAnalogHovered(true))}
         onPointerLeave={(event) => {
-          startTransition(() => setDashboardPageAnalogHovered(false));
 
           if (dashboardPageAnalogDragging && event.buttons === 0) {
             handleDashboardPageAnalogPointerEnd(event);
@@ -30010,42 +30098,19 @@ export default function DashboardExperience({
         onPointerMove={handleDashboardPageAnalogPointerMove}
         onPointerUp={handleDashboardPageAnalogPointerEnd}
         onWheel={handleDashboardPageAnalogWheel}
-        data-dashboard-tooltip="Accessibility page navigator"
         ref={dashboardPageAnalogElementRef}
-        style={
-          {
-            ...activeDashboardHeaderTone.iconEffectStyle,
-            ...dashboardHeaderActiveScrollButtonTone,
-            // Constant initial values: roll/offset are written imperatively on
-            // the element (see writeDashboardPageAnalogOffset). React's style
-            // diffing never rewrites keys whose VDOM value is unchanged, so
-            // these constants can't clobber the imperative values.
-            "--dashboard-header-scroll-button-roll": "0deg",
-            "--dashboard-header-scroll-button-tilt-x": pageAnalogTiltX,
-            "--dashboard-header-scroll-button-tilt-y": pageAnalogTiltY,
-            "--dashboard-analog-offset-x": "0px",
-            "--dashboard-analog-offset-y": "0px",
-            background:
-              "radial-gradient(circle at 34% 18%, rgba(255,255,255,0.18), transparent 18%), radial-gradient(circle at 50% 14%, var(--dashboard-header-journey-motion, rgba(34,211,238,0.22)), transparent 44%), radial-gradient(circle at 50% 86%, var(--dashboard-header-journey-motion-alt, rgba(250,204,21,0.16)), transparent 46%), linear-gradient(145deg, rgba(15,23,42,0.82), rgba(2,6,23,0.44) 52%, rgba(15,23,42,0.9))",
-            borderColor: "rgba(207,250,254,0.24)",
-            boxShadow:
-              "0 1.05rem 1.75rem rgba(0,0,0,0.38), 0 0 1.15rem var(--dashboard-header-journey-shadow, rgba(34,211,238,0.14)), inset 0 0.08rem 0 rgba(255,255,255,0.18), inset 0 -0.62rem 1rem rgba(2,6,23,0.58)",
-            overflow: "visible",
-            transformStyle: "preserve-3d",
-          } as CSSProperties
-        }
+        style={{ touchAction: "none" }}
         type="button"
       >
         <DashboardScrollButton3D
-          active={dashboardPageAnalogInUse}
-          activeDirection={dashboardPageAnalogActiveDirection}
-          className="dashboard-header-scroll-button__webgl dashboard-header-scroll-button__webgl--page"
-          paused={
-            // Content-side widget: keying pause off the HEADER's flag would
-            // freeze it exactly while the user works in content. Rest it
-            // unless it's actually being used.
-            !dashboardPageAnalogInUse
-          }
+          knobOnly
+          glyph={cardGlyph}
+          glyphColor={cardGlyphColor}
+          active={dashboardPageAnalogDragging}
+          activeDirection={dashboardPageAnalogDragging ? dashboardPageAnalogActiveDirection : null}
+          className="dashboard-card-joystick-scene"
+          paused={!dashboardPageAnalogDragging}
+          dragOffsetRef={dashboardPageAnalogDragOffsetRef}
           showDown={canPageJoystickScrollDown}
           showUp={canPageJoystickScrollUp}
           tone="cyan"
@@ -32320,7 +32385,7 @@ export default function DashboardExperience({
   const renderDashboardPointsRewardPanelContent = (
     panelId: (typeof DASHBOARD_PROFILE_REWARD_PANELS)[number]["id"],
   ) => {
-    if (!isAdminPreview) return <div role="status" className="rounded-xl border border-white/10 bg-slate-950 p-4 text-sm text-slate-200"><p>{dashboardRewardEvidence.accountLinked ? "Account rewards" : "Reward ledger unavailable"}</p><p>{dashboardRewardEvidence.description}</p><p>Sound Points: {dashboardRewardEvidence.pointsLabel}</p><p>Treasure Tokens: {dashboardRewardEvidence.tokensLabel}</p><p>Emeralds: {dashboardRewardEvidence.emeraldsLabel}</p><Link href={ROUTES.dashboard.achievements}>View achievements</Link></div>;
+
 
     const activeRewardPanelId =
       DASHBOARD_PROFILE_REWARD_PANELS[activeDashboardPointsRewardPanelIndex]
@@ -33193,7 +33258,7 @@ export default function DashboardExperience({
         <div className={`${meterCardStyles.content} ${meterCardStyles.favoriteContent}`}>
           <header className={meterCardStyles.heading}>
             <p>Your workout library</p>
-            <h2>Favorite Workouts</h2>
+            <h2 data-card-title-with-icon="true"><span>Favorite Workouts</span></h2>
           </header>
           <div className={meterCardStyles.favoriteNavigation} onPointerDown={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
             <span>{favoriteWorkoutTemplates.length} saved workout{favoriteWorkoutTemplates.length === 1 ? "" : "s"}</span>
@@ -33706,7 +33771,7 @@ export default function DashboardExperience({
           <div className={meterCardStyles.content}>
             <header className={meterCardStyles.heading}>
               <p>Week of {dashboardClockLive ? <DashboardWeekDate date={addDashboardDays(dashboardWeeklySessionResetDate, -6)} /> : "…"}</p>
-              <h2>Consistency</h2>
+              <h2 data-card-title-with-icon="true"><span>Consistency</span></h2>
             </header>
             <div className={meterCardStyles.needleStage}>
             <div
@@ -33850,7 +33915,7 @@ export default function DashboardExperience({
           <div className={`${meterCardStyles.content} ${meterCardStyles.achievements}`}>
           <header className={meterCardStyles.heading}>
             <p>Lifetime progress</p>
-            <h2>Achievements</h2>
+            <h2 data-card-title-with-icon="true"><span>Achievements</span></h2>
           </header>
           <div className={meterCardStyles.achievementStage}>
           <div className={meterCardStyles.cloudCategoryControls}>
@@ -34102,7 +34167,7 @@ export default function DashboardExperience({
             <button type="button" aria-label="Next achievement" onClick={(event) => { event.stopPropagation(); rotateHeroAchievement("right"); }}><ChevronRight aria-hidden="true" /></button>
           </div>
           <footer className={meterCardStyles.footer}>
-            <Link href={ROUTES.dashboard.achievements} onClick={(event) => event.stopPropagation()}>View achievements<ChevronRight aria-hidden="true" /></Link>
+            <Link href={ROUTES.dashboard.achievements} onClick={(event) => event.stopPropagation()}>View all achievements<ChevronRight aria-hidden="true" /></Link>
           </footer>
           </div>
         </div>
@@ -34520,6 +34585,7 @@ export default function DashboardExperience({
     const renderDashboardCommandCenterSummaryPanel = () => (
       <div className="relative min-w-0">
         <div className="relative z-10 grid min-w-0 gap-2">
+          <h3 data-card-joystick-title="true" className={`${welcomeStyles.heading} min-w-0 py-1 text-[clamp(1rem,3.5vw,1.6rem)] font-black uppercase leading-tight`}><span>Welcome back,</span> <span className={welcomeStyles.name}>{firstName}</span></h3>
           {/* Both mobile panes share the three-line Position footprint so
               changing the visible pane cannot resize the avatar stage. */}
           <div className="dashboard-hero-active-profile flex h-[62px] w-full max-w-[44rem] shrink-0 flex-nowrap items-center gap-x-2 border-t border-white/10 pt-2 min-[520px]:h-auto">
@@ -34654,7 +34720,7 @@ export default function DashboardExperience({
               Progress Star Map
             </div>
             <h2 className="mt-1 break-words text-xl font-black uppercase leading-none tracking-normal text-white sm:text-2xl">
-              TRAINING CONSTELLATION
+              <span>Training Constellation</span>
             </h2>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-1.5">
@@ -34847,7 +34913,7 @@ export default function DashboardExperience({
     };
 
     const renderDashboardTrainingConstellationPanel = () => (
-      <div className="dashboard-hero-card dashboard-hero-card--training-constellation relative z-10 flex h-full min-h-[420px] w-full max-w-full flex-col overflow-hidden rounded-[30px] border border-cyan-100/16 bg-[radial-gradient(circle_at_48%_12%,rgba(56,189,248,0.2),transparent_38%),radial-gradient(circle_at_10%_78%,rgba(52,211,153,0.11),transparent_32%),radial-gradient(circle_at_90%_36%,rgba(251,191,36,0.12),transparent_30%),linear-gradient(135deg,rgba(8,13,28,0.94),rgba(2,6,23,0.88))] p-3 shadow-[0_24px_70px_rgba(0,0,0,0.34),0_0_42px_rgba(56,189,248,0.11),inset_0_1px_0_rgba(255,255,255,0.09)] sm:p-4">
+      <div className={`${meterCardStyles.constellationCard} dashboard-hero-card dashboard-hero-card--training-constellation relative z-10 flex h-full min-h-[420px] w-full max-w-full flex-col overflow-hidden rounded-[30px] border border-cyan-100/16 bg-[radial-gradient(circle_at_48%_12%,rgba(56,189,248,0.2),transparent_38%),radial-gradient(circle_at_10%_78%,rgba(52,211,153,0.11),transparent_32%),radial-gradient(circle_at_90%_36%,rgba(251,191,36,0.12),transparent_30%),linear-gradient(135deg,rgba(8,13,28,0.94),rgba(2,6,23,0.88))] p-3 shadow-[0_24px_70px_rgba(0,0,0,0.34),0_0_42px_rgba(56,189,248,0.11),inset_0_1px_0_rgba(255,255,255,0.09)] sm:p-4`}>
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 overflow-hidden"
@@ -34890,56 +34956,15 @@ export default function DashboardExperience({
         </div>
         <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-100/70 to-transparent" />
 
-        <header className="relative z-20 min-w-0">
+        <div className={meterCardStyles.constellationToolbar}>
+        <header className="relative z-20 flex min-w-0 items-center justify-between gap-2">
           <div className="min-w-0">
-            <div className="flex max-w-full flex-wrap items-center gap-1.5">
-              <div
-                aria-label="Training constellation week navigation"
-                className="grid w-fit max-w-full grid-cols-[1.5rem_minmax(0,1fr)_1.5rem] items-center gap-1 text-[8px] font-black uppercase tracking-[0.16em] text-cyan-100/80"
-                data-dashboard-orbiter-local-scroll="true"
-                onClick={(event) => event.stopPropagation()}
-                onKeyDown={(event) => event.stopPropagation()}
-                onPointerDown={(event) => event.stopPropagation()}
-                onPointerMove={(event) => event.stopPropagation()}
-                onPointerUp={(event) => event.stopPropagation()}
-              >
-                <button
-                  aria-label="Previous constellation week"
-                  className="grid h-6 w-6 place-items-center border-0 bg-transparent p-0 text-cyan-200 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200"
-                  onClick={() => moveTrainingConstellationWeek(-1)}
-                  type="button"
-                >
-                  <ChevronLeft aria-hidden="true" className="h-3.5 w-3.5" />
-                </button>
-                <span aria-live="polite" aria-atomic="true" className="min-w-0 text-center leading-tight">
-                  <DashboardWeekDate date={new Date(`${trainingConstellationWeek[0].dateKey}T12:00:00`)} /> – <DashboardWeekDate date={new Date(`${trainingConstellationWeek[6].dateKey}T12:00:00`)} />
-                </span>
-                <button
-                  aria-label="Next constellation week"
-                  className="grid h-6 w-6 place-items-center border-0 bg-transparent p-0 text-cyan-200 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200"
-                  onClick={() => moveTrainingConstellationWeek(1)}
-                  type="button"
-                >
-                  <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
             <h2 className="mt-1 max-w-[10.5rem] whitespace-normal text-[13px] font-black uppercase leading-[0.96] tracking-[-0.02em] text-white min-[360px]:max-w-[12rem] min-[360px]:text-sm min-[420px]:max-w-full min-[420px]:text-base sm:truncate sm:text-2xl sm:leading-none sm:tracking-normal">
-              TRAINING CONSTELLATION
+              <span>Training Constellation</span>
             </h2>
           </div>
-        </header>
-
-        <div className="relative z-20 mt-2 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <TrainingConstellationTrackFilter
-              options={dashboardTrainingConstellationLanes}
-              selectedIds={selectedTrainingConstellationLanes}
-              onChange={(ids) => {
-                setSelectedTrainingConstellationLanes(ids);
-                setPendingTrainingConstellationSchedule(null);
-              }}
-            />
+        {constellationScrolledAwayFromToday ? (
+          <div className="relative z-30 flex shrink-0 items-center" data-dashboard-orbiter-local-scroll="true">
             <button
               aria-label={`Return training constellation to today, ${trainingConstellationTodayLabel}`}
               aria-pressed={trainingConstellationTodayPillActive}
@@ -34951,6 +34976,7 @@ export default function DashboardExperience({
               data-dashboard-orbiter-local-scroll="true"
               onClick={(event) => {
                 event.stopPropagation();
+                setConstellationScrolledAwayFromToday(false);
                 jumpTrainingConstellationToToday();
               }}
               onPointerDown={(event) => event.stopPropagation()}
@@ -34960,12 +34986,12 @@ export default function DashboardExperience({
             >
               <CalendarDays aria-hidden="true" className="h-3.5 w-3.5" />
               <span>Today</span>
-              <span className="hidden text-orange-200/80 min-[420px]:inline">
-                {trainingConstellationTodayLabel}
-              </span>
             </button>
           </div>
+        ) : null}
+        </header>
 
+        <div className="relative z-20 mt-2 hidden items-center justify-between gap-2 min-[760px]:flex">
           <div className="hidden shrink-0 items-center gap-2 min-[760px]:flex">
             {dashboardTrainingConstellationLegend.map((status) => (
               <span
@@ -34986,7 +35012,7 @@ export default function DashboardExperience({
         </div>
 
         <div
-          className="relative z-30 mt-2 flex items-center justify-center gap-2 sm:hidden"
+          className="relative z-30 mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-0 sm:hidden"
           data-dashboard-orbiter-local-scroll="true"
           onClick={(event) => event.stopPropagation()}
           onPointerDown={(event) => event.stopPropagation()}
@@ -34994,6 +35020,17 @@ export default function DashboardExperience({
           onPointerUp={(event) => event.stopPropagation()}
           onWheel={(event) => event.stopPropagation()}
         >
+          <div className="flex w-full items-center justify-center pb-1" aria-label="Training constellation week navigation">
+            <button aria-label="Previous constellation week" className="grid h-6 w-6 shrink-0 place-items-center bg-transparent text-cyan-200 transition hover:text-white focus-visible:outline-cyan-200" onClick={() => moveTrainingConstellationWeek(-1)} type="button">
+              <ChevronLeft aria-hidden="true" className="h-3.5 w-3.5" />
+            </button>
+            <span aria-live="polite" aria-atomic="true" className="min-w-0 text-center text-[8px] font-black uppercase leading-tight tracking-[0.08em] text-cyan-100/80">
+              <DashboardWeekDate date={new Date(`${trainingConstellationWeek[0].dateKey}T12:00:00`)} /> – <DashboardWeekDate date={new Date(`${trainingConstellationWeek[6].dateKey}T12:00:00`)} />
+            </span>
+            <button aria-label="Next constellation week" className="grid h-6 w-6 shrink-0 place-items-center bg-transparent text-cyan-200 transition hover:text-white focus-visible:outline-cyan-200" onClick={() => moveTrainingConstellationWeek(1)} type="button">
+              <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
+            </button>
+          </div>
           <button
             aria-label="Move down to the next constellation day"
             className="grid h-8 w-8 place-items-center border-0 bg-transparent p-0 text-cyan-100 drop-shadow-[0_0_8px_rgba(34,211,238,0.28)] transition hover:-translate-y-0.5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 disabled:cursor-not-allowed disabled:text-slate-600 disabled:drop-shadow-none"
@@ -35011,12 +35048,8 @@ export default function DashboardExperience({
           </button>
 
           <div className="min-w-[8.5rem] text-center">
-            <div className="text-[7px] font-black uppercase tracking-[0.18em] text-slate-500">
-              Vertical Focus
-            </div>
             <div className="mt-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
-              {constellationTimelineDays[activeTrainingConstellationDayIndex].day}{" "}
-              {constellationTimelineDays[activeTrainingConstellationDayIndex].date}
+              {new Date(`${constellationTimelineDays[activeTrainingConstellationDayIndex].dateKey}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }).replace(",", "")}
             </div>
           </div>
 
@@ -35035,7 +35068,7 @@ export default function DashboardExperience({
         </div>
 
         <div
-          className="relative z-30 mt-2 hidden items-center justify-center gap-2 sm:flex"
+          className="relative z-30 mt-2 hidden flex-wrap items-center justify-center gap-x-2 gap-y-0 sm:flex"
           data-dashboard-orbiter-local-scroll="true"
           onClick={(event) => event.stopPropagation()}
           onPointerDown={(event) => event.stopPropagation()}
@@ -35043,6 +35076,17 @@ export default function DashboardExperience({
           onPointerUp={(event) => event.stopPropagation()}
           onWheel={(event) => event.stopPropagation()}
         >
+          <div className="flex w-full items-center justify-center pb-1" aria-label="Training constellation week navigation">
+            <button aria-label="Previous constellation week" className="grid h-6 w-6 shrink-0 place-items-center bg-transparent text-cyan-200 transition hover:text-white focus-visible:outline-cyan-200" onClick={() => moveTrainingConstellationWeek(-1)} type="button">
+              <ChevronLeft aria-hidden="true" className="h-3.5 w-3.5" />
+            </button>
+            <span aria-live="polite" aria-atomic="true" className="min-w-0 text-center text-[8px] font-black uppercase leading-tight tracking-[0.08em] text-cyan-100/80">
+              <DashboardWeekDate date={new Date(`${trainingConstellationWeek[0].dateKey}T12:00:00`)} /> – <DashboardWeekDate date={new Date(`${trainingConstellationWeek[6].dateKey}T12:00:00`)} />
+            </span>
+            <button aria-label="Next constellation week" className="grid h-6 w-6 shrink-0 place-items-center bg-transparent text-cyan-200 transition hover:text-white focus-visible:outline-cyan-200" onClick={() => moveTrainingConstellationWeek(1)} type="button">
+              <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
+            </button>
+          </div>
           <button
             aria-label="Show previous constellation day"
             className="grid h-8 w-8 place-items-center rounded-full border border-emerald-200/24 bg-emerald-300/8 text-emerald-100 shadow-[0_0_16px_rgba(52,211,153,0.08)] transition hover:border-emerald-200/55 hover:bg-emerald-300/16 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-slate-950/30 disabled:text-slate-600 disabled:shadow-none"
@@ -35061,8 +35105,7 @@ export default function DashboardExperience({
               Timeline Focus
             </div>
             <div className="mt-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
-              {constellationTimelineDays[activeTrainingConstellationDayIndex].day}{" "}
-              {constellationTimelineDays[activeTrainingConstellationDayIndex].date}
+              {new Date(`${constellationTimelineDays[activeTrainingConstellationDayIndex].dateKey}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }).replace(",", "")}
             </div>
           </div>
 
@@ -35083,6 +35126,7 @@ export default function DashboardExperience({
           </button>
         </div>
 
+        </div>
         <div className="relative z-10 mt-2 -mx-3 -mb-3 min-h-0 flex-1 overflow-hidden sm:-mx-4 sm:-mb-4" data-training-constellation-edge-timeline>
           {visibleTrainingConstellationLanes.length === 0 ? (
             <div className="grid h-full min-h-0 place-content-center gap-2 px-4 text-center" role="status">
@@ -35109,6 +35153,23 @@ export default function DashboardExperience({
               if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(event.key)) trainingConstellationUserScrollRef.current = true;
             }}
             ref={dashboardTrainingConstellationScrollRef}
+            onScroll={(event) => {
+              const scroller = event.currentTarget;
+              const todayRow = Array.from(scroller.querySelectorAll<HTMLElement>('[data-training-constellation-today="true"]'))
+                .find((element) => element.getClientRects().length > 0);
+              if (!todayRow) {
+                setConstellationScrolledAwayFromToday(false);
+                return;
+              }
+              const viewport = scroller.getBoundingClientRect();
+              const row = todayRow.getBoundingClientRect();
+              const header = scroller.querySelector<HTMLElement>("[data-training-constellation-track-header]");
+              const headerHeight = header?.getClientRects().length ? header.offsetHeight : 0;
+              setConstellationScrolledAwayFromToday(
+                row.bottom <= viewport.top + headerHeight + 1 || row.top >= viewport.bottom - 1 ||
+                row.right <= viewport.left + 1 || row.left >= viewport.right - 1,
+              );
+            }}
             onScrollEnd={(event) => {
               if (!trainingConstellationUserScrollRef.current) return;
               trainingConstellationUserScrollRef.current = false;
@@ -35124,17 +35185,12 @@ export default function DashboardExperience({
             <div className="relative min-h-full w-full min-w-0 sm:hidden" data-training-constellation-mobile-timeline>
               <div
                 data-training-constellation-track-header
-                className="sticky top-0 z-20 grid border-b border-white/10 bg-slate-950/88 pb-1.5 pt-1 backdrop-blur-lg"
+                className="sticky top-0 z-20 grid border-b border-cyan-100/20 bg-slate-950/95 pb-1.5 pt-1 shadow-[0_5px_18px_rgba(0,0,0,0.25)] backdrop-blur-lg"
                 style={{
-                  gridTemplateColumns: `2rem repeat(${visibleTrainingConstellationLanes.length}, minmax(0, 1fr))`,
+                  gridTemplateColumns: `3rem repeat(${visibleTrainingConstellationLanes.length}, minmax(0, 1fr))`,
                 }}
               >
-                <div
-                  className="flex items-center justify-center px-1 text-[5.5px] font-black uppercase tracking-[0.08em] text-slate-500"
-                  data-dashboard-tooltip="Day"
-                >
-                  Day
-                </div>
+                <div aria-hidden="true" />
                 {visibleTrainingConstellationLanes.map((lane) => {
                   const LaneIcon = lane.icon;
                   return (
@@ -35152,7 +35208,7 @@ export default function DashboardExperience({
                           filter: `drop-shadow(0 0 10px ${lane.color}) drop-shadow(0 1px 2px rgba(0,0,0,0.85))`,
                         }}
                       />
-                      <span className="sr-only">
+                      <span className={meterCardStyles.constellationColumnTitle} style={{ color: lane.color, borderColor: lane.border, textShadow: `0 0 10px ${lane.soft}` }}>
                         {lane.label}
                       </span>
                     </div>
@@ -35165,7 +35221,7 @@ export default function DashboardExperience({
                   aria-hidden="true"
                   className="pointer-events-none absolute inset-0 z-0 grid"
                   style={{
-                    gridTemplateColumns: `2rem repeat(${visibleTrainingConstellationLanes.length}, minmax(0, 1fr))`,
+                    gridTemplateColumns: `3rem repeat(${visibleTrainingConstellationLanes.length}, minmax(0, 1fr))`,
                   }}
                 >
                   <span />
@@ -35189,8 +35245,8 @@ export default function DashboardExperience({
                   const isToday = day.dateKey === trainingConstellationTodayDateKey;
                   const monthColor = calendarMonthColor(Number(day.dateKey.slice(5, 7)) - 1);
                   return (
-                    <div key={`timeline-${day.dateKey}`} className="snap-start snap-always" data-training-constellation-day-index={dayIndex}>
-                    {dayIndex % 7 === 0 && <div className="relative z-10 border-y-2 px-3 py-2 text-[9px] font-black uppercase tracking-wider" style={{ color: monthColor, borderColor: `${monthColor}88`, background: `linear-gradient(90deg, ${monthColor}30, #020617dd)` }}>Week of <DashboardWeekDate date={new Date(`${day.dateKey}T12:00:00`)} /></div>}
+                    <div key={`timeline-${day.dateKey}`} className="snap-start snap-always" data-training-constellation-day-index={dayIndex} data-training-constellation-today={isToday ? "true" : undefined}>
+                    {dayIndex % 7 === 0 && <div className="relative z-10 border-y px-3 py-0.5 text-[9px] font-black uppercase leading-tight tracking-wider" style={{ color: monthColor, borderColor: `${monthColor}88`, background: `linear-gradient(90deg, ${monthColor}30, #020617dd)` }}>Week of <DashboardWeekDate date={new Date(`${day.dateKey}T12:00:00`)} /></div>}
                     <div
                       className={`relative grid min-h-[64px] items-stretch border-b border-white/20 py-1 transition-colors last:border-b-0 ${
                         isActiveDay && isToday
@@ -35204,7 +35260,7 @@ export default function DashboardExperience({
                       style={{
                         background: `linear-gradient(110deg, ${monthColor}${isActiveDay ? "30" : "18"}, ${monthColor}08)`,
                         borderBottomColor: `${monthColor}55`,
-                        gridTemplateColumns: `2rem repeat(${visibleTrainingConstellationLanes.length}, minmax(0, 1fr))`,
+                        gridTemplateColumns: `3rem repeat(${visibleTrainingConstellationLanes.length}, minmax(0, 1fr))`,
                       }}
                     >
                       <div className="relative z-10 flex flex-col items-center justify-center text-center">
@@ -35219,7 +35275,7 @@ export default function DashboardExperience({
                         >
                           {day.date}
                         </span>
-                        <span className={`mt-1 text-[6px] font-black uppercase tracking-[0.12em] ${isToday ? "text-orange-200" : "text-slate-500"}`}>
+                        <span className={`${meterCardStyles.constellationDayLabel} ${isToday ? "text-orange-200" : "text-slate-500"}`}>
                           {isToday ? "Today" : day.day}
                         </span>
                       </div>
@@ -35282,6 +35338,7 @@ export default function DashboardExperience({
                         isToday ? "Today" : `${item.day} ${item.date}`
                       }
                       data-training-constellation-day-header-index={dayIndex}
+                      data-training-constellation-today={isToday ? "true" : undefined}
                       aria-current={isActiveDay ? "date" : undefined}
                       key={item.day}
                     >
@@ -35598,7 +35655,7 @@ export default function DashboardExperience({
         <div className={`${meterCardStyles.content} ${meterCardStyles.challengeContent}`}>
           <header className={meterCardStyles.heading}>
             <p>Your next milestones</p>
-            <h2>Challenges</h2>
+            <h2 data-card-title-with-icon="true"><span>Challenges</span></h2>
           </header>
           <div
             className={meterCardStyles.challengeCategories}
@@ -35634,20 +35691,16 @@ export default function DashboardExperience({
             })}
           </div>
           <div className={meterCardStyles.challengeList} style={{ "--challenge-color": activeDashboardChallengeCategory.color, "--challenge-soft": activeDashboardChallengeCategory.soft } as CSSProperties}>
-            <div className={meterCardStyles.challengeCategoryTitle}>
+            <div className={meterCardStyles.challengeCategoryTitle} data-category={activeDashboardChallengeCategory.id}>
               <h3 style={{ color: activeDashboardChallengeCategory.color }}>
                 <ActiveDashboardChallengeCategoryIcon aria-hidden="true" />
-                {activeDashboardChallengeCategory.label}
+                <span>{activeDashboardChallengeCategory.label}</span>
               </h3>
             </div>
             <ChallengeSetProgress key={activeDashboardChallengeCategory.id} category={activeDashboardChallengeCategory.id} />
           </div>
 
-          <footer className={meterCardStyles.footer}>
-            <Link href={ROUTES.dashboard.progress} onClick={(event) => event.stopPropagation()}>
-              Review recorded progress<ChevronRight aria-hidden="true" />
-            </Link>
-          </footer>
+
         </div>
       </div>
     );
@@ -35707,103 +35760,18 @@ export default function DashboardExperience({
       dashboardHeroIndicatorWindowStart + dashboardHeroIndicatorWindowSize,
     );
     const renderDashboardHeroNewsPanel = () => {
-      const newsItems = sortDashboardNewsFeed(
+      const sortedNewsItems = sortDashboardNewsFeed(
         filterDashboardNewsFeed(dashboardNewsFeed.items, dashboardNewsFeedFilter),
         dashboardToday,
       );
-      const activeNewsFilter =
-        DASHBOARD_NEWS_FEED_FILTERS.find(
-          (entry) => entry.id === dashboardNewsFeedFilter,
-        ) ?? DASHBOARD_NEWS_FEED_FILTERS[0];
-      const newsFilterCounts = DASHBOARD_NEWS_FEED_FILTERS.map((entry) => ({
-        ...entry,
-        count: filterDashboardNewsFeed(dashboardNewsFeed.items, entry.id).length,
-      }));
-      const newsFilterIds = DASHBOARD_NEWS_FEED_FILTERS.map(
-        (filter) => filter.id,
-      );
-      const activeNewsFilterIndex = Math.max(
-        0,
-        newsFilterIds.indexOf(dashboardNewsFeedFilter),
-      );
-      const selectDashboardNewsFilter = (
-        nextIndex: number,
-        focusChip = false,
-      ) => {
-        const normalizedIndex =
-          (nextIndex + newsFilterIds.length) % newsFilterIds.length;
-        const nextFilterId = newsFilterIds[normalizedIndex];
-        setDashboardNewsFeedFilter(nextFilterId);
-        window.requestAnimationFrame(() => {
-          const nextChip = document.getElementById(
-            `dashboard-hero-news-filter-${nextFilterId}`,
-          );
-          nextChip?.scrollIntoView({ block: "nearest", inline: "center" });
-          if (focusChip) nextChip?.focus({ preventScroll: true });
-        });
-      };
-      const handleDashboardNewsFilterPointerDown = (
-        event: ReactPointerEvent<HTMLDivElement>,
-      ) => {
-        if (event.pointerType === "mouse" && event.button !== 0) return;
-        dashboardHeroNewsFilterDragRef.current = {
-          moved: false,
-          pointerId: event.pointerId,
-          scrollLeft: event.currentTarget.scrollLeft,
-          startX: event.clientX,
-        };
-        event.stopPropagation();
-      };
-      const handleDashboardNewsFilterPointerMove = (
-        event: ReactPointerEvent<HTMLDivElement>,
-      ) => {
-        const drag = dashboardHeroNewsFilterDragRef.current;
-        if (!drag || drag.pointerId !== event.pointerId) return;
-        const rail = event.currentTarget;
-        if (event.pointerType === "mouse" && (event.buttons & 1) === 0) {
-          dashboardHeroNewsFilterDragRef.current = null;
-          return;
-        }
-
-        const deltaX = event.clientX - drag.startX;
-        if (!drag.moved) {
-          if (Math.abs(deltaX) < 8) return;
-          drag.moved = true;
-          rail.setPointerCapture?.(event.pointerId);
-        }
-
-        rail.scrollLeft = drag.scrollLeft - deltaX;
-        event.preventDefault();
-        event.stopPropagation();
-      };
-      const handleDashboardNewsFilterPointerEnd = (
-        event: ReactPointerEvent<HTMLDivElement>,
-      ) => {
-        const drag = dashboardHeroNewsFilterDragRef.current;
-        if (!drag || drag.pointerId !== event.pointerId) return;
-        dashboardHeroNewsFilterDragRef.current = null;
-
-        if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
-          event.currentTarget.releasePointerCapture?.(event.pointerId);
-        }
-
-        if (drag.moved) {
-          dashboardHeroNewsFilterSuppressClickRef.current = true;
-          window.setTimeout(() => {
-            dashboardHeroNewsFilterSuppressClickRef.current = false;
-          }, 0);
-          event.preventDefault();
-        }
-        event.stopPropagation();
-      };
-      const handleDashboardNewsFilterClickCapture = (
-        event: ReactMouseEvent<HTMLDivElement>,
-      ) => {
-        if (!dashboardHeroNewsFilterSuppressClickRef.current) return;
-        dashboardHeroNewsFilterSuppressClickRef.current = false;
-        event.preventDefault();
-        event.stopPropagation();
-      };
+      const featuredNews = dashboardNewsFeedFilter === "all"
+        ? sortedNewsItems.filter((item, index, items) => items.findIndex(candidate => candidate.topic === item.topic) === index).slice(0, 6)
+        : sortedNewsItems.slice(0, 5);
+      const activeFeatureIndex = featuredNewsIndex % Math.max(1, featuredNews.length);
+      const featuredIds = new Set(featuredNews.map(item => item.id));
+      const newsItems = featuredNews.length
+        ? [featuredNews[activeFeatureIndex], ...sortedNewsItems.filter(item => !featuredIds.has(item.id))]
+        : sortedNewsItems;
       const dashboardHeroNewsNextEventSpots =
         dashboardHeroNewsNextEvent?.event
           ? formatDashboardNewsSpots(dashboardHeroNewsNextEvent.event)
@@ -35814,39 +35782,14 @@ export default function DashboardExperience({
           : dashboardIconToneStyles.cyan;
       const dashboardHeroNewsNextEventTitleId =
         "dashboard-hero-news-next-event-popup-title";
-      const newsFilterIcons = {
-        all: Newspaper,
-        community: Users,
-        events: CalendarDays,
-        gear: Gauge,
-        nutrition: Apple,
-        recovery: HeartPulse,
-        training: Dumbbell,
-        world: Globe,
-      };
 
       return (
         <div
-          className="dashboard-hero-card dashboard-hero-card--news relative z-10 flex h-full min-h-[420px] w-full max-w-full flex-col overflow-hidden rounded-[30px] border border-cyan-100/16 p-3 sm:p-4"
+          className="dashboard-news-board relative z-10 -mt-3 flex h-[calc(100%+0.75rem)] min-h-0 w-full max-w-full flex-col"
           onPointerEnter={() => setDashboardContentFocused(true)}
         >
-          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(34,211,238,0.045)_1px,transparent_1px),linear-gradient(180deg,rgba(125,211,252,0.05)_1px,transparent_1px)] bg-[length:34px_34px] opacity-60" />
-          <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-100/72 to-transparent" />
 
-          <div className="relative z-10 min-w-0 overflow-visible pr-28 [container-type:inline-size] min-[380px]:pr-32 min-[760px]:pr-40">
-            <div className="relative z-20 flex min-h-7 w-max max-w-none items-center gap-2 overflow-visible whitespace-nowrap">
-              <div className="shrink-0 text-[8px] font-black uppercase tracking-[0.2em] text-cyan-100/78 drop-shadow-[0_1px_5px_rgba(2,6,23,0.9)]">
-                What&apos;s Happening
-              </div>
-            </div>
-            <h2 className="mt-0.5 max-w-full whitespace-nowrap text-[clamp(0.95rem,6cqw,2.55rem)] font-black uppercase leading-none tracking-[-0.045em] text-white [text-shadow:0_0_24px_rgba(34,211,238,0.16)] min-[520px]:tracking-normal">
-              NEWS &amp; EVENTS
-            </h2>
-            <p className="mt-0.5 truncate text-[11px] font-semibold text-slate-400 max-[559px]:hidden">
-              Sound Fitness events and the fitness world, in one feed.
-            </p>
-          </div>
-
+          <div className={`${meterCardStyles.newsToolbar} ${meterCardStyles.newsNextEventInline}`}>
           <button
             aria-controls={
               dashboardHeroNewsNextEvent
@@ -35879,7 +35822,7 @@ export default function DashboardExperience({
               <span className="flex items-center gap-1.5 text-[8px] font-black uppercase leading-none tracking-[0.14em] text-[#67e8f9]">
                 <span
                   aria-hidden
-                  className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.7)]"
+                  className={meterCardStyles.newsEventStatus} data-upcoming={Boolean(dashboardHeroNewsNextEvent)}
                 />
                 Next event
               </span>
@@ -35895,16 +35838,17 @@ export default function DashboardExperience({
               ) : null}
             </span>
             <span className="min-w-0 leading-tight">
-              <span className="line-clamp-2 block text-[10px] font-black uppercase leading-tight text-cyan-50/90">
+              <span className="block whitespace-normal break-words text-[10px] font-black uppercase leading-tight text-cyan-50/90">
                 {dashboardHeroNewsNextEvent?.title ??
                   "No upcoming events scheduled"}
               </span>
             </span>
             <span className="sr-only">
-              Showing {newsItems.length} {activeNewsFilter.label} items.
+              Showing {newsItems.length} items.
             </span>
           </button>
 
+          </div>
           {dashboardNewsEventPopupOpen && dashboardHeroNewsNextEvent?.event ? (
             <div
               aria-hidden="false"
@@ -36009,121 +35953,23 @@ export default function DashboardExperience({
           ) : null}
 
           <div
-            className="relative z-10 mt-2 flex min-w-0 items-center gap-1.5"
-            data-dashboard-orbiter-local-scroll="true"
-            onClick={(event) => event.stopPropagation()}
-            onPointerDown={(event) => event.stopPropagation()}
-            onPointerMove={(event) => event.stopPropagation()}
-            onPointerUp={(event) => event.stopPropagation()}
-          >
-            <div
-              aria-label="Browse News & Events categories"
-              className="grid h-7 w-6 shrink-0 grid-rows-2 overflow-hidden rounded-full border border-cyan-100/15 bg-slate-950/44 shadow-[0_0_14px_rgba(34,211,238,0.12)]"
-            >
-              <button
-                aria-label="Highlight previous News & Events category"
-                className="grid min-h-0 place-items-center border-b border-cyan-100/10 text-cyan-100/75 outline-none transition-[background-color,color,transform] duration-200 hover:-translate-x-0.5 hover:bg-cyan-200/10 hover:text-white focus-visible:ring-2 focus-visible:ring-cyan-100/70 motion-reduce:transform-none motion-reduce:transition-none"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  selectDashboardNewsFilter(activeNewsFilterIndex - 1);
-                }}
-                type="button"
-              >
-                <ChevronLeft aria-hidden className="h-3 w-3" />
-              </button>
-              <button
-                aria-label="Highlight next News & Events category"
-                className="grid min-h-0 place-items-center text-cyan-100/75 outline-none transition-[background-color,color,transform] duration-200 hover:translate-x-0.5 hover:bg-cyan-200/10 hover:text-white focus-visible:ring-2 focus-visible:ring-cyan-100/70 motion-reduce:transform-none motion-reduce:transition-none"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  selectDashboardNewsFilter(activeNewsFilterIndex + 1);
-                }}
-                type="button"
-              >
-                <ChevronRight aria-hidden className="h-3 w-3" />
-              </button>
-            </div>
-
-            <div
-              aria-label="Filter News & Events"
-              className="flex min-w-0 flex-1 cursor-grab select-none gap-1.5 overflow-x-auto scroll-smooth py-0.5 [scrollbar-width:none] [touch-action:pan-x] active:cursor-grabbing motion-reduce:scroll-auto [&::-webkit-scrollbar]:hidden"
-              data-dashboard-orbiter-local-scroll="true"
-              onClickCapture={handleDashboardNewsFilterClickCapture}
-              onPointerCancel={handleDashboardNewsFilterPointerEnd}
-              onPointerDown={handleDashboardNewsFilterPointerDown}
-              onPointerMove={handleDashboardNewsFilterPointerMove}
-              onPointerUp={handleDashboardNewsFilterPointerEnd}
-              role="tablist"
-            >
-              {newsFilterCounts.map((entry) => {
-                const isSelected = entry.id === dashboardNewsFeedFilter;
-                const tone = dashboardNewsFilterToneStyles[entry.id];
-                const FilterIcon = newsFilterIcons[entry.id];
-                return (
-                  <button
-                    aria-controls="dashboard-hero-news-feed"
-                    aria-selected={isSelected}
-                    className={`inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-[8px] font-black uppercase tracking-[0.12em] outline-none transition-[background-color,border-color,opacity] duration-200 focus-visible:ring-2 focus-visible:ring-cyan-100/70 motion-reduce:transition-none ${
-                      isSelected ? tone.active : tone.idle
-                    }`}
-                    id={`dashboard-hero-news-filter-${entry.id}`}
-                    key={entry.id}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setDashboardNewsFeedFilter(entry.id);
-                    }}
-                    onKeyDown={(event) => {
-                      let nextIndex: number | null = null;
-                      if (event.key === "ArrowRight") {
-                        nextIndex = activeNewsFilterIndex + 1;
-                      } else if (event.key === "ArrowLeft") {
-                        nextIndex = activeNewsFilterIndex - 1;
-                      } else if (event.key === "Home") {
-                        nextIndex = 0;
-                      } else if (event.key === "End") {
-                        nextIndex = newsFilterIds.length - 1;
-                      }
-                      if (nextIndex === null) return;
-                      // preventDefault bows out the window arrow router;
-                      // stopPropagation keeps the selector from rotating the deck.
-                      event.preventDefault();
-                      event.stopPropagation();
-                      selectDashboardNewsFilter(nextIndex, true);
-                    }}
-                    // Focus lands here on open (the return strip that used to
-                    // take it is gone); Escape and ArrowRight still close.
-                    ref={
-                      isSelected ? dashboardHeroNewsCloseButtonRef : undefined
-                    }
-                    role="tab"
-                    tabIndex={isSelected ? 0 : -1}
-                    type="button"
-                  >
-                    <FilterIcon aria-hidden className="h-3 w-3" />
-                    {entry.label}
-                    <span className="opacity-65">{entry.count}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <span aria-live="polite" className="sr-only">
-              {activeNewsFilter.label}
-            </span>
-          </div>
-
-          <div
-            aria-labelledby={`dashboard-hero-news-filter-${activeNewsFilter.id}`}
+            aria-label="News stories"
             className="relative z-10 mt-2 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 [touch-action:pan-y] [scrollbar-color:rgba(34,211,238,0.36)_rgba(15,23,42,0.56)] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/38 [&::-webkit-scrollbar-track]:rounded-full"
             data-dashboard-orbiter-local-scroll="true"
             id="dashboard-hero-news-feed"
             role="tabpanel"
             tabIndex={0}
           >
-            <ul className="grid gap-1.5" role="list">
-              {newsItems.map((item) => {
+            <NewsDiscussion articles={sortedNewsItems}>
+            <ul className={`dashboard-news-story-grid grid items-start gap-3 min-[560px]:grid-cols-2 ${dashboardNewsFeedFilter === "all" ? "" : "min-[1200px]:grid-cols-3"}`} role="list">
+              {newsItems.map((item, newsIndex) => {
                 const isEvent = item.kind === "event" && item.event;
                 const isNextEvent = dashboardHeroNewsNextEvent?.id === item.id;
+                const isUpcoming = Boolean(item.event && new Date(item.event.startsAt).getTime() >= dashboardToday.getTime());
+                // Repeat featured photos between pairs of half-width stories.
+                const isMixedFeed = dashboardNewsFeedFilter === "all";
+                const isWideStory = isMixedFeed ? newsIndex % 8 === 0 || newsIndex % 8 === 5 : isNextEvent || newsIndex === 0;
+                const storyPriority = isWideStory ? "lead" : isMixedFeed || isUpcoming || newsIndex < 3 ? "standard" : "compact";
                 const badge = item.event
                   ? formatDashboardNewsEventBadge(item.event.startsAt)
                   : null;
@@ -36133,10 +35979,12 @@ export default function DashboardExperience({
                 const categoryTone = dashboardNewsTopicToneStyles[item.topic];
                 const titleId = `dashboard-news-${item.id}-title`;
                 return (
-                  <li key={item.id}>
+                  <li key={newsIndex === 0 ? "news-featured-slot" : item.id} className={isWideStory ? isMixedFeed ? "min-[560px]:col-span-full" : "min-[560px]:col-span-2" : undefined}>
                     <article
                       aria-labelledby={titleId}
-                      className="dashboard-hero-news-row group relative grid min-w-0 grid-cols-[64px_minmax(0,1fr)] items-start gap-2.5 overflow-hidden rounded-[12px] border border-white/10 bg-slate-950/44 px-2 py-1.5 shadow-[0_10px_22px_rgba(0,0,0,0.16),inset_0_1px_0_rgba(255,255,255,0.06)] min-[560px]:grid-cols-[64px_minmax(0,1fr)_auto] min-[560px]:px-2.5 min-[560px]:py-2"
+                      id={newsIndex === 0 ? "news-featured-article" : undefined}
+                      className={`dashboard-hero-news-row group relative flex min-w-0 flex-col gap-3 overflow-hidden rounded-[22px] border border-white/10 bg-slate-950/44 p-3 shadow-[0_10px_22px_rgba(0,0,0,0.16),inset_0_1px_0_rgba(255,255,255,0.06)] ${storyPriority === "lead" ? meterCardStyles.newsPhotoStory : ""} ${newsIndex === 0 ? meterCardStyles.newsFeaturedStory : ""}`}
+                      data-news-priority={storyPriority}
                       data-news-kind={item.kind}
                       data-news-topic={item.topic}
                       style={
@@ -36151,45 +35999,40 @@ export default function DashboardExperience({
                         } as CSSProperties
                       }
                     >
-                      <div className="relative h-16 w-16 overflow-hidden rounded-[10px] bg-slate-900">
-                        <Image src={item.image || "/onboarding-workout-focus-photo.jpg"} alt={item.imageAlt || "Fitness illustration"} fill sizes="64px" className="object-cover" unoptimized={item.image?.startsWith("https://")} />
-                        {badge ? <span className="absolute inset-x-0 bottom-0 bg-slate-950/80 py-0.5 text-center text-[8px] font-black text-white">{badge.month} {badge.day}</span> : null}
+                      <div className={`${meterCardStyles.newsStoryPhoto} relative w-full shrink-0 overflow-hidden rounded-[14px] bg-slate-900 ${storyPriority === "lead" ? "h-44 min-[760px]:h-52" : storyPriority === "compact" ? "h-20" : "h-28"}`}>
+                        <Image src={item.image || "/onboarding-workout-focus-photo.jpg"} alt={item.imageAlt || "Fitness illustration"} fill sizes="(min-width: 1200px) 30vw, (min-width: 640px) 45vw, 95vw" className="object-cover" unoptimized={item.image?.startsWith("https://")} />
+                        <span className={`${meterCardStyles.newsTopicPill} absolute left-3 top-3 z-10 rounded-full border ${categoryTone.chip}`} style={{ borderColor: categoryTone.border, backgroundImage: `linear-gradient(135deg, rgba(255,255,255,.2), ${categoryTone.soft} 55%, rgba(2,6,23,.12))` }}>{categoryTone.label}</span>
+                        <span className={`${meterCardStyles.newsPhotoSource} absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-slate-950/95 to-slate-950/50 px-3 py-2 text-[10px] font-semibold leading-snug text-white`}>
+                          {isEvent ? "Sound Fitness event" : item.sourceUrl ? <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline decoration-white/40 underline-offset-2 hover:decoration-white" onClick={event => event.stopPropagation()}>{item.source}</a> : item.source}
+                          {badge ? <span className="ml-2 font-black">{badge.month} {badge.day}</span> : null}
+                        </span>
+                        <NewsPhotoCredit credit={item.photoCredit} />
                       </div>
-                      <div className="min-w-0">
+                      <div className={`${meterCardStyles.newsStoryText} min-w-0`}>
                         <div
                           className={`flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[9px] font-black uppercase tracking-[0.08em] ${categoryTone.meta}`}
                         >
-                          <span>
-                            <span className="sr-only">
-                              {isEvent ? "Event: " : "Fitness world: "}
-                            </span>
-                            {isEvent ? "Sound Fitness event" : item.source}
-                          </span>
-                          <span
-                            className={`rounded-full border px-1.5 py-px text-[7px] tracking-[0.1em] ${categoryTone.chip}`}
-                          >
-                            {categoryTone.label}
-                          </span>
                           {isNextEvent ? (
                             <span className="rounded-full border border-emerald-200/30 bg-emerald-300/12 px-1.5 py-px text-[7px] text-emerald-100">
                               Up next
                             </span>
                           ) : null}
-                          {!isEvent ? (
-                            <time dateTime={item.publishedAt}>
-                              {formatDashboardDate(item.publishedAt)}
-                            </time>
-                          ) : null}
                         </div>
                         <h4
-                          className="mt-0.5 min-w-0 break-words text-[12px] font-black leading-tight text-white min-[900px]:text-[13px]"
+                          className={`mt-0.5 min-w-0 break-words font-black leading-tight text-white ${storyPriority === "lead" ? "text-[22px]" : storyPriority === "compact" ? "text-[15px]" : "text-[17px]"}`}
                           id={titleId}
                         >
-                          {item.title}
+                          <NewsArticleOpen article={item}>{item.title}</NewsArticleOpen>
                         </h4>
-                        <p className="mt-0.5 line-clamp-2 text-[11px] font-semibold leading-snug text-slate-300 min-[900px]:line-clamp-1">
+                        {!isEvent ? (
+                          <time className={`${meterCardStyles.newsArticleDate} mt-1 block`} dateTime={item.publishedAt}>
+                            {formatDashboardDate(item.publishedAt)}
+                          </time>
+                        ) : null}
+                        <p className="mt-0.5 line-clamp-3 text-[13px] font-semibold leading-snug text-slate-300">
                           {item.summary}
                         </p>
+                        <NewsArticleActions article={item} />
                         {isEvent && item.event ? (
                           <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[9px] font-bold text-slate-400">
                             <span className="inline-flex items-center gap-1">
@@ -36227,7 +36070,7 @@ export default function DashboardExperience({
                           </div>
                         ) : null}
                       </div>
-                      <div className="hidden shrink-0 flex-col items-end gap-1 min-[560px]:flex">
+                      <div className="hidden w-full shrink-0 flex-row items-center justify-between gap-2 min-[560px]:flex">
                         {spots ? (
                           <span
                             className={`rounded-full border px-2 py-0.5 text-[7px] font-black uppercase tracking-[0.1em] ${
@@ -36247,35 +36090,36 @@ export default function DashboardExperience({
                           </Link>
                         ) : null}
                       </div>
+                      {newsIndex === 0 && featuredNews.length > 1 ? (
+                        <div className={meterCardStyles.newsFeatureControls} data-news-feature-controls="true" aria-label="Featured articles" onWheel={event => {
+                          event.stopPropagation();
+                          const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+                          const now = Date.now();
+                          if (Math.abs(delta) < 8 || now - featuredNewsWheelAt.current < 240) return;
+                          featuredNewsWheelAt.current = now;
+                          setFeaturedNewsIndex((activeFeatureIndex + (delta > 0 ? 1 : -1) + featuredNews.length) % featuredNews.length);
+                        }} onKeyDown={event => {
+                          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setFeaturedNewsIndex((activeFeatureIndex + (event.key === "ArrowRight" ? 1 : -1) + featuredNews.length) % featuredNews.length);
+                        }}>
+                          <button type="button" aria-label="Previous featured article" onClick={() => setFeaturedNewsIndex((activeFeatureIndex - 1 + featuredNews.length) % featuredNews.length)}><ChevronLeft aria-hidden="true" /></button>
+                          <div className={meterCardStyles.newsFeatureBlips} role="group" aria-label="Choose featured article">
+                            {featuredNews.map((feature, index) => <button key={feature.id} type="button" aria-label={`Show featured article: ${feature.title}`} aria-pressed={index === activeFeatureIndex} aria-controls="news-featured-article" title={feature.title} onClick={() => setFeaturedNewsIndex(index)}><span /></button>)}
+                          </div>
+                          <button type="button" aria-label="Next featured article" onClick={() => setFeaturedNewsIndex((activeFeatureIndex + 1) % featuredNews.length)}><ChevronRight aria-hidden="true" /></button>
+                        </div>
+                      ) : null}
                     </article>
                   </li>
                 );
               })}
             </ul>
+            </NewsDiscussion>
           </div>
 
-          <div className="relative z-10 mt-2 hidden grid-cols-3 gap-1.5 min-[560px]:grid">
-            {[
-              {
-                label: "This week",
-                value: `${dashboardWeeklySessionGoal.count}`,
-              },
-              { label: "Next session", value: dashboardNextPlannedSessionLabel },
-              { label: "Upcoming events", value: `${dashboardHeroNewsUpcomingCount}` },
-            ].map((cell) => (
-              <div
-                className="min-w-0 rounded-[10px] border border-white/10 bg-slate-950/44 px-2 py-1.5"
-                key={cell.label}
-              >
-                <div className="text-[7px] font-black uppercase tracking-[0.14em] text-slate-500">
-                  {cell.label}
-                </div>
-                <div className="truncate text-[11px] font-black text-cyan-50">
-                  {cell.value}
-                </div>
-              </div>
-            ))}
-          </div>
+
         </div>
       );
     };
@@ -36298,11 +36142,20 @@ export default function DashboardExperience({
             ? `News & Events open. ${dashboardHeroNewsUpcomingCount} upcoming events and ${dashboardHeroNewsWorldCount} headlines.`
             : ""}
         </div>
-        <div className="relative mb-2 flex h-12 shrink-0 items-center" data-dashboard-hero-toolbar="true">
-          <h3 className={`${welcomeStyles.heading} min-w-0 max-w-[36rem] pr-[9rem] text-[clamp(0.85rem,3.5vw,1.6rem)] font-black uppercase leading-tight min-[760px]:pr-[14rem]`}>Welcome back, <span className={welcomeStyles.name}>{firstName}</span></h3>
+        <div className={`${meterCardStyles.newsHeroToolbar} relative -mt-2 mb-2 flex h-12 shrink-0 items-center`} data-dashboard-hero-toolbar="true" data-news-toolbar={dashboardHeroNewsOpen} style={dashboardHeroNewsOpen ? undefined : { position: "absolute", top: 0, left: 0, right: 0, height: 0, minHeight: 0, margin: 0, zIndex: 80 }}>
+          {dashboardHeroNewsOpen ? (
+            <h2 className="pointer-events-none absolute left-8 top-0 z-10 flex h-11 items-center max-w-[calc(50%-5rem)] text-[clamp(0.95rem,2.8vw,1.5rem)] font-black uppercase leading-tight text-white [text-shadow:0_0_24px_rgba(34,211,238,0.16)] min-[560px]:left-9">
+              <span>News &amp; Events</span>
+            </h2>
+          ) : null}
+          {dashboardHeroNewsOpen ? <button type="button" className={`${meterCardStyles.newsNextEventCompact} relative ml-auto hidden min-h-11 min-w-0 rounded-xl border border-cyan-200/15 bg-slate-950/60 text-left`} disabled={!dashboardHeroNewsNextEvent} aria-label={dashboardHeroNewsNextEvent ? `Open next event details: ${dashboardHeroNewsNextEvent.title}` : "No upcoming events scheduled"} aria-haspopup={dashboardHeroNewsNextEvent ? "dialog" : undefined} aria-expanded={dashboardHeroNewsNextEvent ? dashboardNewsEventPopupOpen : undefined} aria-controls={dashboardHeroNewsNextEvent ? "dashboard-hero-news-next-event-popup" : undefined} onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); if (dashboardHeroNewsNextEvent) setDashboardNewsEventPopupOpen(true); }}>
+            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase text-cyan-200"><span aria-hidden="true" className={meterCardStyles.newsEventStatus} data-upcoming={Boolean(dashboardHeroNewsNextEvent)} />Next event</span>
+            <span className="block w-full whitespace-normal break-words text-xs font-bold leading-tight text-slate-100">{dashboardHeroNewsNextEvent?.title ?? "No upcoming events scheduled"}</span>
+          </button> : null}
         <div
           aria-label="Choose dashboard hero card"
-          className="pointer-events-none absolute right-3 top-1.5 z-[80] flex h-11 items-center min-[760px]:right-4 min-[760px]:top-2 min-[760px]:h-11"
+          style={{ display: dashboardNavigationIndicatorsOpen || dashboardScrollIndicatorAxis === "horizontal" ? undefined : "none" }}
+          className="pointer-events-none absolute left-1/2 top-0 z-[80] flex h-11 -translate-x-1/2 items-center"
           data-dashboard-orbiter-local-scroll="true"
           onPointerEnter={() => setDashboardContentFocused(true)}
           onPointerMove={(event) => {
@@ -44346,6 +44199,7 @@ export default function DashboardExperience({
             </>
           ) : <section
             aria-label="Dashboard vertical orbiter"
+            data-card-navigation-open={dashboardNavigationIndicatorsOpen}
             className={
               // No backdrop-blur here: this section spans the whole viewport
               // and sits on <main>'s solid #020713 ground, so the blur was a
@@ -44362,6 +44216,14 @@ export default function DashboardExperience({
               }
             }}
             onKeyDown={handleDashboardOrbiterKeyDown}
+            onWheelCapture={(event) => {
+              const target = event.target;
+              if (target instanceof Element && target.closest(".dashboard-header-vortex-shell, [data-dashboard-row-menu]")) return;
+              const x = Math.abs(event.deltaX);
+              const y = Math.abs(event.deltaY);
+              if (Math.max(x, y) < 8) return;
+              revealDashboardScrollIndicators(x > y ? "horizontal" : "vertical");
+            }}
             onWheel={handleDashboardOrbiterWheel}
             tabIndex={0}
           >
@@ -44374,7 +44236,29 @@ export default function DashboardExperience({
             </div>
             {!isAdminPreview && renderDashboardFloatingSnapshotHeader()}
             {!isAdminPreview && !isCoachWorkspace && renderDashboardPageLevelMeter()}
-            <DashboardRowMenu>
+            <DashboardRowMenu open={dashboardNavigationIndicatorsOpen || dashboardScrollIndicatorAxis === "vertical"} onOpenChange={changeDashboardNavigationIndicators} renderTrigger={(toggle) => <>
+              {renderDashboardPageAnalog(toggle)}
+              {(["up", "right", "down", "left"] as const).map((direction) => {
+                const Arrow = direction === "up" ? ChevronUp : direction === "right" ? ChevronRight : direction === "down" ? ChevronDown : ChevronLeft;
+                return <button key={direction} type="button" data-card-joystick-arrow={direction} aria-label={`Navigate cards ${direction}`} disabled={direction === "up" ? clampedDashboardOrbiterRow === 0
+                    : direction === "down" ? clampedDashboardOrbiterRow === dashboardOrbiterRows.length - 1
+                    : isCoachWorkspace ? true
+                    : clampedDashboardOrbiterRow === 0 ? direction === "left" ? dashboardHeroNewsOpen : !dashboardHeroNewsOpen && activeDashboardHeroCardIndex >= dashboardHeroCardCount - 1
+                    : clampedDashboardOrbiterRow === 1 && !isAdminPreview ? direction === "left" ? dashboardDailyToolsPage === 0 : dashboardDailyToolsPage >= dashboardDailyToolsPageCount - 1
+                    : false}
+                  onPointerDown={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}
+                  onClick={(event) => { event.stopPropagation(); hideDashboardTooltip(); if (runDashboardPageAnalogDirection(direction)) pulseDashboardPageAnalogDirection(direction); }}><Arrow aria-hidden="true" /></button>;
+              })}
+            </>}>
+            {dashboardHeroNewsOpen && clampedDashboardOrbiterRow === 0 ? (
+              <nav className={meterCardStyles.newsTopicDropdown} aria-label="News topics">
+                <span className="px-3 text-xs font-black uppercase tracking-widest text-cyan-200">Topics</span>
+                {DASHBOARD_NEWS_FEED_FILTERS.filter(topic => filterDashboardNewsFeed(dashboardNewsFeed.items, topic.id).length > 0).map(topic => {
+                  const TopicIcon = dashboardNewsTopicIcons[topic.id];
+                  return <button key={topic.id} type="button" aria-pressed={dashboardNewsFeedFilter === topic.id} className={`${meterCardStyles.newsTopicOption} px-3 py-2 text-left text-sm font-extrabold ${dashboardNewsFeedFilter === topic.id ? dashboardNewsFilterToneStyles[topic.id].active : dashboardNewsFilterToneStyles[topic.id].idle}`} onClick={() => setDashboardNewsFeedFilter(topic.id)}><TopicIcon aria-hidden="true" className="h-4 w-4 shrink-0" /><span>{topic.label}</span></button>;
+                })}
+              </nav>
+            ) : <>
             <div
               className={`dashboard-page-orbit-shell pointer-events-none absolute bottom-20 left-0 top-[7rem] z-[70] w-12 overflow-visible sm:left-2 sm:w-16 lg:left-6 ${
                 isAdminPreview ? "dashboard-page-orbiter--admin" : ""
@@ -44449,10 +44333,8 @@ export default function DashboardExperience({
                 })}
               </div>
             </div>
+            </>}
             </DashboardRowMenu>
-            <DashboardAccessibilityNavigator>
-              {renderDashboardPageAnalog()}
-            </DashboardAccessibilityNavigator>
             <div
               ref={dashboardShortViewportRef}
               data-dashboard-short-viewport="true"

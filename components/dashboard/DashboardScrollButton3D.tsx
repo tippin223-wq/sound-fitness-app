@@ -20,15 +20,19 @@ export type DashboardScrollButtonGlyph =
   | "account"
   | "meter"
   | "rewards"
-  | "selector";
+  | "selector"
+  | "body" | "constellation" | "consistency" | "challenges" | "achievements" | "favorites" | "news" | "calendar" | "tools" | "fuel" | "recovery" | "settings";
 
 type DashboardScrollButton3DProps = {
   active?: boolean;
   activeDirection?: DashboardScrollButtonDirection | null;
   className?: string;
   compact?: boolean;
+  knobOnly?: boolean;
+  dragOffsetRef?: { readonly current: { x: number; y: number } };
   /** Center-ball icon previewing what the button navigates to next. */
   glyph?: DashboardScrollButtonGlyph | null;
+  glyphColor?: string;
   horizontal?: boolean;
   /** Which side arrow the pointer is over — that arrow highlights. */
   hoverDirection?: DashboardScrollButtonDirection | null;
@@ -123,15 +127,46 @@ const drawJoystickGlyph = (
   canvas: HTMLCanvasElement,
   glyph: DashboardScrollButtonGlyph,
   accent: string,
+  foreground = "#f0fdff",
 ) => {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
+  const cardPaths: Partial<Record<DashboardScrollButtonGlyph, string>> = {
+    body: "M12 8V4H8 M6 8h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2 M9 13v2 M15 13v2 M1 12v4 M23 12v4",
+    constellation: "m6.5 6.5 11 11 M3 8l5-5 2 2-5 5z M14 19l5-5 2 2-5 5z M2 6l4-4 M18 22l4-4",
+    consistency: "M3 17a9 9 0 1 1 18 0 M12 14l5-5 M4 20h16",
+    challenges: "m5 12 4 4L19 6",
+    achievements: "m12 3 2.8 5.7 6.3.9-4.5 4.4 1 6.2-5.6-3-5.6 3 1-6.2L2.9 9.6l6.3-.9z",
+    favorites: "M12 7C9 4 5 4 2 5v15c3-1 7-1 10 2 3-3 7-3 10-2V5c-3-1-7-1-10 2v15",
+    news: "M4 3h16v18H4z M8 7h8 M8 11h3v3H8z M14 11h2 M14 14h2 M8 17h8",
+    calendar: "M4 5h16v16H4z M8 2v6 M16 2v6 M4 10h16 M8 14h2 M14 14h2 M8 18h2",
+    tools: "M8 3h8v4H8z M5 5H3v17h18V5h-2 M7 12h10 M7 17h10",
+    fuel: "M12 7c-6-7-12 0-8 9 2 5 4 5 8 3 4 2 6 2 8-3 4-9-2-16-8-9 M12 7c-1-4 2-6 5-6",
+    recovery: "M20 4C10 0 2 9 4 20c10 2 20-6 16-16z M4 20 16 8",
+    settings: "M12 3v3 M12 18v3 M3 12h3 M18 12h3 M5.6 5.6l2 2 M16.4 16.4l2 2 M5.6 18.4l2-2 M16.4 7.6l2-2 M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8",
+  };
+  const cardPath = cardPaths[glyph];
+  if (cardPath) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.scale(canvas.width / 28, canvas.height / 28);
+    ctx.translate(2, 2);
+    ctx.strokeStyle = foreground;
+    ctx.lineWidth = 1.8;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.shadowColor = accent;
+    ctx.shadowBlur = 2;
+    ctx.stroke(new Path2D(cardPath));
+    ctx.restore();
+    return;
+  }
   const u = canvas.width / 96;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.lineWidth = 7 * u;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  ctx.strokeStyle = "#f0fdff";
+  ctx.strokeStyle = foreground;
   ctx.shadowColor = accent;
   ctx.shadowBlur = 10 * u;
   ctx.beginPath();
@@ -170,7 +205,10 @@ export default function DashboardScrollButton3D({
   activeDirection = null,
   className = "",
   compact = false,
+  knobOnly = false,
+  dragOffsetRef,
   glyph = null,
+  glyphColor = "#f0fdff",
   horizontal = false,
   hoverDirection = null,
   paused = false,
@@ -184,6 +222,8 @@ export default function DashboardScrollButton3D({
   activeRef.current = active;
   const glyphRef = useRef(glyph);
   glyphRef.current = glyph;
+  const glyphColorRef = useRef(glyphColor);
+  glyphColorRef.current = glyphColor;
   const hoverDirectionRef = useRef(hoverDirection);
   hoverDirectionRef.current = hoverDirection;
   const pausedRef = useRef(paused);
@@ -300,13 +340,21 @@ export default function DashboardScrollButton3D({
       field.rotation.x = Math.PI / 2;
       field.scale.set(horizontal ? 1.46 : 1.08, horizontal ? 0.62 : 1.08, 1);
       field.position.z = -0.18;
-      root.add(field);
+      // Keep the existing grey base outside every animated joystick group.
+      // It must not inherit knob tilt, roll, scale, or charge pulsing.
+      if (knobOnly) {
+        field.updateMatrix();
+        field.matrixAutoUpdate = false;
+        scene.add(field);
+      } else root.add(field);
 
       const orbGroup = new THREE.Group();
       root.add(orbGroup);
 
       const orb = new THREE.Mesh(new THREE.SphereGeometry(0.58, 48, 24), orbMaterial);
-      orb.scale.set(compact ? 0.72 : 1, compact ? 0.72 : 1, compact ? 0.72 : 1);
+      orb.scale.setScalar(compact ? 0.72 : 1);
+      // The full blue sphere is the draggable knob. The grey cylinder
+      // remains separate and fixed directly in the scene.
       orbGroup.add(orb);
 
       const bubbleFilm = new THREE.Mesh(
@@ -318,6 +366,7 @@ export default function DashboardScrollButton3D({
         compact ? 0.78 : 1.08,
         compact ? 0.78 : 1.08,
       );
+      bubbleFilm.visible = !knobOnly;
       orbGroup.add(bubbleFilm);
 
       const bubbleHighlight = new THREE.Mesh(
@@ -333,6 +382,7 @@ export default function DashboardScrollButton3D({
         ringMaterial,
       );
       longitudeRing.rotation.y = Math.PI / 2;
+      longitudeRing.visible = !knobOnly;
       orbGroup.add(longitudeRing);
 
       const latitudeRing = new THREE.Mesh(
@@ -341,6 +391,7 @@ export default function DashboardScrollButton3D({
       );
       latitudeRing.rotation.x = Math.PI / 2;
       latitudeRing.scale.y = 0.42;
+      latitudeRing.visible = !knobOnly;
       orbGroup.add(latitudeRing);
 
       const diagonalRing = new THREE.Mesh(
@@ -348,13 +399,16 @@ export default function DashboardScrollButton3D({
         ringMaterial,
       );
       diagonalRing.rotation.set(Math.PI / 2.8, Math.PI / 3.6, 0);
+      diagonalRing.visible = !knobOnly;
       orbGroup.add(diagonalRing);
 
       const core = new THREE.Mesh(new THREE.SphereGeometry(0.14, 28, 14), coreMaterial);
       core.position.z = 0.38;
+      core.visible = !knobOnly;
       orbGroup.add(core);
 
       const spark = new THREE.Mesh(new THREE.SphereGeometry(0.045, 16, 8), sparkMaterial);
+      spark.visible = !knobOnly;
       orbGroup.add(spark);
 
       const arrowGeometry = new THREE.ExtrudeGeometry(createArrowShape(THREE), {
@@ -388,9 +442,9 @@ export default function DashboardScrollButton3D({
       arrows.left.rotation.z = Math.PI / 2;
       arrows.right.position.set(horizontal ? 1.23 : 1.06, 0, 0.2);
       arrows.right.rotation.z = -Math.PI / 2;
-      Object.values(arrows).forEach((arrow) => root.add(arrow));
-      arrows.up.visible = showUpRef.current && !horizontal;
-      arrows.down.visible = showDownRef.current && !horizontal;
+      Object.values(arrows).forEach((arrow) => { arrow.visible = !knobOnly; root.add(arrow); });
+      arrows.up.visible = showUpRef.current && !horizontal && !knobOnly;
+      arrows.down.visible = showDownRef.current && !horizontal && !knobOnly;
 
       // Center-ball glyph: a flat canvas-textured mark floating in front of
       // the orb, previewing the next destination. Re-drawn only when the
@@ -407,13 +461,14 @@ export default function DashboardScrollButton3D({
         transparent: true,
       });
       const glyphPlane = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.62, 0.62),
+        new THREE.PlaneGeometry(knobOnly ? 1.05 : 0.62, knobOnly ? 1.05 : 0.62),
         glyphMaterial,
       );
-      glyphPlane.position.set(0, 0, 0.58);
+      glyphPlane.position.set(0, 0, knobOnly ? 0.85 : 0.58);
       glyphPlane.visible = false;
       root.add(glyphPlane);
       let lastDrawnGlyph: DashboardScrollButtonGlyph | null = null;
+      let lastDrawnGlyphColor: string | null = null;
       let lastDrawnGlyphTone: DashboardScrollButtonTone | null = null;
 
       let charge = 0;
@@ -452,8 +507,9 @@ export default function DashboardScrollButton3D({
         const activeDirectionForFrame = activeDirectionRef.current;
         const hoverForFrame = hoverDirectionRef.current;
         const glyphForFrame = glyphRef.current;
-        const showUpForFrame = showUpRef.current && !horizontal;
-        const showDownForFrame = showDownRef.current && !horizontal;
+        const glyphColorForFrame = glyphColorRef.current;
+        const showUpForFrame = showUpRef.current && !horizontal && !knobOnly;
+        const showDownForFrame = showDownRef.current && !horizontal && !knobOnly;
 
         // Any prop edge (or an unpause) re-arms the wake window so the pose
         // eases through the change before the widget goes still again.
@@ -463,6 +519,7 @@ export default function DashboardScrollButton3D({
           activeDirectionForFrame === lastAppliedDirection &&
           hoverForFrame === lastAppliedHover &&
           glyphForFrame === lastAppliedGlyph &&
+          glyphColorForFrame === lastDrawnGlyphColor &&
           showUpForFrame === lastAppliedShowUp &&
           showDownForFrame === lastAppliedShowDown;
         const unpauseEdge = !pausedForFrame && lastObservedPaused === true;
@@ -529,7 +586,7 @@ export default function DashboardScrollButton3D({
         orbMaterial.emissive.set(toneColorsForFrame.soft);
         ringMaterial.color.set(toneColorsForFrame.spark);
         ringMaterial.emissive.set(toneColorsForFrame.accent);
-        coreMaterial.color.set(toneColorsForFrame.spark);
+        coreMaterial.color.set(knobOnly ? toneColorsForFrame.core : toneColorsForFrame.spark);
         sparkMaterial.color.set(toneColorsForFrame.core);
         Object.values(arrowMaterials).forEach((material) =>
           material.emissive.set(toneColorsForFrame.core),
@@ -540,27 +597,29 @@ export default function DashboardScrollButton3D({
         // Keep the center glyph current (rare: only on glyph/tone changes).
         if (
           glyphForFrame !== lastDrawnGlyph ||
-          (glyphForFrame && toneForFrame !== lastDrawnGlyphTone)
+          (glyphForFrame && toneForFrame !== lastDrawnGlyphTone) || glyphColorForFrame !== lastDrawnGlyphColor
         ) {
           if (glyphForFrame) {
             drawJoystickGlyph(
               glyphCanvas,
               glyphForFrame,
-              toneColorsForFrame.core,
+              glyphColorForFrame === "#f0fdff" ? toneColorsForFrame.core : glyphColorForFrame,
+              glyphColorForFrame,
             );
             glyphTexture.needsUpdate = true;
           }
           glyphPlane.visible = Boolean(glyphForFrame);
           lastDrawnGlyph = glyphForFrame;
           lastDrawnGlyphTone = toneForFrame;
+          lastDrawnGlyphColor = glyphColorForFrame;
         }
 
         // Idle drift only. These used to scale with `charge`, which spikes on
         // every scroll step, so a step doubled the wobble and tipped the orb —
         // movement where the button should have sat still.
-        root.rotation.x = Math.sin(seconds * 0.72) * 0.035;
-        root.rotation.y = Math.sin(seconds * 0.56) * 0.04;
-        orbGroup.rotation.y += frameDelta * 0.00055;
+        root.rotation.x = knobOnly ? 0 : Math.sin(seconds * 0.72) * 0.035;
+        root.rotation.y = knobOnly ? 0 : Math.sin(seconds * 0.56) * 0.04;
+        orbGroup.rotation.y = knobOnly ? 0 : orbGroup.rotation.y + frameDelta * 0.00055;
         orbGroup.rotation.x = 0;
         // The orb leans toward the arrow the POINTER is over, and nothing
         // else. It used to fall back to activeDirection, which a scroll step
@@ -569,26 +628,28 @@ export default function DashboardScrollButton3D({
         // off-centre between panels. A step now changes the glow, not the
         // position.
         const leanDirection = hoverForFrame;
-        orbGroup.position.x =
-          leanDirection === "left" ? -0.16 : leanDirection === "right" ? 0.16 : 0;
-        orbGroup.position.y =
-          leanDirection === "up" ? 0.16 : leanDirection === "down" ? -0.16 : 0;
-        orbGroup.scale.setScalar(0.94 + charge * 0.08);
+        orbGroup.position.x = knobOnly
+          ? (dragOffsetRef?.current.x ?? 0) * .035
+          : leanDirection === "left" ? -0.16 : leanDirection === "right" ? 0.16 : 0;
+        orbGroup.position.y = knobOnly
+          ? -(dragOffsetRef?.current.y ?? 0) * .035
+          : leanDirection === "up" ? 0.16 : leanDirection === "down" ? -0.16 : 0;
+        orbGroup.scale.setScalar(knobOnly ? 1.32 : 0.94 + charge * 0.08);
         // The glyph floats with the orb but never spins with it.
         glyphPlane.position.x = orbGroup.position.x;
         glyphPlane.position.y = orbGroup.position.y;
-        glyphPlane.scale.setScalar(0.96 + charge * 0.08);
+        glyphPlane.scale.setScalar(knobOnly ? 1.42 : 0.96 + charge * 0.08);
 
-        fieldMaterial.emissiveIntensity = 0.06 + charge * 0.12;
-        fieldMaterial.opacity = 0.1 + charge * 0.1;
-        orbMaterial.emissiveIntensity = 0.18 + charge * 0.38;
-        orbMaterial.opacity = 0.34 + charge * 0.18;
+        fieldMaterial.emissiveIntensity = knobOnly ? 0.06 : 0.06 + charge * 0.12;
+        fieldMaterial.opacity = knobOnly ? 0.16 : 0.1 + charge * 0.1;
+        orbMaterial.emissiveIntensity = knobOnly ? 0.18 : 0.18 + charge * 0.38;
+        orbMaterial.opacity = knobOnly ? 0.34 : 0.34 + charge * 0.18;
         ringMaterial.emissiveIntensity = 0.12 + charge * 0.34;
         ringMaterial.opacity = 0.22 + charge * 0.24;
         bubbleFilmMaterial.color.set(toneColorsForFrame.accent);
         bubbleFilmMaterial.opacity =
           0.12 + charge * (0.16 + Math.sin(seconds * 2.8) * 0.025);
-        bubbleHighlightMaterial.opacity =
+        bubbleHighlightMaterial.opacity = knobOnly ? 0.38 :
           0.38 + charge * (0.16 + Math.sin(seconds * 3.4) * 0.04);
         coreMaterial.opacity = 0.28 + charge * 0.28;
         sparkMaterial.opacity = 0.32 + charge * 0.34;
@@ -597,8 +658,8 @@ export default function DashboardScrollButton3D({
         latitudeRing.rotation.z = -seconds * (0.38 + charge * 0.85);
         diagonalRing.rotation.z = seconds * (0.24 + charge * 0.75);
         spark.position.set(
-          Math.sin(seconds * 2.4) * (0.28 + charge * 0.16),
-          Math.cos(seconds * 2.1) * (0.22 + charge * 0.1),
+          knobOnly ? 0 : Math.sin(seconds * 2.4) * (0.28 + charge * 0.16),
+          knobOnly ? 0 : Math.cos(seconds * 2.1) * (0.22 + charge * 0.1),
           0.42,
         );
 
@@ -624,6 +685,7 @@ export default function DashboardScrollButton3D({
         // only advances with the clock). If none of them changed this frame,
         // the frame rewrote identical values — settled, skip the redraw.
         const stillMoving =
+          !propsSettled ||
           seconds !== lastAppliedSeconds ||
           charge !== previousCharge ||
           toneForFrame !== lastAppliedTone ||
@@ -654,9 +716,8 @@ export default function DashboardScrollButton3D({
         },
       };
       },
-    // compact/horizontal are fixed per instance; showUp/showDown are read live.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    // Geometry options rebuild only when their configuration changes.
+    [compact, horizontal, knobOnly, dragOffsetRef],
   );
 
   // No DOM stand-in. The bubble that used to sit here was a glassy sphere and

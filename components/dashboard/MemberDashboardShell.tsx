@@ -80,10 +80,10 @@ export default function MemberDashboardShell({
   }, [router]);
 
   return (
-    <PlanningProvider><ProfileProvider>
+    <PlanningProvider><ProfileProvider><div data-member-app className="contents">
       <OffscreenAnimationPauser />
       {useEmbeddedHeader ? null : <AppHeader />}
       {children}
-    </ProfileProvider></PlanningProvider>
+    </div></ProfileProvider></PlanningProvider>
   );
 }

@@ -1,4 +1,6 @@
 import { ROUTES, type InternalHref } from "@/lib/routes";
+import { weeklyNews } from "./weeklyNews";
+import type { NewsPhotoCredit } from "./newsPhotos";
 
 /**
  * Sound Fitness news feed — the page that opens off the LEFT edge of the
@@ -16,6 +18,7 @@ export type DashboardNewsFeedKind = "event" | "world";
 export type DashboardNewsFeedTopic =
   | "community"
   | "gear"
+  | "sports"
   | "nutrition"
   | "recovery"
   | "training";
@@ -26,6 +29,7 @@ export type DashboardNewsFeedFilter =
   | "community"
   | "events"
   | "gear"
+  | "sports"
   | "nutrition"
   | "recovery"
   | "training"
@@ -49,12 +53,15 @@ export type DashboardNewsFeedItem = {
   tone: DashboardNewsFeedTone;
   title: string;
   summary: string;
+  body?: string;
   image?: string;
   imageAlt?: string;
+  photoCredit?: NewsPhotoCredit;
   /** ISO 8601 with offset. */
   publishedAt: string;
   /** Outlet / organisation / author name only. */
   source?: string;
+  sourceUrl?: string;
   href?: InternalHref;
   hrefLabel?: string;
   event?: DashboardNewsFeedEvent;
@@ -76,11 +83,11 @@ export const DASHBOARD_NEWS_FEED_FILTERS: readonly DashboardNewsFeedFilterDefini
   { id: "all", label: "All", kinds: ["event", "world"] },
   { id: "events", label: "Events", kinds: ["event"] },
   { id: "training", label: "Training", topics: ["training"] },
-  { id: "recovery", label: "Recovery", topics: ["recovery"] },
   { id: "nutrition", label: "Nutrition", topics: ["nutrition"] },
-  { id: "gear", label: "Gear", topics: ["gear"] },
+  { id: "recovery", label: "Health & Recovery", topics: ["recovery"] },
+  { id: "gear", label: "Fitness Tech", topics: ["gear"] },
+  { id: "sports", label: "Sports", topics: ["sports"] },
   { id: "community", label: "Community", topics: ["community"] },
-  { id: "world", label: "World", kinds: ["world"] },
 ];
 
 /** Studio clock. Events are announced in Sound Fitness local time. */
@@ -242,13 +249,14 @@ export const DASHBOARD_NEWS_FEED_SEED: DashboardNewsFeed = {
 export const dashboardNewsPhotos: Record<DashboardNewsFeedTopic, string> = {
   community: "/onboarding-location-outdoors-travel.jpg",
   gear: "/onboarding-equipment-dumbbells.jpg",
-  nutrition: "/member-preview-matched-plan.jpg",
-  recovery: "/member-preview-no-commute.jpg",
-  training: "/onboarding-workout-focus-photo.jpg",
+  sports: "/onboarding-location-outdoors-travel.jpg",
+  nutrition: "/news/balanced-nutrition.jpg",
+  recovery: "/news/sleep-recovery.jpg",
+  training: "/news/strength-training.jpg",
 };
 export const getDashboardNewsFeed = (): DashboardNewsFeed => ({
-  ...DASHBOARD_NEWS_FEED_SEED,
-  items: DASHBOARD_NEWS_FEED_SEED.items.map(item => ({...item, image: item.image || dashboardNewsPhotos[item.topic], imageAlt: item.imageAlt || `${item.topic} illustration`})),
+  updatedAt: weeklyNews[0].publishedAt,
+  items: weeklyNews.map(item => ({...item})),
 });
 
 export const filterDashboardNewsFeed = (

@@ -291,6 +291,8 @@ export default function DashboardCalendar({
   );
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const weekGridScrollRef = useRef<HTMLDivElement | null>(null);
+  const dayTimelineRef = useRef<HTMLDivElement | null>(null);
+  const [selectedDayMinutes, setSelectedDayMinutes] = useState<number | null>(null);
   const [selectedDayDropdownOpen, setSelectedDayDropdownOpen] = useState(Boolean(initialEventFocus));
   const [soundSessionMenuOpen, setSoundSessionMenuOpen] = useState(false);
   const [userEntries, setUserEntries, calendarSaveError] = useDashboardCalendarEntries();
@@ -364,7 +366,9 @@ export default function DashboardCalendar({
       date: toDateKey(activeSelectedDate),
       id: createCalendarEntryId(),
       status: "Planned",
-      time: view === "week" ? highlightedWeekTime : option.time,
+      time: selectedDayMinutes !== null
+        ? `${String(Math.floor(selectedDayMinutes / 60)).padStart(2, "0")}:${String(selectedDayMinutes % 60).padStart(2, "0")}`
+        : view === "week" ? highlightedWeekTime : option.time,
       title: option.title,
       type: option.type,
     };
@@ -460,14 +464,6 @@ export default function DashboardCalendar({
       : selectedCellEvents;
   const todayEvents = eventsByDate[toDateKey(activeToday)] || [];
   const calendarReady = Boolean(today);
-  const selectedDayDateLabel =
-    calendarReady && isSameDate(activeSelectedDate, activeToday)
-      ? "Today"
-      : compactDateFormatter.format(activeSelectedDate);
-  const selectedDaySubLabel =
-    view === "week"
-      ? `${selectedDayDateLabel} · ${formatTimelineTime(highlightedWeekHour * 60)}`
-      : selectedDayDateLabel;
   const weekInViewStart = startOfWeek(activeSelectedDate);
   const weekInViewEnd = endOfWeek(activeSelectedDate);
   const weekDays = useMemo(
@@ -614,6 +610,313 @@ export default function DashboardCalendar({
     consumedOrbitCommandRef.current = orbitCommand.sequence;
     scrollWeekDays(orbitCommand.direction === "right" ? "next" : "previous");
   }, [calendarReady, orbitCommand, view]);
+
+  const selectedTimelineDateKey = toDateKey(activeSelectedDate);
+  useEffect(() => {
+    if (!selectedDayDropdownOpen || editingEntryId) return;
+    setSelectedDayMinutes(null);
+    const frame = window.requestAnimationFrame(() => {
+      const rail = dayTimelineRef.current;
+      if (!rail) return;
+      const now = new Date();
+      const minutes = initialEventFocus?.dateKey === selectedTimelineDateKey
+        ? Math.floor(initialEventFocus.minutes / 30) * 30
+        : now.getHours() * 60 + Math.floor(now.getMinutes() / 30) * 30;
+      const slot = rail.querySelector<HTMLElement>(`[data-day-minutes="${minutes}"]`);
+      if (slot) rail.scrollTop += slot.getBoundingClientRect().top - rail.getBoundingClientRect().top - rail.clientHeight * .25;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [selectedDayDropdownOpen, selectedTimelineDateKey, editingEntryId, initialEventFocus]);
+
+  function renderDayEvent(event: CalendarEvent) {
+                  const userCreated = Boolean(
+                    !event.readOnly && event.id && (event.id === pendingEntry?.id || userEntries.some((entry) => entry.id === event.id)),
+                  );
+                  const editing = userCreated && editingEntryId === event.id;
+                  const confirmingDelete =
+                    userCreated && pendingDeleteEntryId === event.id;
+                  const editingHour24 = Number.parseInt(
+                    editingEntryTime.slice(0, 2),
+                    10,
+                  );
+                  const safeEditingHour24 = Number.isNaN(editingHour24)
+                    ? 0
+                    : editingHour24;
+                  const editingHour12 = safeEditingHour24 % 12 || 12;
+                  const editingMinute = editingEntryTime.slice(3, 5) || "00";
+                  const editingPeriod = safeEditingHour24 >= 12 ? "PM" : "AM";
+                  const editingMinuteOptions = timeMinuteOptions.includes(editingMinute)
+                    ? timeMinuteOptions
+                    : [...timeMinuteOptions, editingMinute].sort();
+
+                  return (
+                    <div
+                      className={`rounded-2xl border px-3 py-3 ${typeStyles[event.type]} ${editing ? "h-full min-h-0" : ""}`}
+                      key={event.id || `${event.dateKey}-${event.title}-detail`}
+                    >
+                      {editing ? (
+                        <div className="flex h-full min-h-0 flex-col gap-2">
+                          <label className="block shrink-0">
+                            <span className="sr-only">Event title</span>
+                            <input
+                              className="w-full rounded-lg border border-current/20 bg-slate-950/55 px-2.5 py-2 text-sm font-bold text-white outline-none focus:border-cyan-200/60"
+                              onChange={(event) => setEditingEntryTitle(event.target.value)}
+                              value={editingEntryTitle}
+                            />
+                          </label>
+                          <div className="flex min-h-0 flex-1 flex-col gap-1.5">
+                            <span className="block shrink-0 text-[8px] font-black uppercase tracking-[0.16em] opacity-65">
+                              Time
+                            </span>
+                            <button
+                              aria-expanded={editingTimePickerOpen}
+                              aria-label="Choose event time"
+                              className="flex h-11 w-full shrink-0 items-center justify-between rounded-xl border border-current/20 bg-slate-950/65 px-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition hover:border-cyan-200/45 hover:bg-cyan-300/10 focus-visible:border-cyan-200/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/15"
+                              onClick={() => setEditingTimePickerOpen((open) => !open)}
+                              type="button"
+                            >
+                              <span className="text-sm font-black tracking-[0.04em] text-white">
+                                {formatTimelineTime(
+                                  safeEditingHour24 * 60 + Number(editingMinute),
+                                )}
+                              </span>
+                              <Clock3
+                                aria-hidden="true"
+                                className="h-4 w-4 shrink-0 text-cyan-200"
+                                strokeWidth={2.2}
+                              />
+                            </button>
+                            {editingTimePickerOpen ? (
+                              <div className="grid min-h-0 flex-1 grid-cols-3 gap-2 rounded-2xl border border-cyan-200/20 bg-slate-950/90 p-2 shadow-[0_18px_42px_rgba(2,8,23,0.55),inset_0_1px_0_rgba(255,255,255,0.06)]">
+                                <div className="flex min-h-0 flex-col">
+                                  <p className="shrink-0 pb-1.5 text-center text-[7px] font-black uppercase tracking-[0.16em] text-cyan-100/55">
+                                    Hour
+                                  </p>
+                                  <div
+                                    aria-label="Event hour"
+                                    className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                                    ref={editingHourListRef}
+                                    role="listbox"
+                                  >
+                                    {timeHourOptions.map((hour) => (
+                                      <button
+                                        aria-selected={hour === editingHour12}
+                                        className={`h-8 w-full rounded-lg text-xs font-black transition ${
+                                          hour === editingHour12
+                                            ? "bg-cyan-300 text-slate-950 shadow-[0_0_16px_rgba(34,211,238,0.24)]"
+                                            : "text-white/65 hover:bg-white/8 hover:text-white"
+                                        }`}
+                                        key={hour}
+                                        onClick={() => {
+                                          const nextHour24 =
+                                            editingPeriod === "PM"
+                                              ? (hour % 12) + 12
+                                              : hour % 12;
+                                          setEditingEntryTime(
+                                            `${String(nextHour24).padStart(2, "0")}:${editingMinute}`,
+                                          );
+                                        }}
+                                        role="option"
+                                        type="button"
+                                      >
+                                        {hour}
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <div className="flex shrink-0 items-center justify-center gap-2 pt-1">
+                                    <button
+                                      aria-label="Previous event hour"
+                                      className="grid h-8 w-8 place-items-center bg-transparent text-cyan-100 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/60"
+                                      onClick={() => moveEditingTime("hour", -1)}
+                                      type="button"
+                                    >
+                                      <ChevronUp aria-hidden="true" className="h-5 w-5" strokeWidth={2.8} />
+                                    </button>
+                                    <button
+                                      aria-label="Next event hour"
+                                      className="grid h-8 w-8 place-items-center bg-transparent text-cyan-100 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/60"
+                                      onClick={() => moveEditingTime("hour", 1)}
+                                      type="button"
+                                    >
+                                      <ChevronDown aria-hidden="true" className="h-5 w-5" strokeWidth={2.8} />
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="flex min-h-0 flex-col">
+                                  <p className="shrink-0 pb-1.5 text-center text-[7px] font-black uppercase tracking-[0.16em] text-cyan-100/55">
+                                    Minute
+                                  </p>
+                                  <div
+                                    aria-label="Event minute"
+                                    className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                                    ref={editingMinuteListRef}
+                                    role="listbox"
+                                  >
+                                    {editingMinuteOptions.map((minute) => (
+                                      <button
+                                        aria-selected={minute === editingMinute}
+                                        className={`h-8 w-full rounded-lg text-xs font-black transition ${
+                                          minute === editingMinute
+                                            ? "bg-cyan-300 text-slate-950 shadow-[0_0_16px_rgba(34,211,238,0.24)]"
+                                            : "text-white/65 hover:bg-white/8 hover:text-white"
+                                        }`}
+                                        key={minute}
+                                        onClick={() =>
+                                          setEditingEntryTime(
+                                            `${String(safeEditingHour24).padStart(2, "0")}:${minute}`,
+                                          )
+                                        }
+                                        role="option"
+                                        type="button"
+                                      >
+                                        {minute}
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <div className="flex shrink-0 items-center justify-center gap-2 pt-1">
+                                    <button
+                                      aria-label="Previous event minute"
+                                      className="grid h-8 w-8 place-items-center bg-transparent text-cyan-100 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/60"
+                                      onClick={() => moveEditingTime("minute", -1)}
+                                      type="button"
+                                    >
+                                      <ChevronUp aria-hidden="true" className="h-5 w-5" strokeWidth={2.8} />
+                                    </button>
+                                    <button
+                                      aria-label="Next event minute"
+                                      className="grid h-8 w-8 place-items-center bg-transparent text-cyan-100 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/60"
+                                      onClick={() => moveEditingTime("minute", 1)}
+                                      type="button"
+                                    >
+                                      <ChevronDown aria-hidden="true" className="h-5 w-5" strokeWidth={2.8} />
+                                    </button>
+                                  </div>
+                                </div>
+                                <div>
+                                  <p className="pb-1.5 text-center text-[7px] font-black uppercase tracking-[0.16em] text-cyan-100/55">
+                                    Period
+                                  </p>
+                                  <div aria-label="Event period" className="space-y-1" role="listbox">
+                                    {(["AM", "PM"] as const).map((period) => (
+                                      <button
+                                        aria-selected={period === editingPeriod}
+                                        className={`h-8 w-full rounded-lg text-xs font-black transition ${
+                                          period === editingPeriod
+                                            ? "bg-cyan-300 text-slate-950 shadow-[0_0_16px_rgba(34,211,238,0.24)]"
+                                            : "text-white/65 hover:bg-white/8 hover:text-white"
+                                        }`}
+                                        key={period}
+                                        onClick={() => {
+                                          const nextHour24 =
+                                            period === "PM"
+                                              ? (editingHour12 % 12) + 12
+                                              : editingHour12 % 12;
+                                          setEditingEntryTime(
+                                            `${String(nextHour24).padStart(2, "0")}:${editingMinute}`,
+                                          );
+                                        }}
+                                        role="option"
+                                        type="button"
+                                      >
+                                        {period}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                          <div className="flex shrink-0 items-center justify-end gap-2">
+                            <button
+                              className="rounded-lg border border-emerald-200/30 bg-emerald-300/15 px-2.5 py-2 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-100"
+                              disabled={!editingEntryTitle.trim()}
+                              onClick={saveEditedEntry}
+                              type="button"
+                            >
+                              Save
+                            </button>
+                            <button
+                              className="px-1 py-2 text-[9px] font-black uppercase tracking-[0.12em] opacity-70 hover:opacity-100"
+                              onClick={() => {
+                                setEditingEntryId(null);
+    setPendingEntry(null);
+                                setEditingTimePickerOpen(false);
+                              }}
+                              type="button"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex min-w-0 items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-black leading-tight">
+                                {event.title}
+                              </p>
+                              <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] opacity-70">
+                                {typeLabels[event.type]}
+                                {` · ${calendarEventTimeLabel(event)}`}
+                              </p>
+                            </div>
+                            <span className="shrink-0 rounded-full border border-current/20 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] opacity-80">
+                              {event.status || "Set"}
+                            </span>
+                          </div>
+                          {userCreated ? (
+                            <div className="mt-2 flex items-center justify-end gap-3 border-t border-current/10 pt-2">
+                              {confirmingDelete ? (
+                                <>
+                                  <span className="mr-auto text-[9px] font-black uppercase tracking-[0.1em] opacity-75">
+                                    Delete this event?
+                                  </span>
+                                  <button
+                                    className="text-[9px] font-black uppercase tracking-[0.12em] opacity-70 hover:opacity-100"
+                                    onClick={() => setPendingDeleteEntryId(null)}
+                                    type="button"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    className="text-[9px] font-black uppercase tracking-[0.12em] text-rose-200 hover:text-white"
+                                    onClick={() => event.id && deleteUserEntry(event.id)}
+                                    type="button"
+                                  >
+                                    Confirm delete
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    aria-label={`Edit ${event.title}`}
+                                    className="text-[9px] font-black uppercase tracking-[0.12em] opacity-70 hover:opacity-100"
+                                    onClick={() => beginEditingEntry(event)}
+                                    type="button"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    aria-label={`Delete ${event.title}`}
+                                    className="text-[9px] font-black uppercase tracking-[0.12em] text-rose-200/80 hover:text-rose-100"
+                                    onClick={() => {
+                                      setPendingDeleteEntryId(event.id || null);
+                                      setEditingEntryId(null);
+    setPendingEntry(null);
+                                    }}
+                                    type="button"
+                                  >
+                                    Delete
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          ) : event.readOnly ? <Link href={event.manageHref || "/dashboard/calendar"} className="mt-2 block text-right text-xs underline">{event.manageHref === "/dashboard/sessions/booking" ? "Manage booking" : "Manage in Training Calendar"}</Link> : null}
+                        </>
+                      )}
+                    </div>
+                  );
+  }
 
   return (
     <section
@@ -1053,7 +1356,7 @@ export default function DashboardCalendar({
           <div
             data-dashboard-orbiter-local-scroll="true"
             data-calendar-editor={activeEditingEntry ? "true" : undefined}
-            className={`pointer-events-auto flex max-h-full w-full max-w-[420px] flex-col overflow-hidden rounded-[28px] border border-cyan-100/20 bg-slate-950/95 shadow-[0_28px_90px_rgba(0,0,0,0.46),0_0_40px_rgba(34,211,238,0.14),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-2xl ${activeEditingEntry ? "h-full min-h-0" : ""}`}
+            className={`pointer-events-auto flex max-h-full w-full max-w-[420px] flex-col overflow-hidden rounded-[28px] border border-cyan-100/20 bg-slate-950/95 shadow-[0_28px_90px_rgba(0,0,0,0.46),0_0_40px_rgba(34,211,238,0.14),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-2xl h-full min-h-0`}
           >
             <div className="shrink-0 border-b border-white/10 px-4 py-3">
               <div className="flex min-w-0 items-start justify-between gap-3">
@@ -1064,9 +1367,6 @@ export default function DashboardCalendar({
                   <h3 className="mt-1 text-lg font-black leading-tight text-white">
                     {detailDateFormatter.format(activeSelectedDate)}
                   </h3>
-                  <p className="mt-0.5 text-xs font-semibold text-slate-500">
-                    {selectedDaySubLabel}
-                  </p>
                 </div>
                 <button
                   aria-label="Close selected day popup"
@@ -1086,314 +1386,38 @@ export default function DashboardCalendar({
 
             </div>
 
-            <div className={activeEditingEntry
+            <div ref={dayTimelineRef} role={!activeEditingEntry ? "region" : undefined}
+              aria-label={!activeEditingEntry ? "24-hour day timeline" : undefined}
+              tabIndex={!activeEditingEntry ? 0 : undefined}
+              className={activeEditingEntry
               ? "min-h-0 flex-1 overflow-hidden p-3"
-              : "min-h-0 max-h-[230px] space-y-2.5 overflow-y-auto p-3 [scrollbar-color:rgba(34,211,238,0.34)_rgba(15,23,42,0.54)] [scrollbar-width:thin]"
+              : "min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 [scrollbar-color:rgba(34,211,238,0.34)_rgba(15,23,42,0.54)] [scrollbar-width:thin]"
             }>
-              {displayedCellEvents.length ? (
-                displayedCellEvents.map((event) => {
-                  const userCreated = Boolean(
-                    !event.readOnly && event.id && (event.id === pendingEntry?.id || userEntries.some((entry) => entry.id === event.id)),
-                  );
-                  const editing = userCreated && editingEntryId === event.id;
-                  const confirmingDelete =
-                    userCreated && pendingDeleteEntryId === event.id;
-                  const editingHour24 = Number.parseInt(
-                    editingEntryTime.slice(0, 2),
-                    10,
-                  );
-                  const safeEditingHour24 = Number.isNaN(editingHour24)
-                    ? 0
-                    : editingHour24;
-                  const editingHour12 = safeEditingHour24 % 12 || 12;
-                  const editingMinute = editingEntryTime.slice(3, 5) || "00";
-                  const editingPeriod = safeEditingHour24 >= 12 ? "PM" : "AM";
-                  const editingMinuteOptions = timeMinuteOptions.includes(editingMinute)
-                    ? timeMinuteOptions
-                    : [...timeMinuteOptions, editingMinute].sort();
-
-                  return (
-                    <div
-                      className={`rounded-2xl border px-3 py-3 ${typeStyles[event.type]} ${editing ? "h-full min-h-0" : ""}`}
-                      key={event.id || `${event.dateKey}-${event.title}-detail`}
-                    >
-                      {editing ? (
-                        <div className="flex h-full min-h-0 flex-col gap-2">
-                          <label className="block shrink-0">
-                            <span className="sr-only">Event title</span>
-                            <input
-                              className="w-full rounded-lg border border-current/20 bg-slate-950/55 px-2.5 py-2 text-sm font-bold text-white outline-none focus:border-cyan-200/60"
-                              onChange={(event) => setEditingEntryTitle(event.target.value)}
-                              value={editingEntryTitle}
-                            />
-                          </label>
-                          <div className="flex min-h-0 flex-1 flex-col gap-1.5">
-                            <span className="block shrink-0 text-[8px] font-black uppercase tracking-[0.16em] opacity-65">
-                              Time
-                            </span>
-                            <button
-                              aria-expanded={editingTimePickerOpen}
-                              aria-label="Choose event time"
-                              className="flex h-11 w-full shrink-0 items-center justify-between rounded-xl border border-current/20 bg-slate-950/65 px-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition hover:border-cyan-200/45 hover:bg-cyan-300/10 focus-visible:border-cyan-200/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/15"
-                              onClick={() => setEditingTimePickerOpen((open) => !open)}
-                              type="button"
-                            >
-                              <span className="text-sm font-black tracking-[0.04em] text-white">
-                                {formatTimelineTime(
-                                  safeEditingHour24 * 60 + Number(editingMinute),
-                                )}
-                              </span>
-                              <Clock3
-                                aria-hidden="true"
-                                className="h-4 w-4 shrink-0 text-cyan-200"
-                                strokeWidth={2.2}
-                              />
-                            </button>
-                            {editingTimePickerOpen ? (
-                              <div className="grid min-h-0 flex-1 grid-cols-3 gap-2 rounded-2xl border border-cyan-200/20 bg-slate-950/90 p-2 shadow-[0_18px_42px_rgba(2,8,23,0.55),inset_0_1px_0_rgba(255,255,255,0.06)]">
-                                <div className="flex min-h-0 flex-col">
-                                  <p className="shrink-0 pb-1.5 text-center text-[7px] font-black uppercase tracking-[0.16em] text-cyan-100/55">
-                                    Hour
-                                  </p>
-                                  <div
-                                    aria-label="Event hour"
-                                    className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                                    ref={editingHourListRef}
-                                    role="listbox"
-                                  >
-                                    {timeHourOptions.map((hour) => (
-                                      <button
-                                        aria-selected={hour === editingHour12}
-                                        className={`h-8 w-full rounded-lg text-xs font-black transition ${
-                                          hour === editingHour12
-                                            ? "bg-cyan-300 text-slate-950 shadow-[0_0_16px_rgba(34,211,238,0.24)]"
-                                            : "text-white/65 hover:bg-white/8 hover:text-white"
-                                        }`}
-                                        key={hour}
-                                        onClick={() => {
-                                          const nextHour24 =
-                                            editingPeriod === "PM"
-                                              ? (hour % 12) + 12
-                                              : hour % 12;
-                                          setEditingEntryTime(
-                                            `${String(nextHour24).padStart(2, "0")}:${editingMinute}`,
-                                          );
-                                        }}
-                                        role="option"
-                                        type="button"
-                                      >
-                                        {hour}
-                                      </button>
-                                    ))}
-                                  </div>
-                                  <div className="flex shrink-0 items-center justify-center gap-2 pt-1">
-                                    <button
-                                      aria-label="Previous event hour"
-                                      className="grid h-8 w-8 place-items-center bg-transparent text-cyan-100 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/60"
-                                      onClick={() => moveEditingTime("hour", -1)}
-                                      type="button"
-                                    >
-                                      <ChevronUp aria-hidden="true" className="h-5 w-5" strokeWidth={2.8} />
-                                    </button>
-                                    <button
-                                      aria-label="Next event hour"
-                                      className="grid h-8 w-8 place-items-center bg-transparent text-cyan-100 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/60"
-                                      onClick={() => moveEditingTime("hour", 1)}
-                                      type="button"
-                                    >
-                                      <ChevronDown aria-hidden="true" className="h-5 w-5" strokeWidth={2.8} />
-                                    </button>
-                                  </div>
-                                </div>
-                                <div className="flex min-h-0 flex-col">
-                                  <p className="shrink-0 pb-1.5 text-center text-[7px] font-black uppercase tracking-[0.16em] text-cyan-100/55">
-                                    Minute
-                                  </p>
-                                  <div
-                                    aria-label="Event minute"
-                                    className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                                    ref={editingMinuteListRef}
-                                    role="listbox"
-                                  >
-                                    {editingMinuteOptions.map((minute) => (
-                                      <button
-                                        aria-selected={minute === editingMinute}
-                                        className={`h-8 w-full rounded-lg text-xs font-black transition ${
-                                          minute === editingMinute
-                                            ? "bg-cyan-300 text-slate-950 shadow-[0_0_16px_rgba(34,211,238,0.24)]"
-                                            : "text-white/65 hover:bg-white/8 hover:text-white"
-                                        }`}
-                                        key={minute}
-                                        onClick={() =>
-                                          setEditingEntryTime(
-                                            `${String(safeEditingHour24).padStart(2, "0")}:${minute}`,
-                                          )
-                                        }
-                                        role="option"
-                                        type="button"
-                                      >
-                                        {minute}
-                                      </button>
-                                    ))}
-                                  </div>
-                                  <div className="flex shrink-0 items-center justify-center gap-2 pt-1">
-                                    <button
-                                      aria-label="Previous event minute"
-                                      className="grid h-8 w-8 place-items-center bg-transparent text-cyan-100 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/60"
-                                      onClick={() => moveEditingTime("minute", -1)}
-                                      type="button"
-                                    >
-                                      <ChevronUp aria-hidden="true" className="h-5 w-5" strokeWidth={2.8} />
-                                    </button>
-                                    <button
-                                      aria-label="Next event minute"
-                                      className="grid h-8 w-8 place-items-center bg-transparent text-cyan-100 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/60"
-                                      onClick={() => moveEditingTime("minute", 1)}
-                                      type="button"
-                                    >
-                                      <ChevronDown aria-hidden="true" className="h-5 w-5" strokeWidth={2.8} />
-                                    </button>
-                                  </div>
-                                </div>
-                                <div>
-                                  <p className="pb-1.5 text-center text-[7px] font-black uppercase tracking-[0.16em] text-cyan-100/55">
-                                    Period
-                                  </p>
-                                  <div aria-label="Event period" className="space-y-1" role="listbox">
-                                    {(["AM", "PM"] as const).map((period) => (
-                                      <button
-                                        aria-selected={period === editingPeriod}
-                                        className={`h-8 w-full rounded-lg text-xs font-black transition ${
-                                          period === editingPeriod
-                                            ? "bg-cyan-300 text-slate-950 shadow-[0_0_16px_rgba(34,211,238,0.24)]"
-                                            : "text-white/65 hover:bg-white/8 hover:text-white"
-                                        }`}
-                                        key={period}
-                                        onClick={() => {
-                                          const nextHour24 =
-                                            period === "PM"
-                                              ? (editingHour12 % 12) + 12
-                                              : editingHour12 % 12;
-                                          setEditingEntryTime(
-                                            `${String(nextHour24).padStart(2, "0")}:${editingMinute}`,
-                                          );
-                                        }}
-                                        role="option"
-                                        type="button"
-                                      >
-                                        {period}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              </div>
-                            ) : null}
-                          </div>
-                          <div className="flex shrink-0 items-center justify-end gap-2">
-                            <button
-                              className="rounded-lg border border-emerald-200/30 bg-emerald-300/15 px-2.5 py-2 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-100"
-                              disabled={!editingEntryTitle.trim()}
-                              onClick={saveEditedEntry}
-                              type="button"
-                            >
-                              Save
-                            </button>
-                            <button
-                              className="px-1 py-2 text-[9px] font-black uppercase tracking-[0.12em] opacity-70 hover:opacity-100"
-                              onClick={() => {
-                                setEditingEntryId(null);
-    setPendingEntry(null);
-                                setEditingTimePickerOpen(false);
-                              }}
-                              type="button"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="flex min-w-0 items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-black leading-tight">
-                                {event.title}
-                              </p>
-                              <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] opacity-70">
-                                {typeLabels[event.type]}
-                                {` · ${calendarEventTimeLabel(event)}`}
-                              </p>
-                            </div>
-                            <span className="shrink-0 rounded-full border border-current/20 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] opacity-80">
-                              {event.status || "Set"}
-                            </span>
-                          </div>
-                          {userCreated ? (
-                            <div className="mt-2 flex items-center justify-end gap-3 border-t border-current/10 pt-2">
-                              {confirmingDelete ? (
-                                <>
-                                  <span className="mr-auto text-[9px] font-black uppercase tracking-[0.1em] opacity-75">
-                                    Delete this event?
-                                  </span>
-                                  <button
-                                    className="text-[9px] font-black uppercase tracking-[0.12em] opacity-70 hover:opacity-100"
-                                    onClick={() => setPendingDeleteEntryId(null)}
-                                    type="button"
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    className="text-[9px] font-black uppercase tracking-[0.12em] text-rose-200 hover:text-white"
-                                    onClick={() => event.id && deleteUserEntry(event.id)}
-                                    type="button"
-                                  >
-                                    Confirm delete
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  <button
-                                    aria-label={`Edit ${event.title}`}
-                                    className="text-[9px] font-black uppercase tracking-[0.12em] opacity-70 hover:opacity-100"
-                                    onClick={() => beginEditingEntry(event)}
-                                    type="button"
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    aria-label={`Delete ${event.title}`}
-                                    className="text-[9px] font-black uppercase tracking-[0.12em] text-rose-200/80 hover:text-rose-100"
-                                    onClick={() => {
-                                      setPendingDeleteEntryId(event.id || null);
-                                      setEditingEntryId(null);
-    setPendingEntry(null);
-                                    }}
-                                    type="button"
-                                  >
-                                    Delete
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          ) : event.readOnly ? <Link href={event.manageHref || "/dashboard/calendar"} className="mt-2 block text-right text-xs underline">{event.manageHref === "/dashboard/sessions/booking" ? "Manage booking" : "Manage in Training Calendar"}</Link> : null}
-                        </>
-                      )}
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-sm font-semibold leading-6 text-slate-400">
-                  {view === "week"
-                    ? `Nothing is planned at ${formatTimelineTime(highlightedWeekHour * 60)}.`
-                    : "Nothing is planned on this day."}
+              {activeEditingEntry ? displayedCellEvents.map(renderDayEvent) : (
+                <div>
+                  {Array.from({ length: 48 }, (_, index) => {
+                    const minutes = index * 30;
+                    const time = formatTimelineTime(minutes);
+                    const slotEvents = displayedCellEvents.filter(event => Math.floor(getEventTimelineMinutes(event) / 30) === index);
+                    return <div key={minutes} data-day-minutes={minutes} className={`min-h-12 border-t ${index % 2 ? "border-dashed border-white/10" : "border-white/25"}`}>
+                      <button type="button" aria-label={`Select ${time} for new event`} aria-pressed={selectedDayMinutes === minutes}
+                        onClick={() => { setSelectedDayMinutes(minutes); setSoundSessionMenuOpen(false); }}
+                        className={`group flex min-h-12 w-full items-center gap-2 rounded-md px-1 text-left transition hover:bg-cyan-300/10 focus-visible:outline-cyan-200 ${selectedDayMinutes === minutes ? "bg-cyan-300/15 text-cyan-100" : "text-cyan-100/65"}`}>
+                        <time className="w-16 shrink-0 text-[10px] font-bold tabular-nums">{time}</time>
+                        <span aria-hidden="true" className={`ml-auto px-2 text-cyan-100/60 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 ${selectedDayMinutes === minutes ? "opacity-100" : "opacity-0"}`}>+</span>
+                      </button>
+                      {slotEvents.length ? <div className="mb-2 ml-12 space-y-2">{slotEvents.map(renderDayEvent)}</div> : null}
+                    </div>;
+                  })}
                 </div>
               )}
             </div>
 
-            {!activeEditingEntry ? (
+            {!activeEditingEntry && selectedDayMinutes !== null ? (
               <div className="shrink-0 border-t border-white/10 p-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
-                    {soundSessionMenuOpen ? "Sound session type" : "Add to this day"}
+                    {soundSessionMenuOpen ? "Sound session type" : `Add to this day · ${formatTimelineTime(selectedDayMinutes)}`}
                   </p>
                   <div className="flex shrink-0 items-center gap-1">
                     {soundSessionMenuOpen ? (
@@ -1439,8 +1463,8 @@ export default function DashboardCalendar({
                     return (
                       <button
                         aria-label={`Add ${option.label} on ${detailDateFormatter.format(activeSelectedDate)}${
-                          view === "week"
-                            ? ` at ${formatTimelineTime(highlightedWeekHour * 60)}`
+                          selectedDayMinutes !== null
+                            ? ` at ${formatTimelineTime(selectedDayMinutes)}`
                             : ""
                         }`}
                         className={`${calendarAddCardClassName} ${typeStyles[option.type]}`}

@@ -17,7 +17,20 @@ export async function fetchPublishedContent(bank:string,source?:string,page=0) {
 }
 export function usePublishedContent(bank:string,enabled=true) {
  const [items,setItems]=useState<PublishedContent[]>([]);
- useEffect(()=>{if(!enabled)return;let active=true;void fetchPublishedContent(bank).then(next=>{if(active)setItems(next);}).catch(()=>{});return()=>{active=false;};},[bank,enabled]);
+ useEffect(()=>{
+  if(!enabled)return;
+  let active=true;
+  const refresh=()=>{void fetchPublishedContent(bank).then(next=>{if(active)setItems(next);}).catch(()=>{});};
+  refresh();
+  // Weekly news can change while a dashboard stays open. Reuse the shared
+  // cache and request deduplication, and never poll a hidden page.
+  if(bank!=="news")return()=>{active=false;};
+  const visible=()=>{if(!document.hidden)refresh();};
+  const timer=window.setInterval(visible,15*60*1000);
+  window.addEventListener("focus",visible);
+  document.addEventListener("visibilitychange",visible);
+  return()=>{active=false;window.clearInterval(timer);window.removeEventListener("focus",visible);document.removeEventListener("visibilitychange",visible);};
+ },[bank,enabled]);
  return items;
 }
 export function usePublishedEntry(bank:string,source:string,enabled=true){

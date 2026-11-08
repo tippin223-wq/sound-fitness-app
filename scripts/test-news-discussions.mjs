@@ -1,0 +1,56 @@
+import { PGlite } from '@electric-sql/pglite';
+import { readFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+
+test('news feedback persists one vote per member, protects ownership and rate-limits comments', async () => {
+ const db = new PGlite();
+ const alice = '00000000-0000-4000-8000-000000000001';
+ const bob = '00000000-0000-4000-8000-000000000002';
+ const article = 'weekly-2026-11-07-training';
+ try {
+  await db.exec(`create role authenticated; create role anon; create schema auth;
+   create table auth.users(id uuid primary key);
+   create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
+   create table app_content_publications(bank text,source_key text);
+   insert into auth.users values('${alice}'),('${bob}');
+   grant usage on schema auth,public to authenticated,anon;`);
+  await db.exec(await readFile(new URL('../supabase/migrations/20261107210000_news_discussions.sql', import.meta.url), 'utf8'));
+  assert.equal((await db.query('select count(*)::int as n from news_discussion_articles')).rows[0].n,60);
+  await db.exec('set role anon');
+  await assert.rejects(db.query('select * from member_news_feedback($1)', [[article]]),/permission denied/);
+  await db.exec(`set role authenticated;select set_config('request.jwt.claim.sub','${alice}',false)`);
+  await assert.rejects(db.query('insert into member_news_reactions values($1,$2,1)',[article,bob]),/permission denied/);
+  let value = (await db.query('select * from set_member_news_reaction($1,1::smallint)',[article])).rows[0];
+  assert.equal(Number(value.likes),1); assert.equal(value.reaction,1);
+  await db.query('select * from set_member_news_reaction($1,1::smallint)',[article]);
+  value = (await db.query('select * from set_member_news_reaction($1,-1::smallint)',[article])).rows[0];
+  assert.equal(Number(value.likes),0); assert.equal(Number(value.dislikes),1);
+  await db.query('select * from set_member_news_reaction($1,0::smallint)',[article]);
+  await assert.rejects(db.query('select * from set_member_news_reaction($1,2::smallint)',[article]),/Invalid reaction/);
+  await assert.rejects(db.query('select * from set_member_news_reaction($1,1::smallint)',['unknown-story']),/Article not found/);
+  await assert.rejects(db.query('select add_member_news_comment($1,$2)',[article,'   ']),/between 1 and 2000/);
+  await assert.rejects(db.query('select add_member_news_comment($1,$2)',[article,'x'.repeat(2001)]),/between 1 and 2000/);
+  const commentId=(await db.query('select add_member_news_comment($1,$2) as id',[article,'  Useful article.  '])).rows[0].id;
+  let comments=(await db.query('select * from member_news_comments($1)',[article])).rows;
+  assert.equal(comments[0].body,'Useful article.'); assert.equal(comments[0].is_own,true);
+  assert.equal('user_id' in comments[0],false);
+  await db.exec(`select set_config('request.jwt.claim.sub','${bob}',false)`);
+  comments=(await db.query('select * from member_news_comments($1)',[article])).rows;
+  assert.equal(comments[0].is_own,false);
+  assert.equal((await db.query('select delete_member_news_comment($1) as removed',[commentId])).rows[0].removed,false);
+  await db.query('select * from set_member_news_reaction($1,1::smallint)',[article]);
+  await db.exec(`select set_config('request.jwt.claim.sub','${alice}',false)`);
+  value=(await db.query('select * from member_news_feedback($1)',[[article]])).rows[0];
+  assert.equal(value.reaction,0); assert.equal(Number(value.likes),1);
+  for(let i=0;i<4;i++) await db.query('select add_member_news_comment($1,$2)',[article,`Comment ${i}`]);
+  await assert.rejects(db.query('select add_member_news_comment($1,$2)',[article,'Too many']),/Please wait/);
+  assert.equal((await db.query('select delete_member_news_comment($1) as removed',[commentId])).rows[0].removed,true);
+  await db.exec('reset role');
+  await db.query("insert into app_content_publications values('news','admin-article')");
+  await db.exec(`set role authenticated;select set_config('request.jwt.claim.sub','${alice}',false)`);
+  assert.equal((await db.query('select * from set_member_news_reaction($1,1::smallint)',['admin-article'])).rows.length,1);
+  await db.exec("select set_config('request.jwt.claim.sub','',false)");
+  await assert.rejects(db.query('select add_member_news_comment($1,$2)',[article,'No account']),/Sign in/);
+ } finally { await db.close(); }
+});

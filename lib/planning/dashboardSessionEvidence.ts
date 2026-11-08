@@ -29,7 +29,12 @@ export function projectDashboardSessions(records: readonly PlanningLog[], now = 
     || candidates.length !== completed.length || [...assignments.values()].some(count => count > 1);
   const latestAt = completed.reduce<number | null>((latest, log) => latest === null ? log.timestamp : Math.max(latest, log.timestamp), null);
   return { total: completed.length, weekly: weekly.length, latestAt,
-    dates, days, issue: issue || (review ? "Review saved workout history" : "") };
+    dates, days, achievementCounts: {
+      sets: completed.reduce((sum, log) => sum + log.entries.reduce((total, entry) => total + workoutSetCount(entry.sets), 0), 0),
+      exercises: new Set(completed.flatMap(log => log.entries.map(entry => entry.exerciseId || entry.exerciseName.trim().toLowerCase()))).size,
+      exerciseEntries: completed.reduce((sum, log) => sum + log.entries.filter(entry => workoutSetCount(entry.sets) > 0).length, 0),
+      substantialWorkouts: completed.filter(log => log.entries.reduce((sum, entry) => sum + workoutSetCount(entry.sets), 0) >= 5).length,
+    }, issue: issue || (review ? "Review saved workout history" : "") };
 }
 export type DashboardSessionEvidence = ReturnType<typeof projectDashboardSessions>;
 export function readDashboardSessionEvidence(now = new Date()) {

@@ -894,6 +894,13 @@
     align-items: stretch;
   }
 
+  .categorySelector { justify-content: center; }
+  .categoryBody { flex: 0 0 auto !important; }
+  .compactMuscles { align-items: center; }
+  .musclePortalStage { flex: 0 0 100%; }
+  .muscleLoaderBody { flex: 0 0 auto; }
+  .compactMuscleRail { flex: 0 0 auto; }
+
   .categorySelector { flex: 1; min-width: 0; }
   .categoryPreview { display: none; }
   .categoryRing { width: 50px; height: 50px; }
@@ -967,33 +974,38 @@
 .avatarEnvironment {
   position: absolute;
   inset: 0;
+  container-type: size;
   pointer-events: none;
-  background:
-    radial-gradient(ellipse 54% 55% at 50% 43%, rgba(56,189,248,.28), transparent 85%),
-    linear-gradient(100deg, transparent 18%, rgba(165,243,252,.1) 23%, transparent 29%),
-    linear-gradient(80deg, transparent 68%, rgba(56,189,248,.12) 75%, transparent 82%);
+  background: none;
   mask-image: linear-gradient(transparent, black 14%, black 92%, transparent);
 }
 .avatarEnvironment::before {
   content: "";
   position: absolute;
-  inset: 8% 12% 9%;
-  border: 1px solid rgba(125,211,252,.24);
-  border-bottom-color: transparent;
-  border-radius: 50% 50% 18% 18%;
-  box-shadow: inset 0 0 22px rgba(56,189,248,.12), 0 0 16px rgba(56,189,248,.09);
+  top: 6%;
+  bottom: 8%;
+  left: 50%;
+  width: min(68cqw, 48cqh);
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 50% 42%, rgba(165,243,252,.19), rgba(56,189,248,.13) 38%, rgba(14,116,144,.07) 58%, transparent 76%),
+    radial-gradient(ellipse at 50% 80%, rgba(56,189,248,.14), transparent 66%);
+  filter: blur(3px);
 }
 .avatarEnvironment::after {
   content: "";
   position: absolute;
-  left: 12%;
-  right: 12%;
+  left: 50%;
+  width: min(56cqw, 34cqh);
+  transform: translateX(-50%);
   bottom: 2%;
-  height: 8%;
+  height: clamp(12px, 5cqh, 24px);
   border-radius: 50%;
-  border: 1px solid rgba(165,243,252,.48);
-  background: radial-gradient(ellipse, rgba(125,211,252,.24), rgba(8,47,73,.32) 60%, transparent 72%);
-  box-shadow: 0 0 18px rgba(56,189,248,.23), inset 0 0 10px rgba(165,243,252,.18);
+  border: 1px solid rgba(125,211,252,.32);
+  border-top-color: rgba(224,247,255,.52);
+  background: radial-gradient(ellipse, rgba(165,243,252,.12) 0%, rgba(8,47,73,.38) 48%, rgba(2,12,22,.5) 72%, rgba(56,189,248,.06));
+  box-shadow: 0 5px 10px rgba(0,8,18,.38), 0 0 12px rgba(56,189,248,.18), inset 0 1px 5px rgba(224,247,255,.18), inset 0 -2px 6px rgba(2,12,22,.5);
 }
 
 /* Body portal: the wheel never changes the avatar/card layout. */
@@ -1144,16 +1156,79 @@
 .commandHeader { flex: 0 0 auto; }
 .commandSummarySlot { flex: 0 0 auto !important; max-width: 100% !important; }
 
+/* Short, wide cards give the athlete a full-height column instead of
+   subtracting the support rail from the avatar's already limited height. */
+@container body-card (min-width: 440px) and (max-height: 560px) {
+  .contentGrid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) clamp(190px, 42cqw, 260px) !important;
+    grid-template-rows: minmax(0, 1fr) auto !important;
+    gap: 8px !important;
+  }
+  .bodyStageGrid { display: contents !important; }
+  .avatarStage { grid-column: 1 !important; grid-row: 1 / span 2 !important; }
+  .avatarViewport > :global([data-avatar-load-state]) { scale: 1; }
+  .controlsHost { grid-column: 2 !important; grid-row: 1 !important; }
+  .supportSignalsHost {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    padding-top: 6px !important;
+    padding-bottom: 0 !important;
+  }
+}
+
 /* Prevent focus or wheel scrolling from shifting the fixed compact loader. */
 .card .compactMuscleRail { overflow: clip !important; }
 
+/* Three compact control rows beside a full-height athlete on short phones. */
+@container body-card (max-width: 439px) and (max-height: 560px) {
+  .contentGrid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 112px !important;
+    grid-template-rows: minmax(0, 1fr) 88px !important;
+    gap: 6px 8px !important;
+  }
+  .bodyStageGrid { display: contents !important; }
+  .avatarStage { grid-column: 1 !important; grid-row: 1 / span 2 !important; }
+  .avatarViewport > :global([data-avatar-load-state]) { scale: 1; }
+  .controlsHost { grid-column: 2 !important; grid-row: 1 !important; }
+  .supportSignalsHost {
+    grid-column: 2 !important; grid-row: 2 !important;
+    --body-support-ring-size: 52px;
+    --body-support-card-min: 56px;
+    --body-support-cap-clearance: 0px;
+    padding-top: 0 !important; padding-bottom: 0 !important;
+  }
+  .supportSignalTitleRow { gap: 0 !important; height: 24px; margin-bottom: 8px !important; }
+  .supportSignalTitleRow { translate: 0 -8px; }
+  .categorySelector > .controlTitleRow { translate: 0 -4px; }
+  .supportSignalTitleRow > span:first-child,
+  .supportSignalTitleRow > span:last-child { display: none; }
+  .supportSignalTitleRow button { width: 22px; height: 24px; flex-shrink: 0; }
+  .supportSignalTitleText { flex: 1 1 0%; min-width: 0; white-space: normal; text-align: center; font-size: 9px !important; letter-spacing: 0 !important; line-height: 1.05; }
+  /* Extend the scroll rail's paint area above the ring for its raised icon.
+     Matching negative margin keeps the title, ring and footer in place. */
+  .supportSignalRail { margin-top: -18px !important; padding-top: 18px !important; }
+  .supportSignalCard { width: 100%; height: 56px; min-height: 56px !important; padding: 0 !important; }
+  .controlsLayout { --control-ring-size: 52px; --body-control-ring-size: 52px; --body-control-slot-size: 52px; gap: 4px; }
+  .controlTitleRow { height: 24px; }
+  .controlTitleRow button { height: 24px; }
+  .categoryTrio { padding-block: 0 !important; }
+  .compactMuscleRail { padding: 0; grid-auto-rows: 52px; }
+  .categoryRing > span,
+  .compactMuscleActive button > span { scale: .8; }
+  .supportSignalsHost .supportSignalFace { scale: .8; }
+}
 .fatigueBarSegment { padding: 0; border: 0; cursor: help; min-width: 0; }
 .fatigueBarSegment:focus-visible { outline: 2px solid #e0faff; outline-offset: 2px; }
 .fatigueBarMarker { pointer-events: none; }
 .fatigueTooltip { position: absolute; bottom: calc(100% + 4px); left: 0; right: 0; z-index: 30; padding: 8px 10px; border: 1px solid #67e8f955; border-radius: 9px; background: #071522f5; color: #e0f2fe; font-size: 10px; line-height: 1.4; text-align: center; box-shadow: 0 4px 18px #0008; pointer-events: none; }
 
 /* Keep each loader centered in the space below its own navigation title. */
-.categoryBody { justify-content: center; }
+.categorySelector { display: flex; flex-direction: column; min-height: 0; }
+.categorySelector > :first-child { flex-shrink: 0; }
+.categoryBody { display: flex; flex-direction: column; flex: 1; min-height: 0; justify-content: center; }
+.categoryTrio { flex: 0 0 auto; }
 .compactMuscleRail { align-content: center !important; }
 .categoryTrio > .categoryRing { position: relative; isolation: isolate; }
 .categoryTrio > .categoryRing::before,
@@ -1173,3 +1248,62 @@
 }
 
 .compactMuscleActive > button { isolation: isolate; }
+
+
+/* Legible labels within the existing ring and toolbar footprints. */
+.avatarActionLabel { font-size: 10px; letter-spacing: .025em; }
+.avatarOptionTitle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  color: #cffafe;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .14em;
+  text-align: center;
+  text-shadow: 0 0 12px #22d3ee50;
+}
+.avatarOptionTitle::before,
+.avatarOptionTitle::after {
+  content: "";
+  width: 28px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #67e8f980);
+}
+.avatarOptionTitle::after { transform: rotate(180deg); }
+.card .supportSignalCaption { font-size: 11px !important; line-height: 1.1 !important; max-width: 76px !important; }
+.card .supportSignalStatus { font-size: 11px !important; line-height: 1.1 !important; }
+.card .supportSignalStatus span { font-size: 10px !important; }
+.card .supportSignalLoaderTitle { font-size: 13px !important; }
+.fatigueBarLabel { font-size: 11px; }
+.fatigueHeading { font-size: 10px; }
+
+.card .controlTitleRow > span { font-size: 11px !important; letter-spacing: .01em; }
+
+/* Let the current untrained label carry the reminder without shifting layout. */
+.fatigueBarLabel[data-status="untrained"] {
+  animation: untrainedReminder 2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fatigueBarLabel[data-status="untrained"] { animation: none; opacity: 1; }
+}
+
+/* Healthy load carries a calm moving highlight rather than an urgency blink. */
+.fatigueBarLabel:is([data-status="cool"], [data-status="halfway"], [data-status="prime"]) {
+  background: linear-gradient(110deg, rgb(var(--fatigue-rgb)) 20%, #fff4db 48%, rgb(var(--fatigue-rgb)) 76%);
+  background-size: 240% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: fatigueHealthyFlow 6s ease-in-out infinite;
+}
+@keyframes fatigueHealthyFlow {
+  0%, 100% { background-position: 100% 50%; }
+  50% { background-position: 0% 50%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fatigueBarLabel:is([data-status="cool"], [data-status="halfway"], [data-status="prime"]) { animation: none; }
+}

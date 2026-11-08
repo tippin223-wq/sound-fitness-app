@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { CONTENT_BANKS, type ContentEntry } from "@/lib/contentBanks";
 import styles from "./AdminContentLibrary.module.css";
+import { weeklyNews } from "@/lib/localData/weeklyNews";
 
 export default function AdminContentLibrary() {
   const [bank, setBank] = useState<string>("chyron");
@@ -21,6 +22,34 @@ export default function AdminContentLibrary() {
   const [reload, setReload] = useState(0);
   const generation = useRef(0);
   const selected = CONTENT_BANKS.find(item => item.id === bank)!;
+  async function publishWeeklyNews() {
+    if (!ready || busy || publishing || draft) return;
+    const ticket = generation.current;
+    setPublishing(true); setMessage("Publishing weekly news…");
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Sign in with your admin account to publish.");
+      for (const item of weeklyNews) {
+        if (ticket !== generation.current) return;
+        const existing = await supabase.from("app_content_drafts").select("*").eq("bank", "news").eq("title", item.title);
+        if (existing.error || (existing.data?.length ?? 0) > 1) throw new Error("Review existing news drafts before retrying.");
+        let saved = existing.data?.[0] as ContentEntry | undefined;
+        if (!saved) {
+          const result = await supabase.rpc("save_app_content_draft", { p_id: null, p_bank: "news", p_title: item.title, p_summary: item.summary, p_revision: 0,
+            p_fields: { Kind: item.kind, Topic: item.topic, "Image URL": item.image, "Image description": item.imageAlt, "Published at": item.publishedAt, Source: item.source, "Source URL": item.sourceUrl, "Photo credit": item.photoCredit?.author ?? "", "Photo source URL": item.photoCredit?.sourceUrl ?? "", "Photo license": item.photoCredit?.license ?? "", "Photo license URL": item.photoCredit?.licenseUrl ?? "" } });
+          if (result.error) throw new Error("Weekly draft could not be saved. Retry after checking content storage.");
+          saved = result.data as ContentEntry;
+        } else {
+          // Never publish over an editor's modified draft on a bulk refresh.
+          if (saved.summary !== item.summary || saved.fields["Image URL"] !== item.image) continue;
+        }
+        const response = await fetch("/api/admin/content/publish", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ id: saved.id, revision: saved.revision }) });
+        if (!response.ok) throw new Error("Publishing stopped. Saved drafts are preserved; check your admin session.");
+      }
+      if (ticket === generation.current) { setReload(value => value + 1); setMessage("Weekly news published to the shared library."); }
+    } catch (cause) { if (ticket === generation.current) setMessage(cause instanceof Error ? cause.message : "Weekly publishing could not be verified."); }
+    finally { setPublishing(false); }
+  }
   useEffect(() => {
     const ticket = ++generation.current;
     let disposed = false;
@@ -83,6 +112,8 @@ export default function AdminContentLibrary() {
     setBank(id); setPage(0); setDraft(null); setQuery(""); setMessage("");
   }
   return <section className={styles.library} aria-label="Content library">
+    {bank === "news" && <p className={styles.notice}>Topics: training, nutrition, recovery (Health & Recovery), gear (Fitness Tech), sports, community. Use event for dated events and world for articles. Empty topics stay hidden in the member feed.</p>}
+    {bank === "news" && <button type="button" disabled={!ready || busy || publishing || Boolean(draft)} onClick={() => void publishWeeklyNews()}>{publishing ? "Publishing…" : "Publish weekly refresh"}</button>}
     <p className={styles.notice}>Edit a draft, save, then publish to the shared app and website library. Cached screens pick up edits on their next visit. Plans publish a new review version; enrolled members keep their original schedule.</p>
     <div className={styles.layout}>
       <nav className={styles.banks} aria-label="Content banks">{[...new Set(CONTENT_BANKS.map(item => item.group))].map(group => <div key={group}><h3>{group}</h3>{CONTENT_BANKS.filter(item => item.group === group).map(item => <button key={item.id} aria-pressed={bank === item.id} onClick={() => switchBank(item.id)}>{item.name}<span>{counts[item.id] ?? 0}</span></button>)}</div>)}</nav>

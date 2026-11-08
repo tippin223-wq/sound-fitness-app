@@ -16,6 +16,10 @@ export type AchievementBadgeStatus =
   | "locked";
 
 export type AchievementBadgeItem = {
+  pathId?: string;
+  pathName?: string;
+  milestone?: number;
+  target?: number;
   actionLabel?: string;
   category: AchievementBadgeCategory;
   description?: string;

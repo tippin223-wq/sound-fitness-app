@@ -8178,7 +8178,7 @@ test('achievement milestones show observed actions without preset awards or infe
 test('achievement evidence is scoped to saved account records and preserves originals', async () => {
   const helper=load('lib/planning/achievementEvidence.ts'),store=load('lib/planning/store.ts'),now=new Date(2026,9,13,12);
   store.writePlanning(store.planningKeys.goals,{...sampleGoals(),updatedAt:now.toISOString()});const original=store.planningSnapshot();
-  assert.equal(helper.readAchievementMilestones(now)[0].statusLabel,'Recorded');assert.equal(store.planningSnapshot(),original);
+  assert.ok(helper.readAchievementMilestones(now).every(row => row.progress === 0));assert.equal(store.planningSnapshot(),original);
   await store.initializePlanning('achievement-other-owner');assert.ok(helper.readAchievementMilestones(now).every(row=>row.progress===0));assert.ok(JSON.parse(helper.serverAchievementEvidence()).every(row=>row.progress===0));
 });
 
@@ -10620,4 +10620,26 @@ test('support daily prompts expire old ratings and retain today units and hydrat
   const f=healthRecordFixtures(now),logged=helper.readBodyCommandEvidence(now,{[store.planningKeys.hydration]:[f.water]});
   assert.match(logged.hydration.value,/ L$/);assert.equal(logged.hydration.detail,'Log water');assert.equal(logged.hydration.recorded,true);
   assert.equal(JSON.stringify(values),before);
+});
+
+test('achievement paths reveal exactly one sequential milestone per distinct path', () => {
+  const helper = load('lib/planning/achievementEvidence.ts');
+  const input = { workouts: 5, trainingDays: 2, recoveryDays: 0, dates: ['2026-11-02', '2026-11-03'] };
+  const all = helper.lifetimeAchievementMilestones(input);
+  const next = helper.nextAchievementPaths(all);
+  assert.equal(all.length, 120);
+  assert.equal(next.length, 15);
+  for (const category of ['consistency', 'intensity', 'recovery']) {
+    const paths = next.filter(item => item.category === category);
+    assert.equal(paths.length, 5);
+    assert.equal(new Set(paths.map(item => item.pathId)).size, 5);
+  }
+  assert.equal(next.find(item => item.pathId === 'training-days').target, 5);
+  assert.equal(next.find(item => item.pathId === 'workouts').target, 10);
+  assert.equal(next.find(item => item.pathId === 'sleep').target, 1);
+  const review = helper.nextAchievementPaths(helper.lifetimeAchievementMilestones({...input, historyIssue:'Review records'}));
+  assert.ok(review.filter(item => item.category !== 'recovery').every(item => item.target === 1 && item.progress === 0));
+  const complete = helper.nextAchievementPaths(helper.lifetimeAchievementMilestones({...input, workouts: 300}));
+  assert.equal(complete.find(item => item.pathId === 'workouts').status, 'completed');
+  assert.equal(complete.find(item => item.pathId === 'workouts').target, 250);
 });

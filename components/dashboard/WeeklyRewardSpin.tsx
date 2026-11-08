@@ -12,7 +12,7 @@ import { REWARD_RARITIES, WEEKLY_REWARDS, weeklyRarityOdds, weeklyRewardAward } 
 const REWARD_LABELS = WEEKLY_REWARDS.map(reward => reward.label);
 const REWARD_IDS = WEEKLY_REWARDS.map(reward => reward.id);
 
-function RewardArtwork({ id, gemType }: { id: string; gemType?: string }) {
+export function RewardArtwork({ id, gemType }: { id: string; gemType?: string }) {
   if (id === "sound-points") return <Image className={`${styles.rewardArtwork} ${styles.rewardCoinArtwork}`} src="/sound-coins/sound-coin-gold.png" width={80} height={80} alt="" />;
   if (id === "recovery-credit") return <svg className={styles.rewardArtwork} viewBox="0 0 80 80" aria-hidden="true">
     <path d="M46 5 17 43h18l-9 32 38-43H46Z" fill="#0369a1" stroke="#7dd3fc" strokeWidth="2" strokeLinejoin="round" />

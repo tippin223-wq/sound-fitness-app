@@ -1628,9 +1628,12 @@ export default function SoundFitnessAvatar3D({
         const cameraTarget = { y: .25, z: camera.position.z, aimY: .16 };
         let cameraAimY = .16;
         const resize = () => {
-          const rect = canvas.getBoundingClientRect();
-          const width = Math.max(1, Math.round(rect.width));
-          const height = Math.max(1, Math.round(rect.height));
+          // Measure the local layout, not the projected bounds of the rotating
+          // card. Perspective transforms otherwise leave a stretched camera
+          // aspect after the card settles without another layout resize.
+          const width = canvas.clientWidth;
+          const height = canvas.clientHeight;
+          if (width < 1 || height < 1) return;
           const baseHeight = allowOverheadOverflow ? height / 1.5 : height;
           camera.aspect = width / baseHeight;
           // Fit the full athlete using both dimensions, including narrow
@@ -1640,7 +1643,7 @@ export default function SoundFitnessAvatar3D({
           const closeUp = latest.current.portrait;
           const showNecklace = closeUp && latest.current.appearance.gear === "chain";
           cameraTarget.y = closeUp ? (showNecklace ? 1.29 : 1.39) : .25;
-          cameraTarget.z = Math.max((closeUp ? (showNecklace ? 1.08 : .8) : allowOverheadOverflow ? 2.72 : 3.5) / (2 * Math.tan(halfFov) * .91),
+          cameraTarget.z = Math.max((closeUp ? (showNecklace ? 1.08 : .8) : allowOverheadOverflow ? 2.72 : 3.02) / (2 * Math.tan(halfFov) * .91),
             (closeUp ? .65 : poseWidth) / (2 * Math.tan(halfFov) * camera.aspect * .88));
           cameraTarget.aimY = closeUp ? (showNecklace ? 1.17 : 1.30) : .16;
           if (!cameraInitialized) {
