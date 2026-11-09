@@ -1785,7 +1785,12 @@ export default function DashboardCategoryUfoScene3D({
       grabObjectGroup.renderOrder = pickupEffectRenderOrder + 8;
       ship.add(grabObjectGroup);
 
-      const grabFloorY = -6.62;
+      let grabFloorY = -6.62;
+      const floorRay = new THREE.Raycaster();
+      const floorNdc = new THREE.Vector2();
+      const floorPlane = new THREE.Plane();
+      const floorPoint = new THREE.Vector3();
+      const floorNormal = new THREE.Vector3(0, 0, 1);
       const grabObjectRestPositions = [
         new THREE.Vector3(-0.52, grabFloorY + 0.065, 0.62),
         new THREE.Vector3(0.06, grabFloorY + 0.075, 0.58),
@@ -1970,27 +1975,28 @@ export default function DashboardCategoryUfoScene3D({
         return ring;
       });
 
+      // Keep the original ship framing, but extend the drawing surface down
+      // to the viewport floor. A 620px clipped canvas cannot collect objects
+      // from the bottom of a tall phone's tornado.
+      const framingHost = canvas.parentElement!;
       const resize = () => {
-        const rect = canvas.getBoundingClientRect();
+        const rect = framingHost.getBoundingClientRect();
         const width = Math.max(1, Math.floor(rect.width));
-        const height = Math.max(1, Math.floor(rect.height));
+        const framingHeight = Math.max(1, Math.floor(rect.height));
+        const height = Math.max(1, window.innerHeight);
+        canvas.style.top = `${-rect.top}px`;
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
         renderer.setSize(width, height, false);
-        camera.aspect = width / height;
+        camera.aspect = width / framingHeight;
+        camera.setViewOffset(width, framingHeight, 0, -rect.top, width, height);
         camera.updateProjectionMatrix();
-        // The grab objects hang 6.62 ship-units below the hull, so their
-        // vertical framing is far more sensitive to this scale than their
-        // apparent size is: world y = 0.55 - 6.62 * scale, against a frustum
-        // that bottoms out near -2.44. Past a scale of ~0.4546 they drop off
-        // the bottom edge and the pickup plays out of sight. The canvas is
-        // min(620px, 100vh - 2.2rem), so any viewport shorter than ~600px was
-        // landing there. Capping the multiplier at 0.66 holds the maximum
-        // scale at 0.4356 and keeps the pickup in frame; taller canvases are
-        // below the cap and render exactly as before.
-        ship.scale.setScalar(0.66 * clampNumber(390 / height, 0.56, 0.66));
+        ship.scale.setScalar(0.66 * clampNumber(390 / framingHeight, 0.56, 0.66));
       };
 
       const observer = new ResizeObserver(resize);
-      observer.observe(canvas);
+      observer.observe(framingHost);
+      window.addEventListener("resize", resize);
       resize();
 
       const handleContextLost = (event: Event) => {
@@ -2686,7 +2692,7 @@ export default function DashboardCategoryUfoScene3D({
         if (isOpenNow && time - lastArrowLayoutTime > 100) {
           lastArrowLayoutTime = time;
           const canvasBounds = canvas.getBoundingClientRect();
-          const parentBounds = canvas.parentElement?.getBoundingClientRect();
+          const parentBounds = framingHost.parentElement?.getBoundingClientRect();
           if (parentBounds) {
             camera.updateMatrixWorld();
             ship.updateWorldMatrix(true, false);
@@ -2695,7 +2701,24 @@ export default function DashboardCategoryUfoScene3D({
             if (panel && stack) {
               const underside = ship.localToWorld(arrowProjection.set(0, -0.66, 0.3)).project(camera);
               const screenY = canvasBounds.top + (1 - underside.y) * canvasBounds.height / 2;
-              panel.style.setProperty("--ufo-cast-top", `${screenY - stack.getBoundingClientRect().top}px`);
+              const stackBounds = stack.getBoundingClientRect();
+              const stackScaleY = stackBounds.height / Math.max(1, stack.offsetHeight);
+              panel.style.setProperty("--ufo-cast-top", `${(screenY - stackBounds.top) / stackScaleY}px`);
+              const tornado = panel.querySelector<HTMLElement>(".dashboard-header-meter-tornado");
+              if (tornado) {
+                const bounds = tornado.getBoundingClientRect();
+                // The floor ring is at 88% of the tornado camera's framing.
+                const floorScreenY = Math.min(window.innerHeight - 16, bounds.top + bounds.height * 0.88);
+                floorRay.setFromCamera(floorNdc.set(0, 1 - (floorScreenY - canvasBounds.top) / canvasBounds.height * 2), camera);
+                floorPlane.setFromNormalAndCoplanarPoint(floorNormal, ship.localToWorld(floorPoint.set(0, 0, 0.62)));
+                if (floorRay.ray.intersectPlane(floorPlane, floorPoint)) {
+                  grabFloorY = ship.worldToLocal(floorPoint).y;
+                  grabObjectRestPositions.forEach((rest, index) => {
+                    rest.y = grabFloorY + 0.075;
+                    grabFloorPads[index].position.y = grabFloorY;
+                  });
+                }
+              }
             }
             const shipHit = shipHitRef.current;
             if (shipHit) {
@@ -2703,7 +2726,7 @@ export default function DashboardCategoryUfoScene3D({
               shipHit.style.left = `${canvasBounds.left - parentBounds.left + (center.x + 1) * canvasBounds.width / 2}px`;
               shipHit.style.top = `${canvasBounds.top - parentBounds.top + (1 - center.y) * canvasBounds.height / 2}px`;
               shipHit.style.width = `${Math.min(300, canvasBounds.width * 0.48)}px`;
-              shipHit.style.height = `${canvasBounds.height * 0.17}px`;
+              shipHit.style.height = `${framingHost.getBoundingClientRect().height * 0.17}px`;
             }
             [-1, 1].forEach((direction, index) => {
               const button = arrowRefs.current[index];
@@ -3134,6 +3157,7 @@ export default function DashboardCategoryUfoScene3D({
         canvas.removeEventListener("pointercancel", endChyronDrag);
         canvas.removeEventListener("pointerleave", endChyronDrag);
         observer.disconnect();
+        window.removeEventListener("resize", resize);
         disposeObject(scene);
         chyronTexture.dispose();
         renderer.dispose();
@@ -3156,10 +3180,13 @@ export default function DashboardCategoryUfoScene3D({
 
   return (
     <>
+    <span className="dashboard-header-category-levels-menu__ufo-webgl"
+      data-category-ufo-active={isActive ? "true" : "false"}
+      data-category-ufo-state={isOpen ? "open" : "closing"}>
     <canvas
       ref={canvasRef}
       aria-hidden="true"
-      className="dashboard-header-category-levels-menu__ufo-webgl"
+      className="dashboard-ufo-viewport-canvas"
       // Keyed so each context-loss restart mounts a NEW canvas element:
       // getContext() on the old one can only return the same dead context,
       // which made every rebuild a silent no-op.
@@ -3175,6 +3202,7 @@ export default function DashboardCategoryUfoScene3D({
       }
       width={720}
     />
+    </span>
     {isOpen ? <span ref={shipHitRef} aria-hidden="true" className="dashboard-ufo-hit-area" /> : null}
     {isOpen && isActive ? ([-1, 1] as const).map(direction => (
       <button ref={element => { arrowRefs.current[direction < 0 ? 0 : 1] = element; }} key={direction} type="button" className="dashboard-ufo-level-arrow" data-direction={direction < 0 ? "left" : "right"}

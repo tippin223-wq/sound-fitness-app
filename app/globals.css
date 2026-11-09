@@ -37390,7 +37390,9 @@ html body #dashboard-header-meter-panel .dashboard-header-meter-scroller__track 
 
 /* The shared-canvas viewport begins at the ship's projected underside. */
 #dashboard-header-meter-panel .dashboard-header-meter-tornado {
-  top: var(--ufo-cast-top, 0px);
+  /* The cone camera leaves a small headroom above its neck. Tuck that
+     headroom behind the projector so the visible light touches the hull. */
+  top: calc(var(--ufo-cast-top, 0px) - 2%);
   right: 0;
   bottom: 0;
   left: 0;
@@ -37559,3 +37561,39 @@ h2 .dashboard-section-heading > .dashboard-section-heading__name {
 }
 
 .dashboard-news-board { margin-top: 0; height: 100%; }
+
+/* Keep the account progress ring concentric at every responsive badge size. */
+.dashboard-sound-level-badge .dashboard-sound-level-badge__level-ring {
+  left: 50%;
+  top: 50%;
+  width: calc(100% + 12px);
+  height: calc(100% + 12px);
+  translate: -50% -50%;
+}
+
+/* A consistent meter pitch, rather than spreading three rows over the entire
+   phone height while packing the two fuel rows into a separate compact group. */
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily {
+  --meter-row-height: clamp(100px, 17dvh, 170px);
+  grid-template-rows: 32px repeat(3, var(--meter-row-height));
+  align-content: center;
+  row-gap: clamp(12px, 2dvh, 22px);
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--fuel .dashboard-header-fuel-meters {
+  display: flex;
+  flex-direction: column !important;
+  justify-content: center;
+  gap: clamp(24px, 4dvh, 44px);
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--fuel .dashboard-header-fuel-meter {
+  flex: 0 0 auto !important;
+  min-height: clamp(130px, 19dvh, 190px);
+}
+
+.dashboard-header-category-levels-menu__ufo-webgl > .dashboard-ufo-viewport-canvas {
+  position: absolute;
+  left: 0;
+  display: block;
+  pointer-events: none;
+  max-width: none;
+}

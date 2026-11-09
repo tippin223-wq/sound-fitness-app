@@ -34643,7 +34643,7 @@ export default function DashboardExperience({
                 })()}</sup></span>
               ) : <span key={index}>{part.value}</span>)}
             </span>
-            <button type="button" aria-label="Next training week" disabled={heroTrainingWeekOffset >= 0} onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); setHeroTrainingWeekOffset(value => Math.min(0, value + 1)); }} className="grid h-7 w-7 place-items-center text-cyan-100 hover:text-white disabled:opacity-25"><ChevronRight className="h-5 w-5" /></button>
+            <button type="button" aria-label="Next training week" disabled={heroTrainingWeekOffset >= 0} onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); setHeroTrainingWeekOffset(value => Math.min(0, value + 1)); }} className="grid h-7 w-7 place-items-center text-cyan-100 hover:text-white disabled:invisible"><ChevronRight className="h-5 w-5" /></button>
             </div>
           </div>
         </div>

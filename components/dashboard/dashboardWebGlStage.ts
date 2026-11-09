@@ -459,6 +459,10 @@ function resizeStage() {
   stageLastHeight = height;
   stageLastPixelRatio = pixelRatio;
   stageNeedsRedraw = true;
+  // Match CSS and camera pixels exactly. Mobile 100vh can include browser
+  // chrome that innerHeight excludes, which shifts every composited widget.
+  stageRenderer.domElement.style.width = `${width}px`;
+  stageRenderer.domElement.style.height = `${height}px`;
   stageRenderer.setPixelRatio(pixelRatio);
   stageRenderer.setSize(width, height, false);
   if (stageCompositeCamera) {
@@ -941,8 +945,8 @@ function createStageSurface(THREE: ThreeModule): {
   canvas.setAttribute("aria-hidden", "true");
   canvas.style.position = "fixed";
   canvas.style.inset = "0";
-  canvas.style.width = "100vw";
-  canvas.style.height = "100vh";
+  canvas.style.width = `${window.innerWidth}px`;
+  canvas.style.height = `${window.innerHeight}px`;
   canvas.style.pointerEvents = "none";
   // The 3D icons are foreground marks, so the stage sits above the sticky
   // header shell (z 120) and the reward/points dropdowns (z 420) — otherwise
