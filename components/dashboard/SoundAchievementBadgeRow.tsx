@@ -145,10 +145,12 @@ const getAchievementProgress = (item: AchievementBadgeItem) => {
 };
 
 export function SoundLogoAchievementBadge({
+  accentColor,
   compact = false,
   item,
 }: {
   compact?: boolean;
+  accentColor?: string;
   item: AchievementBadgeItem;
 }) {
   const category = normalizeAchievementCategory(item.category);
@@ -170,11 +172,11 @@ export function SoundLogoAchievementBadge({
   const iconWellSize = compact ? "h-8 w-8" : "h-11 w-11";
   const logoSize = compact ? "62px" : "82px";
   const ringSize = compact ? "h-[68px] w-[68px]" : "h-[92px] w-[92px]";
-  const ringColor = locked
+  const ringColor = accentColor || (locked
     ? "rgba(148,163,184,0.22)"
     : completed
       ? "rgba(250,204,21,0.98)"
-      : tone.ring;
+      : tone.ring);
   const ringTrack = locked ? "rgba(15,23,42,0.88)" : "rgba(148,163,184,0.16)";
   const ringLabel = completed
     ? "✓"
@@ -207,7 +209,7 @@ export function SoundLogoAchievementBadge({
       />
       <span
         className={`relative grid place-items-center overflow-hidden border bg-gradient-to-br ${size} ${tone.badge} ${tone.glow} after:absolute after:left-[-55%] after:top-[13%] after:h-[78%] after:w-[44%] after:-rotate-12 after:opacity-0 after:blur-[1px] after:transition after:delay-150 after:duration-700 group-hover/badge:after:translate-x-[310%] group-hover/badge:after:opacity-70 ${rarityTrim[rarity]}`}
-        style={badgeShape}
+        style={{ ...badgeShape, ...(accentColor ? { borderColor: accentColor, background: `linear-gradient(145deg, ${accentColor}, color-mix(in srgb, ${accentColor} 28%, #071221))`, boxShadow: `0 0 18px color-mix(in srgb, ${accentColor} 30%, transparent)` } : {}) }}
       >
         <span className="absolute inset-0 bg-[radial-gradient(circle_at_50%_36%,rgba(255,255,255,0.22),transparent_20%),linear-gradient(135deg,rgba(255,255,255,0.16),transparent_36%,rgba(0,0,0,0.42)_82%)]" />
         <span

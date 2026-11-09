@@ -41,15 +41,6 @@ const disposeObject = (object: Object3D) => {
   });
 };
 
-const getShortestRotationDelta = (delta: number) =>
-  Math.atan2(Math.sin(delta), Math.cos(delta));
-
-const settleRotation = (current: number, target: number, ease: number) => {
-  const delta = getShortestRotationDelta(target - current);
-  if (Math.abs(delta) < 0.003) return target;
-  return current + delta * ease;
-};
-
 const METER_MENU_ICON_ANIMATION_SPEED = 0.2;
 
 const createRoundedBox = (
@@ -161,6 +152,7 @@ export default function DashboardMeterMenuIcon3D({
       const backGroup = new THREE.Group();
       backGroup.position.z = -0.18;
       backGroup.rotation.y = Math.PI;
+      backGroup.visible = false;
       flipGroup.add(backGroup);
 
       const faceGeometry = new THREE.CircleGeometry(1.14, 96);
@@ -365,14 +357,18 @@ export default function DashboardMeterMenuIcon3D({
 
       let charge = 0;
       let flipRotation = 0;
-      const update = (elapsed: number, delta: number) => {
+      let restingRotation = 0;
+      let wasActive = false;
+      let motionSeconds = 0;
+      const update = (_elapsed: number, delta: number, forceRest = false) => {
         const prevCharge = charge;
         const prevFlipRotation = flipRotation;
         const frameDeltaMs = delta * 1000;
         const motionDelta = frameDeltaMs * METER_MENU_ICON_ANIMATION_SPEED;
 
-        const seconds = elapsed * METER_MENU_ICON_ANIMATION_SPEED;
-        const activeMotion = activeRef.current && !pausedRef.current;
+        const activeMotion = !forceRest && activeRef.current && !pausedRef.current;
+        if (activeMotion || charge > 0) motionSeconds += delta * METER_MENU_ICON_ANIMATION_SPEED;
+        const seconds = motionSeconds;
         charge += ((activeMotion ? 1 : 0) - charge) * Math.min(1, frameDeltaMs * 0.014);
         // Epsilon-snap the ease so `charge === prevCharge` can land: the
         // geometric decay alone never reaches its target exactly, which kept
@@ -387,18 +383,23 @@ export default function DashboardMeterMenuIcon3D({
         if (activeMotion) {
           flipRotation += motionDelta * 0.0046;
         } else {
-          flipRotation = settleRotation(flipRotation, 0, 0.26);
+          if (wasActive) {
+            // Continue the current turn to the next face; never rewind to front.
+            restingRotation = Math.ceil((flipRotation - 0.000001) / Math.PI) * Math.PI;
+          }
+          const remaining = restingRotation - flipRotation;
+          flipRotation = Math.abs(remaining) < 0.003
+            ? restingRotation
+            : flipRotation + remaining * (1 - Math.exp(-Math.max(0, delta) / 0.09));
         }
-
-        const restingForward =
-          !activeMotion &&
-          Math.abs(getShortestRotationDelta(flipRotation)) < 0.01 &&
-          charge < 0.025;
-        if (restingForward) {
-          flipRotation = 0;
-        }
+        wasActive = activeMotion;
 
         flipGroup.rotation.y = flipRotation;
+        // The frameless icon has no opaque disc to hide its reverse artwork.
+        // Cull the entire rear-facing group, including transparent UFO effects.
+        const frontFacing = Math.cos(flipRotation) >= 0;
+        frontGroup.visible = frontFacing;
+        backGroup.visible = !frontFacing;
         flipGroup.rotation.x = Math.sin(seconds * 1.8) * 0.03 * charge;
         const prevRootScale = root.scale.x;
         root.scale.setScalar(
@@ -441,30 +442,20 @@ export default function DashboardMeterMenuIcon3D({
             seconds * (1.6 + index * 0.1),
             seconds * (1.25 + index * 0.06),
           );
-          const opacity = charge * (cycle < 0.86 ? 1 : Math.max(0, 1 - (cycle - 0.86) / 0.14));
+          const opacity = (0.7 + charge * 0.3) * (cycle < 0.86 ? 1 : Math.max(0.25, 1 - (cycle - 0.86) / 0.14));
           item.scale.setScalar((0.46 + Math.sin(cycle * Math.PI) * 0.54) * Math.max(0.1, opacity));
         });
 
         cyanLight.intensity = 2.1 + charge * 2.1;
         warmLight.intensity = 0.55 + charge * 1.4;
 
-        // The falling items above tumble on every frame regardless of charge.
-        // In frameless mode nothing occludes them, so never report "at rest".
-        // WARNING: this makes the frameless variant a PERPETUAL stage
-        // animator — while mounted and unpaused it forces a full shared-stage
-        // present every frame. No dashboard usage mounts it today; give it a
-        // real settle path before wiring it into the stage.
-        if (frameless) return true;
-        // Framed mode: at rest the items sit behind the opaque front face, so
-        // they cannot affect the rendered image. Everything else in this update
-        // is a pure function of charge, flipRotation, and the root scale
-        // (framelessRef), so the frame changed nothing visible once those are
-        // all at their fixed points.
+        // Both faces can be the resting face, so freeze the local animation
+        // clock once settled rather than relying on the front disc to hide motion.
         const atRest =
           !activeMotion &&
           charge === prevCharge &&
-          prevFlipRotation === 0 &&
-          flipRotation === 0 &&
+          prevFlipRotation === restingRotation &&
+          flipRotation === restingRotation &&
           root.scale.x === prevRootScale;
         return !atRest;
       };
@@ -473,6 +464,9 @@ export default function DashboardMeterMenuIcon3D({
         scene,
         camera,
         update,
+        // The shared stage freezes header updates in idle. Continue only the
+        // finite settling animation so a half-turned icon cannot get stranded.
+        rest: () => update(0, 1 / 60, true),
         dispose: () => {
           disposeObject(scene);
         },

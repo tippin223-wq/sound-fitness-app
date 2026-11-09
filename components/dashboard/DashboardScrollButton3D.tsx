@@ -110,10 +110,13 @@ const toneColors: Record<
 
 const createArrowShape = (THREE: typeof import("three")) => {
   const shape = new THREE.Shape();
-  shape.moveTo(0, 0.22);
-  shape.lineTo(-0.18, -0.16);
-  shape.lineTo(0, -0.08);
-  shape.lineTo(0.18, -0.16);
+  // Broad, open chevron matches the bare card-navigation arrows.
+  shape.moveTo(0, 0.24);
+  shape.lineTo(-0.24, 0);
+  shape.lineTo(-0.15, -0.09);
+  shape.lineTo(0, 0.06);
+  shape.lineTo(0.15, -0.09);
+  shape.lineTo(0.24, 0);
   shape.closePath();
   return shape;
 };
@@ -313,10 +316,10 @@ export default function DashboardScrollButton3D({
         color: new THREE.Color("#e0f2fe"),
         emissive: new THREE.Color("#38bdf8"),
         emissiveIntensity: 0.16,
-        metalness: 0.02,
-        opacity: 0.68,
-        roughness: 0.06,
-        transparent: true,
+        metalness: 0.32,
+        opacity: 1,
+        roughness: 0.24,
+        transparent: false,
       });
       const bubbleFilmMaterial = new THREE.MeshBasicMaterial({
         blending: THREE.AdditiveBlending,
@@ -413,10 +416,10 @@ export default function DashboardScrollButton3D({
 
       const arrowGeometry = new THREE.ExtrudeGeometry(createArrowShape(THREE), {
         bevelEnabled: true,
-        bevelSegments: 2,
-        bevelSize: 0.012,
-        bevelThickness: 0.02,
-        depth: 0.08,
+        bevelSegments: 3,
+        bevelSize: 0.018,
+        bevelThickness: 0.025,
+        depth: 0.12,
       });
       arrowGeometry.center();
 
@@ -671,7 +674,9 @@ export default function DashboardScrollButton3D({
             arrowMaterials[direction as DashboardScrollButtonDirection];
           material.emissiveIntensity =
             0.22 + charge * 0.42 + (isHovered ? 0.6 : 0);
-          material.opacity = isHovered ? 0.95 : 0.68;
+          material.opacity = 1;
+          arrow.position.z = isActive ? 0.14 : isHovered ? 0.26 : 0.2;
+          arrow.rotation.x = -0.18;
           arrow.scale.setScalar(
             (isHovered ? 1.42 : isActive ? 1.32 : 1) * pulse,
           );

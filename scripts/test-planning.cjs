@@ -44,6 +44,8 @@ function load(file) {
   instance.require = name => {
     // Rendering checks use the client snapshot without mounting effects or subscriptions.
     if (name === 'react') return { ...require('react'), useSyncExternalStore: (_subscribe, snapshot) => snapshot(), useState: initial => require('react').useState(file === path.join(root, 'app/dashboard/stats/page.tsx') ? initial === 'overview' && statsRenderTab ? statsRenderTab : typeof initial === 'function' && statsRenderSnapshot ? statsRenderSnapshot : initial : initial) };
+    // Shared navigation is outside the history-recovery surface under test.
+    if (file === path.join(root, 'app/dashboard/sessions/page.tsx') && name === '@/components/dashboard/DashboardExperience') return { default: ({ children }) => children };
     if (name.endsWith('.module.css')) return { default: {} };
     if (name === 'next/navigation') return { useRouter: () => ({ push: () => { throw new Error('Unexpected navigation during isolated render'); } }) };
     // Review-screen tests do not render images; avoid Next Image's browser-document bootstrap in this isolated harness.
@@ -53,6 +55,7 @@ function load(file) {
     if (name === '@/lib/member-services') return { loadMemberSessions: () => loadBookings() };
     if (name.startsWith('@/') || name.startsWith('.')) {
       const resolved = name.startsWith('@/') ? path.join(root, name.slice(2)) : path.resolve(path.dirname(file), name);
+      if (resolved.endsWith('.json') && fs.existsSync(resolved)) return JSON.parse(fs.readFileSync(resolved, 'utf8'));
       if (fs.existsSync(resolved + '.ts')) return load(resolved + '.ts');
       if (fs.existsSync(resolved + '.tsx')) return load(resolved + '.tsx');
     }
@@ -7660,7 +7663,7 @@ function actualRefreshCallbacks(kind) {
   const file=kind==='dashboard'?'components/dashboard/DashboardExperience.tsx':'app/dashboard/workout-builder/exercise-library/page.tsx';const source=fs.readFileSync(path.join(root,file),'utf8'),ast=ts.createSourceFile(file,source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);let effect,manual;
   function visit(n){if(ts.isCallExpression(n)&&n.expression.getText(ast)==='useEffect'&&n.arguments[0]?.getText(ast).includes(kind==='dashboard'?'const syncDashboardData =':'const syncStats ='))effect=n.arguments[0].getText(ast);if(ts.isFunctionDeclaration(n)&&n.name?.text==='refreshHybridDashboardData')manual=n.getText(ast);ts.forEachChild(n,visit);}visit(ast);assert.ok(effect);if(kind==='dashboard')assert.ok(manual);
   const guard=load('lib/planning/planningRefreshGuard.ts').createPlanningRefreshGuard,statsRequests=[],templateRequests=[],state={stats:[],templates:[]};let listener;let localStats=['local'],localTemplates=['local-template'];
-  const context={exports:{},createPlanningRefreshGuard:guard,planningKeys:store.planningKeys,workoutRefreshGuard:guard([store.planningKeys.exerciseStats,store.planningKeys.logs,store.planningKeys.templates]),isAdminPreview:false,loadWorkoutLogEntriesFromLocalStorage:()=>({data:localStats}),loadWorkoutTemplatesFromLocalStorage:()=>({data:localTemplates}),loadWorkoutLogEntriesWithFallback:()=>new Promise(resolve=>statsRequests.push(resolve)),loadWorkoutTemplatesWithFallback:()=>new Promise(resolve=>templateRequests.push(resolve)),setExerciseStats:value=>state.stats=value,setSavedExerciseStats:value=>state.stats=value,setSavedTemplates:value=>state.templates=value,libraryPoundDisplayEntries:value=>value,subscribeToLocalWorkoutData:callback=>{listener=callback;return()=>{listener=null;};}};
+  const context={exports:{},createPlanningRefreshGuard:guard,planningKeys:store.planningKeys,workoutRefreshGuard:guard([store.planningKeys.exerciseStats,store.planningKeys.logs,store.planningKeys.templates]),isAdminPreview:false,isCoachWorkspace:false,loadWorkoutLogEntriesFromLocalStorage:()=>({data:localStats}),loadWorkoutTemplatesFromLocalStorage:()=>({data:localTemplates}),loadWorkoutLogEntriesWithFallback:()=>new Promise(resolve=>statsRequests.push(resolve)),loadWorkoutTemplatesWithFallback:()=>new Promise(resolve=>templateRequests.push(resolve)),setExerciseStats:value=>state.stats=value,setSavedExerciseStats:value=>state.stats=value,setSavedTemplates:value=>state.templates=value,libraryPoundDisplayEntries:value=>value,subscribeToLocalWorkoutData:callback=>{listener=callback;return()=>{listener=null;};}};
   const code=ts.transpileModule((manual||'')+'\nexports.mount='+effect+';'+(manual?'\nexports.manual=refreshHybridDashboardData;':''),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;new Function(...Object.keys(context),code)(...Object.values(context));
   const cleanup=context.exports.mount();return {state,cleanup,manual:context.exports.manual,trigger:()=>listener(),setLocal:(stats,templates=[])=>{localStats=stats;localTemplates=templates;},finish:async(index,stats,templates=[])=>{statsRequests[index]({data:stats});if(kind==='dashboard')templateRequests[index]({data:templates});await new Promise(resolve=>setImmediate(resolve));},requests:statsRequests};
 }
@@ -8526,21 +8529,18 @@ test('weekly check-in stale same-account editors cannot save, autosave, or clear
   assert.equal(saved.notes,answers.notes.trim());assert.equal(checkIns.readWeeklyCheckInDraft(week),null);assert.equal(checkIns.readWeeklyCheckIns().length,1);
 });
 
-test('actual weekly check-in controls preserve stale answers until explicit current-draft review renews the session', async () => {
-  authUser={id:'member'};await store.initializePlanning('member');
-  const source=fs.readFileSync(path.join(root,'app/dashboard/progress/check-in/page.tsx'),'utf8'),ast=ts.createSourceFile('check-in.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),nodes={};
-  function visit(n){if(ts.isVariableDeclaration(n)&&['save','update','reload'].includes(n.name.getText(ast)))nodes[n.name.getText(ast)]=n.initializer;ts.forEachChild(n,visit);}visit(ast);
-  const state={},env={exports:{},...checkIns,planningOwner:store.planningOwner,planningAccountGeneration:store.planningAccountGeneration,account:{current:'member'},generation:{current:store.planningAccountGeneration()},week:checkIns.checkInWeek(),version:{current:undefined},draftVersion:{current:'null'},energy:7,sleep:8,stress:3,soreness:4,checked:[],notes:'Current recoverable answers'};
-  for(const [setter,key] of Object.entries({setEnergy:'energy',setSleep:'sleep',setStress:'stress',setSoreness:'soreness',setChecked:'checked',setNotes:'notes',setWeek:'week'}))env[setter]=value=>env[key]=value;
-  for(const [setter,key] of Object.entries({setError:'error',setDraftStatus:'status',setSavedAt:'savedAt'}))env[setter]=value=>state[key]=value;
-  function run(name,...args){assert.ok(nodes[name]);const code=ts.transpileModule('exports.callback='+nodes[name].getText(ast)+';',{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;new Function(...Object.keys(env),code)(...Object.values(env));return env.exports.callback(...args);}
-  run('update',{});const original=checkIns.readWeeklyCheckInDraft(env.week);await cycleSamePlanningAccount();const before=store.planningSnapshot();
-  run('update',{notes:'Unreviewed old screen edits'});assert.match(state.error,/account changed/);assert.equal(env.notes,'Unreviewed old screen edits');assert.match(state.status,/only on this screen/);
-  run('save');assert.match(state.error,/account changed/);run('reload',false);assert.match(state.error,/account changed/);assert.equal(store.planningSnapshot(),before);
-  run('reload',true);assert.equal(env.generation.current,store.planningAccountGeneration());assert.equal(env.notes,original.notes);assert.equal(state.error,'');assert.equal(store.planningSnapshot(),before);
-  run('update',{notes:'Reviewed current answers'});run('save');assert.equal(state.error,'');assert.equal(checkIns.currentWeeklyCheckIn(env.week).notes,'Reviewed current answers');assert.equal(checkIns.readWeeklyCheckInDraft(env.week),null);
-  const metadata={keep:'Original weekly metadata'};store.writePlanning(checkIns.WEEKLY_CHECK_INS_KEY,[{...checkIns.currentWeeklyCheckIn(env.week),sourceMetadata:metadata}]);run('reload',true);run('update',{notes:'Correction with metadata'});run('save');assert.equal(state.error,'');assert.deepEqual(checkIns.currentWeeklyCheckIn(env.week).sourceMetadata,metadata);assert.equal(env.version.current,checkIns.checkInVersion(env.week));run('update',{notes:'Next autosave after correction'});assert.equal(state.error,'');assert.equal(checkIns.readWeeklyCheckInDraft(env.week).notes,'Next autosave after correction');
-
+test('retired weekly check-in page opens the shared daily check-in without changing saved records', () => {
+  const source=fs.readFileSync(path.join(root,'app/dashboard/progress/check-in/page.tsx'),'utf8');
+  const code=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+  const exports={}; let destination;
+  const snapshot=store.planningSnapshot();
+  new Function('exports','require',code)(exports,name=>{
+    assert.equal(name,'next/navigation');
+    return {redirect:value=>{destination=value;throw new Error('redirect');}};
+  });
+  assert.throws(()=>exports.default(),/redirect/);
+  assert.equal(destination,'/dashboard?checkIn=daily');
+  assert.equal(store.planningSnapshot(),snapshot);
 });
 
 

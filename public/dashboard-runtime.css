@@ -8464,3 +8464,8 @@ html body .dashboard-header-vortex-shell[data-header-focus-flipping="true"] {
     translate: 20px .8px !important;
   }
 }
+
+/* Center the visible trophy silhouette, compensating its source image padding. */
+.dashboard-header-trophy-selector__icon > img {
+  transform: translateX(-1.5625%);
+}

@@ -23750,13 +23750,13 @@ html[data-dashboard-webgl="warming"]
 }
 
 .dashboard-header-meter-panel__stack--orbit:has(
-    .dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+    .dashboard-header-meter-panel__section--daily
   )::before {
   opacity: 0.6;
 }
 
 .dashboard-header-meter-panel__stack--orbit:has(
-    .dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+    .dashboard-header-meter-panel__section--daily
   )::after {
   opacity: 0.46;
 }
@@ -25290,11 +25290,11 @@ html
 }
 
 .dashboard-header-meter-panel__stack--orbit
-  .dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center {
+  .dashboard-header-meter-panel__section--daily {
   grid-template-columns: minmax(0, 1fr);
 }
 
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-sets-meter {
   align-content: center;
   gap: 0.48rem;
@@ -25304,30 +25304,30 @@ html
   width: min(100%, 31rem);
 }
 
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-sets-meter__tower {
   margin-bottom: 0.42rem;
   transform: scale(1.16);
   transform-origin: 50% 100%;
 }
 
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-sets-meter__value {
   font-size: 1.14rem;
 }
 
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-sets-meter__label {
   font-size: 0.52rem;
 }
 
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-meter-deadline--sets {
   font-size: 0.44rem;
   max-width: 12rem;
 }
 
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-meter-scroller {
   display: grid !important;
   height: clamp(8.85rem, 18vh, 11.5rem) !important;
@@ -25338,14 +25338,14 @@ html
   width: min(100%, 31rem);
 }
 
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-meter-scroller__track {
   display: grid;
   height: 100%;
   place-items: center;
 }
 
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-meter-scroller__meter--center {
   align-items: center;
   height: 100%;
@@ -25354,16 +25354,16 @@ html
   width: 100%;
 }
 
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-week-sessions,
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-plan-attendance {
   --dashboard-header-plan-fire-x: 0rem;
   height: 100% !important;
   min-height: 0;
 }
 
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-plan-attendance::before {
   background: none !important;
   display: none !important;
@@ -25377,7 +25377,7 @@ html
   width: 0;
 }
 
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-plan-attendance
   .dashboard-header-streak-fire__embers {
   background: none !important;
@@ -25392,32 +25392,32 @@ html
   width: 0;
 }
 
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-week-sessions {
   flex-direction: column;
   gap: 0.58rem;
   text-align: center;
 }
 
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-week-sessions__graph {
   margin: 0.66rem 0 0.44rem;
   transform: scale(1.1);
   transform-origin: 50% 50%;
 }
 
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-week-sessions__label {
   font-size: 0.54rem;
 }
 
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-meter-deadline--week {
   font-size: 0.44rem;
   max-width: 18rem;
 }
 
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-plan-attendance
   .dashboard-header-streak-fire__gauge {
   height: 5.9rem;
@@ -25431,12 +25431,12 @@ html
    daily-sets meter below. That is the "overlapped instead of stacked" report.
    Give the row real height and centre the ring inside it, trimming the ring a
    little so the extra height still fits the panel. */
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-plan-attendance {
   min-height: 4.9rem;
 }
 
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-plan-attendance
   .dashboard-header-streak-fire__gauge {
   height: 4.6rem;
@@ -25445,7 +25445,7 @@ html
   width: 4.6rem;
 }
 
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-plan-attendance
   .dashboard-header-streak-fire__content {
   top: 50%;
@@ -25468,19 +25468,19 @@ html
 /* The section is a grid whose implicit rows are pinned to a fixed track size,
    so a taller scroller could not push the daily-sets meter down and the ring
    kept landing on top of it. Let these rows size to their content. */
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center {
+.dashboard-header-meter-panel__section--daily {
   grid-auto-rows: auto;
 }
 
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-meter-scroller,
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-meter-scroller__track {
   height: auto !important;
   min-height: 13.5rem;
 }
 
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-plan-attendance
   .dashboard-header-streak-fire__flame {
   background: none !important;
@@ -25494,29 +25494,29 @@ html
   width: 0;
 }
 
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-plan-attendance
   .dashboard-header-streak-fire__content {
   top: 50%;
   transform: translateY(-58%);
 }
 
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-plan-attendance
   .dashboard-header-streak-fire__value {
   font-size: 1.05rem;
 }
 
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-plan-attendance
   .dashboard-header-streak-fire__label,
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-plan-attendance
   .dashboard-header-meter-deadline--streak {
   font-size: 0.44rem;
 }
 
-.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+.dashboard-header-meter-panel__section--daily
   .dashboard-header-plan-attendance
   .dashboard-header-meter-deadline--streak {
   top: calc(50% + 3.48rem);
@@ -36862,3 +36862,700 @@ html
   flex: 0 0 23px;
   filter: drop-shadow(0 0 6px currentColor);
 }
+
+/* Raised card titles use the same accent as their containing panel. */
+.dashboard-hero-horizontal-orbit [data-dashboard-hero-panel] :is(h2, [data-card-joystick-title]),
+.dashboard-hero-horizontal-orbit [data-news-toolbar="true"] h2 {
+  color: var(--hero-card-color, #67e8f9);
+  text-shadow: 0 1px 0 color-mix(in srgb, var(--hero-card-color, #67e8f9) 42%, #172033), 0 2px 0 #071221, 0 3px 2px #0009, 0 0 15px color-mix(in srgb, var(--hero-card-color, #67e8f9) 25%, transparent);
+}
+[data-dashboard-orbiter-row]:not([data-dashboard-orbiter-row="0"]) h2 {
+  text-shadow: 0 1px 0 color-mix(in srgb, currentColor 45%, #172033), 0 2px 0 #071221, 0 3px 2px #0009, 0 0 12px color-mix(in srgb, currentColor 22%, transparent);
+}
+
+/* Shared row-title clearance follows the fixed card joystick footprint. */
+[data-card-navigation-open] [data-dashboard-row-title="stacked"] {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  min-height: 44px;
+  padding-inline-start: 76px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+[data-card-navigation-open] [data-dashboard-row-title="overlay"] {
+  left: 84px;
+  right: 12px;
+  max-width: none;
+}
+
+/* Both artworks use the logo cluster's center line. Auto margins avoid
+   percentage translations and competing hover/resize transforms. */
+.dashboard-header-logo-cluster {
+  grid-template-columns: minmax(0, 1fr);
+}
+.dashboard-header-logo-cluster > .dashboard-header-trophy-selector {
+  inset-inline: 0;
+  margin-inline: auto;
+  transform: none !important;
+}
+.dashboard-header-trophy-selector .dashboard-header-trophy-selector__icon,
+.dashboard-header-trophy-selector:is(:hover, :focus-visible, [aria-expanded="true"]) .dashboard-header-trophy-selector__icon {
+  transform: none !important;
+}
+
+/* The oversized crest must center inside its declared slot, not expand the
+   implicit grid track and shift its visible center away from the trophy. */
+.dashboard-header-logo-cluster > .dashboard-header-home-logo {
+  grid-template-columns: minmax(0, 1fr);
+}
+.dashboard-header-trophy-selector .dashboard-header-trophy-selector__icon img {
+  transform: none !important;
+}
+
+.dashboard-ufo-level-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 16;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: transparent;
+  color: #a5f3fc;
+  filter: drop-shadow(0 2px 1px #083344) drop-shadow(0 0 6px #22d3ee66);
+  cursor: pointer;
+}
+.dashboard-ufo-level-arrow[data-direction="left"] { left: 4%; }
+.dashboard-ufo-level-arrow[data-direction="right"] { right: 4%; }
+.dashboard-ufo-level-arrow:hover { color: white; }
+.dashboard-ufo-level-arrow:focus-visible { outline: 2px solid #67e8f9; border-radius: 8px; }
+.dashboard-header-meter-panel[data-meter-menu-state="closing"] .dashboard-header-meter-tornado {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  transition: opacity 100ms ease, visibility 0s 100ms;
+}
+
+/* The orbit is pointer-transparent; its explicit controls must opt back in. */
+.dashboard-ufo-level-arrow {
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
+}
+
+/* Treat the visible UFO as part of its open meter, including the overhang. */
+.dashboard-header-meter-panel[data-meter-menu-state="open"] .dashboard-header-category-levels-menu__ufo-webgl {
+  pointer-events: none;
+}
+
+/* Phase one retracts projected effects; only then may the panel/ship leave. */
+.dashboard-header-meter-panel[data-meter-menu-state="closing"],
+.dashboard-header-meter-panel-halo[data-meter-menu-state="closing"] {
+  animation-delay: 200ms;
+}
+
+.dashboard-meter-type-arrow {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  pointer-events: auto;
+  cursor: pointer;
+  filter: drop-shadow(0 2px 1px #020617) drop-shadow(0 0 5px currentColor);
+}
+.dashboard-meter-type-arrow:hover { color: white; }
+.dashboard-meter-type-arrow:focus-visible { outline: 2px solid currentColor; border-radius: 6px; }
+
+/* Keep the secondary achievement readable and on the meter column's axis. */
+#dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="compound-pr"]
+.dashboard-header-meter-panel__section[data-meter-highlighted="true"]
+.dashboard-header-achievement-cloud-trigger[data-meter-highlighted="false"] {
+  opacity: 0.8 !important;
+  filter: saturate(0.85) brightness(0.88) !important;
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--achievements
+.dashboard-header-achievement-cloud-trigger {
+  --dashboard-header-achievement-cloud-offset-x: 0rem;
+  margin-inline: auto;
+  align-self: center;
+  justify-self: center;
+}
+#dashboard-header-meter-panel .dashboard-header-compound-pr-meter__badge {
+  display: grid;
+  place-items: center;
+  animation: none;
+  transform: none;
+}
+#dashboard-header-meter-panel .dashboard-header-compound-pr-meter__badge::before,
+#dashboard-header-meter-panel .dashboard-header-compound-pr-meter__badge::after { display: none; }
+
+/* The UFO's oversized transparent layout box must not intercept meter tabs. */
+#dashboard-header-meter-panel > .dashboard-header-category-levels-menu {
+  pointer-events: none;
+}
+.dashboard-ufo-hit-area {
+  position: absolute;
+  z-index: 13;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  cursor: pointer;
+}
+#dashboard-header-meter-panel .dashboard-header-achievement-meter__progress-list {
+  inset-inline: 1.4rem;
+}
+#dashboard-header-meter-panel .dashboard-header-achievement-meter__progress-item {
+  grid-template-columns: 1.34rem auto;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+#dashboard-header-meter-panel .dashboard-header-achievement-meter__progress-copy { text-align: center; }
+#dashboard-header-meter-panel .dashboard-header-achievement-meter__progress-meta { justify-content: center; }
+
+/* One stationary heading is shared by all three animated meter groups. */
+#dashboard-header-meter-panel .dashboard-meter-stable-heading {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 40px;
+  align-items: center;
+  width: min(340px, 100%);
+  height: 40px;
+  padding: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, currentColor 24%, #020617) 20% 80%, transparent);
+  text-align: center;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  pointer-events: auto;
+}
+#dashboard-header-meter-panel .dashboard-meter-stable-heading .dashboard-meter-type-arrow {
+  width: 40px;
+  height: 40px;
+  margin: 0;
+  transform: none;
+  transition: color 150ms ease;
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section-label {
+  visibility: hidden;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily {
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: 40px minmax(65px, .65fr) minmax(0, 2fr);
+  gap: 4px;
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-meter-scroller,
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-meter-scroller__track {
+  height: 100% !important;
+  min-height: 0;
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-meter-scroller__track {
+  display: grid;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-meter-scroller__track > * {
+  height: 100%;
+  min-height: 0;
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-meter-deadline--streak {
+  top: auto;
+  bottom: 0;
+}
+
+/* Give every Daily + Plan meter a bounded row instead of overlapping overflow. */
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily {
+  display: grid;
+  grid-template-rows: 40px 80px minmax(0, 1fr);
+  align-content: stretch;
+  padding-block: 0 8px;
+  box-sizing: border-box;
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-sets-meter {
+  height: 80px;
+  min-height: 0;
+  margin: 0 auto;
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-meter-scroller__track > * {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-week-sessions {
+  display: flex !important;
+  justify-content: center;
+  gap: 2px;
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-week-sessions__graph {
+  flex-shrink: 1;
+  margin: 0;
+  transform: none;
+  max-height: 60px;
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-plan-attendance .dashboard-header-streak-fire__gauge {
+  width: 64px;
+  height: 64px;
+  top: calc(50% - 6px);
+  transform: translate(-50%, -50%);
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-plan-attendance .dashboard-header-streak-fire__content {
+  top: calc(50% - 6px);
+  transform: translateY(-50%);
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-meter-deadline--streak {
+  top: auto;
+  bottom: 0;
+  line-height: 12px;
+}
+
+#dashboard-header-meter-panel .dashboard-header-compound-pr-meter__heading {
+  font-size: clamp(15px, 2.2vw, 19px);
+  line-height: 1.2;
+}
+#dashboard-header-meter-panel .dashboard-header-compound-pr-meter__item {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+#dashboard-header-meter-panel .dashboard-header-compound-pr-meter__rank,
+#dashboard-header-meter-panel .dashboard-header-compound-pr-meter__value { display: none !important; }
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily {
+  grid-template-rows: 40px minmax(0, 1fr);
+  padding: 0 12px 8px;
+}
+.dashboard-daily-plan-grid { display: grid; grid-template-rows: repeat(3, minmax(86px, 1fr)); gap: 10px; min-height: 0; width: min(100%, 340px); justify-self: center; }
+.dashboard-daily-plan-meter { display: flex; align-items: center; gap: 18px; width: 100%; min-height: 86px; padding: 10px 14px; box-sizing: border-box; color: #bae6fd; background: transparent; border: 0; text-align: left; cursor: pointer; transform: none; }
+.dashboard-daily-plan-meter[data-meter-highlighted="false"] { opacity: .72; }
+.dashboard-daily-plan-symbol { display: grid; place-items: center; width: 56px; height: 56px; flex-shrink: 0; }
+.dashboard-daily-plan-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 5px; font-size: 14px; line-height: 18px; }
+.dashboard-daily-plan-copy strong { font-size: 14px; text-transform: uppercase; letter-spacing: .06em; }
+.dashboard-daily-plan-copy small { font-size: 11px; line-height: 14px; }
+.dashboard-daily-plan-track { height: 5px; background: #164e6366; border-radius: 4px; overflow: hidden; }
+.dashboard-daily-plan-track > span { display: block; height: 100%; background: #67e8f9; }
+.dashboard-daily-plan-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; font-size: 10px; text-align: center; }
+.dashboard-daily-plan-days > span { border-bottom: 3px solid #334155; }
+.dashboard-daily-plan-days > span[data-trained="true"] { border-color: #67e8f9; color: white; }
+.dashboard-daily-plan-ring { border-radius: 50%; padding: 4px; }
+.dashboard-daily-plan-ring > span { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: #061622; font-size: 16px; font-weight: 900; }
+#dashboard-header-meter-panel .dashboard-header-fuel-meter {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+#dashboard-header-meter-panel .dashboard-header-fuel-meter__label { font-size: 14px !important; line-height: 20px; }
+#dashboard-header-meter-panel .dashboard-header-fuel-meter__meta { font-size: 11px !important; line-height: 16px; }
+#dashboard-header-meter-panel .dashboard-header-fuel-meter__value { font-size: 22px !important; }
+
+#dashboard-header-meter-panel .dashboard-header-fuel-meter::before,
+#dashboard-header-meter-panel .dashboard-header-fuel-meter::after { display: none !important; }
+
+/* Restore original meter art; only their layout participates in this grid. */
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily {
+  display: grid;
+  grid-template-rows: 40px repeat(3, minmax(90px, 1fr));
+  gap: 8px;
+  height: 100%;
+  padding: 0 10px 8px;
+  align-items: center;
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-meter-scroller,
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-meter-scroller__track { display: contents; }
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily :is(.dashboard-header-sets-meter,.dashboard-header-week-sessions,.dashboard-header-plan-attendance) {
+  position: relative !important;
+  inset: auto !important;
+  width: 100%;
+  height: 100%;
+  min-height: 90px;
+  margin: 0;
+  overflow: visible;
+  transform: none !important;
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-week-sessions__graph { max-height: none; transform: none; margin: 4px auto; }
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-plan-attendance .dashboard-header-streak-fire__gauge { width: 74px; height: 74px; }
+#dashboard-header-meter-panel .dashboard-header-meter-panel__ufo-close,
+#dashboard-header-meter-panel .dashboard-header-meter-panel__ufo-close:hover {
+  width: 44px; height: 44px; border: 0; background: transparent; box-shadow: none; transform: none;
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__ufo-close svg { width: 28px; height: 28px; }
+/* This rectangular shade caused the black box over the tornado. */
+#dashboard-header-meter-panel .dashboard-header-meter-panel__ufo-shade { display: none; }
+#dashboard-header-meter-panel .dashboard-header-fuel-meters { gap: 14px; min-height: 0; }
+#dashboard-header-meter-panel .dashboard-header-fuel-meter { min-height: 135px; height: auto; overflow: visible; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 8px 0; }
+#dashboard-header-meter-panel .dashboard-header-fuel-meter__ring { width: 100px; height: 100px; flex-shrink: 0; display: grid; place-items: center; }
+#dashboard-header-meter-panel .dashboard-header-fuel-meter__value { max-width: 82px; text-align: center; font-size: clamp(17px, 2.7vw, 23px) !important; line-height: 1.1; overflow-wrap: anywhere; }
+#dashboard-header-meter-panel .dashboard-header-fuel-meter__label,
+#dashboard-header-meter-panel .dashboard-header-fuel-meter__meta { position: static; transform: none; max-width: 100%; white-space: normal; }
+.dashboard-fuel-log-button { display: inline-flex; align-items: center; justify-content: center; min-height: 32px; padding: 5px 12px; border-radius: 9px; border: 1px solid #67e8f966; background: #164e6366; color: #cffafe; font-weight: 800; }
+.dashboard-best-lift-metric { display: flex; min-height: 70px; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; }
+.dashboard-best-lift-metric > span { font-size: 11px; font-weight: 800; text-transform: uppercase; }
+.dashboard-best-lift-metric strong { font-size: 20px; line-height: 24px; }
+.dashboard-best-lift-metric small { font-size: 10px; color: #cbd5e1; }
+
+/* The active UFO leads; lower meter groups remain readable secondary content. */
+html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"]
+.dashboard-header-meter-panel__section--slot-center {
+  opacity: .34 !important;
+}
+html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"]
+.dashboard-header-meter-tornado {
+  opacity: .22 !important;
+  filter: brightness(.65) saturate(.65) !important;
+}
+
+/* Explicit row placement clears legacy grid areas that stacked Sets behind Plan. */
+#dashboard-header-meter-panel .dashboard-header-meter-panel__stack--orbit {
+  margin-top: -16px;
+  min-height: 330px;
+}
+#dashboard-header-meter-panel .dashboard-meter-stable-heading { top: -8px; }
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: 32px repeat(3, minmax(90px, 1fr));
+  min-height: 0;
+  max-height: none;
+  height: 100%;
+  row-gap: 8px;
+  padding: 0 10px 8px;
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily > .dashboard-header-meter-panel__section-label { grid-column: 1 !important; grid-row: 1 !important; height: 32px; min-height: 32px; }
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-sets-meter { grid-column: 1 !important; grid-row: 2 !important; }
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-week-sessions { grid-column: 1 !important; grid-row: 3 !important; }
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-plan-attendance { grid-column: 1 !important; grid-row: 4 !important; }
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily :is(.dashboard-header-sets-meter,.dashboard-header-week-sessions,.dashboard-header-plan-attendance) {
+  justify-self: center;
+  align-self: stretch;
+  text-align: center;
+}
+#dashboard-header-meter-panel .dashboard-header-sets-meter { display: flex !important; flex-direction: column; justify-content: center; align-items: center; gap: 2px; }
+#dashboard-header-meter-panel .dashboard-header-sets-meter__tower { transform: none; margin-bottom: 2px; }
+#dashboard-header-meter-panel .dashboard-header-sets-meter__value { font-size: 19px; line-height: 22px; text-align: center; }
+#dashboard-header-meter-panel :is(.dashboard-header-sets-meter__label,.dashboard-header-week-sessions__label,.dashboard-header-streak-fire__label) { font-size: 12px !important; line-height: 16px; text-align: center; }
+#dashboard-header-meter-panel .dashboard-header-week-sessions__value { font-size: 18px; line-height: 22px; text-align: center; }
+#dashboard-header-meter-panel .dashboard-header-meter-deadline { font-size: 10px !important; line-height: 13px; text-align: center; white-space: normal; max-width: 100%; }
+#dashboard-header-meter-panel .dashboard-header-plan-attendance .dashboard-header-streak-fire__content { left: 50%; width: 100%; text-align: center; transform: translate(-50%, -50%); }
+
+/* Reserve more air between the original meters without pushing Plan offscreen. */
+#dashboard-header-meter-panel .dashboard-header-meter-panel__stack--orbit {
+  margin-top: -46px;
+  height: max(350px, calc(100dvh - 220px));
+  min-height: 350px;
+  flex: 0 0 auto;
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily {
+  grid-template-rows: 32px repeat(3, minmax(0, 1fr));
+  row-gap: 22px;
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily :is(.dashboard-header-sets-meter,.dashboard-header-week-sessions,.dashboard-header-plan-attendance) {
+  min-height: 0;
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-plan-attendance .dashboard-header-streak-fire__content {
+  left: 0;
+  right: 0;
+  width: auto;
+  top: calc(50% - 6px);
+  transform: translateY(-50%);
+  align-items: center;
+  text-align: center;
+}
+
+/* The legacy scroller was still a nested grid, so its 3rd/4th rows collapsed
+   to fractions of a pixel. Flatten both wrappers into the section's grid. */
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily > .dashboard-header-meter-scroller,
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-meter-scroller__track {
+  display: contents !important;
+}
+
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-sets-meter {
+  justify-content: flex-start;
+  padding-top: 0;
+  gap: 1px;
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-sets-meter__tower { height: 26px; width: 70px; margin: 0; transform: none; flex-shrink: 0; }
+#dashboard-header-meter-panel .dashboard-header-sets-meter__tallies { grid-template-columns: repeat(4, 5px); grid-template-rows: repeat(3, 6px); gap: 2px 5px; }
+#dashboard-header-meter-panel .dashboard-header-sets-meter__tally { height: 6px; width: 5px; }
+#dashboard-header-meter-panel .dashboard-header-sets-meter__tally--empty { opacity: .6; border-color: #94a3b8; }
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-sets-meter__value { font-size: 18px; line-height: 20px; }
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-sets-meter__label { line-height: 14px; margin: 0; }
+#dashboard-header-meter-panel .dashboard-header-sets-meter .dashboard-header-meter-deadline--sets { margin: 0; position: static; line-height: 12px; transform: none; }
+#dashboard-header-meter-panel .dashboard-header-fuel-meter__ring {
+  width: 112px;
+  height: 112px;
+  background: radial-gradient(circle closest-side, #020617 0 82%, transparent 84%), conic-gradient(from -90deg, rgb(var(--dashboard-header-fuel-color) / .94) 0 var(--dashboard-header-fuel-progress, 0%), #0f172a94 var(--dashboard-header-fuel-progress, 0%) 100%);
+}
+#dashboard-header-meter-panel .dashboard-header-fuel-meter__value { max-width: 90px; }
+#dashboard-header-meter-panel .dashboard-header-achievement-meter__progress-title { font-size: 13px !important; line-height: 17px; max-height: none; white-space: normal; }
+#dashboard-header-meter-panel .dashboard-header-achievement-meter__progress-meta { font-size: 11px !important; line-height: 15px; }
+#dashboard-header-meter-panel .dashboard-header-achievement-meter__progress-icon { font-size: 21px !important; }
+
+/* Fixed geometry across hover/highlight; brightness alone communicates focus. */
+html body #dashboard-header-meter-panel .dashboard-header-meter-panel__section--slot-center {
+  transform: translate3d(-50%, -50%, 0) scale(.96) !important;
+}
+html body #dashboard-header-meter-panel .dashboard-header-meter-panel__highlight-meter,
+html body #dashboard-header-meter-panel .dashboard-header-meter-panel__highlight-meter:hover {
+  margin-block: 0 !important;
+  transform: none !important;
+}
+html body #dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-sets-meter {
+  justify-content: flex-start !important;
+  gap: 1px;
+  padding: 0 !important;
+}
+html body #dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-sets-meter__tower {
+  height: 26px !important;
+  min-height: 26px;
+  width: 70px;
+  margin: 0 !important;
+  transform: none !important;
+  flex: 0 0 26px;
+}
+html body #dashboard-header-meter-panel .dashboard-header-sets-meter__tallies {
+  grid-template-columns: repeat(4, 5px);
+  grid-template-rows: repeat(3, 6px);
+  gap: 2px 5px;
+  filter: none;
+}
+html body #dashboard-header-meter-panel .dashboard-header-sets-meter__tally {
+  height: 6px !important;
+  width: 5px !important;
+  flex-shrink: 0;
+}
+html body #dashboard-header-meter-panel .dashboard-header-sets-meter__tally--empty {
+  border-color: #a7f3d0 !important;
+  opacity: .9 !important;
+  box-shadow: 0 0 3px #6ee7b755;
+}
+html body #dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-sets-meter__value { flex: 0 0 20px; line-height: 20px; }
+html body #dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-sets-meter__label { flex: 0 0 14px; line-height: 14px; }
+html body #dashboard-header-meter-panel .dashboard-header-sets-meter .dashboard-header-meter-deadline--sets {
+  position: static !important;
+  height: auto !important;
+  min-height: 14px;
+  flex: 0 0 auto;
+  margin: 0 !important;
+  overflow: visible !important;
+  white-space: normal;
+  line-height: 14px !important;
+}
+html body #dashboard-header-meter-panel.dashboard-header-meter-panel:not([data-meter-highlight="ufo"]) .dashboard-header-meter-panel__section[data-meter-highlighted="true"] .dashboard-header-sets-meter[data-meter-highlighted="false"] {
+  opacity: .8 !important;
+  filter: brightness(.88) saturate(.85) !important;
+}
+
+/* Hover affects one meter, never the three-meter layout or its spacing. */
+html body #dashboard-header-meter-panel .dashboard-header-meter-panel__highlight-meter:not(.dashboard-header-meter-scroller),
+html body #dashboard-header-meter-panel .dashboard-header-meter-scroller__track > .dashboard-header-meter-scroller__meter {
+  transition: transform 150ms ease, opacity 150ms ease;
+  transform-origin: center;
+}
+html body #dashboard-header-meter-panel .dashboard-header-meter-panel__highlight-meter:not(.dashboard-header-meter-scroller):hover,
+html body #dashboard-header-meter-panel .dashboard-header-meter-scroller__track > .dashboard-header-meter-scroller__meter:hover {
+  transform: scale(1.015) !important;
+}
+
+/* Seven equal weekday slices; the inner opening and value stay uninterrupted. */
+#dashboard-header-meter-panel .dashboard-header-fuel-meter__ring--week::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: repeating-conic-gradient(from -90deg, #020617 0deg 2deg, transparent 2deg calc(360deg / 7));
+  -webkit-mask-image: radial-gradient(circle closest-side, transparent 0 81%, #000 83%);
+  mask-image: radial-gradient(circle closest-side, transparent 0 81%, #000 83%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.dashboard-header-meter-panel[data-meter-menu-state="open"] .dashboard-header-meter-tornado {
+  animation: dashboard-tornado-cast-in 240ms ease-out both;
+}
+@keyframes dashboard-tornado-cast-in {
+  from { opacity: 0; scale: .96; }
+  to { opacity: 1; scale: 1; }
+}
+
+/* The shared-canvas viewport begins at the ship's projected underside. */
+#dashboard-header-meter-panel .dashboard-header-meter-tornado {
+  top: var(--ufo-cast-top, 0px);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+}
+#dashboard-header-meter-panel .dashboard-header-meter-tornado[data-cast-ready="false"] { visibility: hidden !important; }
+#dashboard-header-meter-panel .dashboard-meter-stable-heading {
+  background: linear-gradient(110deg, #ffffff12, #ffffff05 45%, #ffffff0a);
+  border: 1px solid #ffffff26;
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 #ffffff30, 0 4px 12px #02061733;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* Float the heading above projected effects without a boxed border. */
+#dashboard-header-meter-panel .dashboard-meter-stable-heading {
+  z-index: 1000 !important;
+  isolation: isolate;
+  transform: translateX(-50%);
+  border: 0 !important;
+  outline: 0;
+  border-radius: 10px;
+  background: linear-gradient(115deg, rgba(255,255,255,.20), rgba(226,244,255,.07) 48%, rgba(255,255,255,.14));
+  box-shadow: none;
+  backdrop-filter: blur(16px) saturate(135%);
+  -webkit-backdrop-filter: blur(16px) saturate(135%);
+}
+
+
+/* Restore the colored title strip, keeping its fixed controls and foreground layer. */
+#dashboard-header-meter-panel .dashboard-meter-stable-heading {
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, currentColor 24%, #020617) 20% 80%, transparent);
+  border: 0 !important;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  z-index: 1000;
+  transform: translateX(-50%);
+}
+
+/* Daily + Plan keeps identical geometry in every carousel slot. Only its
+   outer transform/opacity transition; nested meters never change layouts. */
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily {
+  display: grid;
+  width: calc(100% - 24px);
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: 32px repeat(3, minmax(0, 1fr));
+  row-gap: 22px;
+}
+#dashboard-header-meter-panel .dashboard-header-achievement-meter__percentage {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 800;
+  color: #fef3c7;
+  text-align: center;
+}
+
+#dashboard-header-meter-panel .dashboard-header-achievement-meter__progress-shell {
+  height: 96px;
+  min-height: 96px;
+}
+#dashboard-header-meter-panel .dashboard-header-achievement-meter__progress-list {
+  top: 10px;
+  bottom: 8px;
+}
+
+/* Coordinated fast meter choreography: lights off, then departure. */
+#dashboard-header-meter-panel[data-meter-menu-state="open"] {
+  animation-duration: 160ms;
+}
+#dashboard-header-meter-panel[data-meter-menu-state="closing"],
+.dashboard-header-meter-panel-halo[data-meter-menu-state="closing"] {
+  animation-duration: 210ms;
+  animation-delay: 90ms;
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section {
+  transition: opacity 150ms ease, transform 220ms cubic-bezier(.2,.8,.2,1), visibility 150ms ease;
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__highlight-meter {
+  transition: opacity 120ms ease, transform 140ms ease, filter 120ms ease;
+}
+#dashboard-header-meter-panel .dashboard-header-meter-tornado {
+  animation-duration: 140ms;
+}
+
+/* Fade the actual shared WebGL scene before its anchor/panel can depart. */
+#dashboard-header-meter-panel[data-meter-menu-state="closing"],
+.dashboard-header-meter-panel-halo[data-meter-menu-state="closing"] {
+  animation-delay: 200ms;
+}
+html body #dashboard-header-meter-panel[data-meter-menu-state="closing"] .dashboard-header-meter-tornado {
+  visibility: visible !important;
+  opacity: 0 !important;
+  animation: none !important;
+  transition: opacity 160ms ease !important;
+}
+
+
+/* Share one orbit angle so planet labels cannot drift out of counter-rotation. */
+@property --dashboard-star-orbit-angle {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 0deg;
+}
+.dashboard-star-system__ring {
+  animation-name: dashboard-star-orbit-phase;
+  transform: rotateX(66deg) rotateZ(var(--dashboard-star-orbit-angle));
+}
+.dashboard-star-system__planet {
+  animation: none !important;
+  transform: rotateZ(calc(-1 * var(--dashboard-star-orbit-angle))) rotateX(-66deg);
+}
+@keyframes dashboard-star-orbit-phase {
+  from { --dashboard-star-orbit-angle: 0deg; }
+  to { --dashboard-star-orbit-angle: -360deg; }
+}
+
+/* Keep the rear planets reachable through the decorative central aura. */
+.dashboard-star-system__scene--draggable { touch-action: pan-y; cursor: grab; user-select: none; }
+.dashboard-star-system__scene--draggable:active { cursor: grabbing; }
+.dashboard-star-system__aura, .dashboard-star-system__ring-line { pointer-events: none; }
+
+.dashboard-section-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 9px; }
+.dashboard-section-heading__label {
+  font-size: .64em; letter-spacing: .14em; color: #cbd5e1;
+  text-shadow: 0 1px 0 #334155, 0 2px 0 #020617, 0 3px 8px #020617;
+}
+.dashboard-section-heading__name {
+  color: inherit; letter-spacing: .055em;
+  text-shadow: 0 -1px 0 #ffffff70, 0 1px 0 #665728, 0 2px 0 #3c341e, 0 3px 0 #171b27, 0 5px 10px #020617b3;
+}
+
+/* Distinct section hierarchy overrides inherited dashboard title span rules. */
+.dashboard-floating-snapshot h2 .dashboard-section-heading,
+h2 .dashboard-section-heading {
+  display: flex !important;
+  align-items: baseline !important;
+  flex-wrap: wrap !important;
+  gap: 4px 12px !important;
+}
+h2 .dashboard-section-heading > .dashboard-section-heading__label {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: #aabbd0 !important;
+  letter-spacing: .16em !important;
+  text-shadow: 0 1px 0 #334155, 0 2px 0 #020617, 0 3px 8px #020617 !important;
+}
+h2 .dashboard-section-heading > .dashboard-section-heading__name {
+  font-size: clamp(22px, 3.6vw, 29px) !important;
+  font-weight: 950 !important;
+  color: #fff0ae !important;
+  letter-spacing: .055em !important;
+  text-shadow: 0 -1px 0 #fffbea, 0 1px 0 #b7994b, 0 2px 0 #806427, 0 3px 0 #4b391b, 0 4px 0 #211b16, 0 6px 10px #020617cc !important;
+}
+
+.dashboard-hero-horizontal-orbit[data-news-active="true"] {
+  margin-top: 0;
+  height: 100%;
+}
+
+.dashboard-news-board { margin-top: 0; height: 100%; }

@@ -1,6 +1,7 @@
 "use client";
 
 import DashboardExperience from "@/components/dashboard/DashboardExperience";
+import SessionsCardNavigation from "@/components/dashboard/SessionsCardNavigation";
 import ProfileRewardBalance from "@/components/profile/ProfileRewardBalance";
 import ProfileHeroPillRail from "@/components/profile/ProfileHeroPillRail";
 import heroStyles from "@/components/profile/ProfileHero.module.css";
@@ -14,12 +15,13 @@ import {
   type WheelEvent as ReactWheelEvent,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 import Link from "@/components/IntentLink";
-import { Bandage, Salad } from "lucide-react";
+import { Bandage, Salad, Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import {
@@ -7259,16 +7261,50 @@ export default function ClientProfilePage() {
   const [activeMeasurementIndex, setActiveMeasurementIndex] = useState(0);
   const [photoMessage, setPhotoMessage] = useState("");
   const profilePhotoMenuRef = useRef<HTMLDivElement | null>(null);
+  const profilePhotoPopupRef = useRef<HTMLDivElement | null>(null);
+  const [profilePhotoPopupPosition, setProfilePhotoPopupPosition] = useState<{ left: number; top: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!profilePhotoMenuOpen) { setProfilePhotoPopupPosition(null); return; }
+    const positionPopup = () => {
+      const anchor = profilePhotoMenuRef.current?.getBoundingClientRect();
+      const popup = profilePhotoPopupRef.current;
+      if (!anchor || !popup) return;
+      const viewport = window.visualViewport;
+      const leftEdge = (viewport?.offsetLeft || 0) + 8;
+      const topEdge = (viewport?.offsetTop || 0) + 8;
+      const rightEdge = leftEdge + (viewport?.width || window.innerWidth) - 16;
+      const bottomEdge = topEdge + (viewport?.height || window.innerHeight) - 16;
+      const left = Math.max(leftEdge, Math.min(anchor.left + anchor.width / 2 - popup.offsetWidth / 2, rightEdge - popup.offsetWidth));
+      const below = anchor.bottom + 8;
+      const top = Math.max(topEdge, Math.min(below + popup.offsetHeight <= bottomEdge ? below : anchor.top - popup.offsetHeight - 8, bottomEdge - popup.offsetHeight));
+      setProfilePhotoPopupPosition({ left, top });
+    };
+    positionPopup();
+    profilePhotoPopupRef.current?.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+    window.addEventListener("resize", positionPopup);
+    window.addEventListener("scroll", positionPopup, true);
+    window.visualViewport?.addEventListener("resize", positionPopup);
+    window.visualViewport?.addEventListener("scroll", positionPopup);
+    return () => {
+      window.removeEventListener("resize", positionPopup);
+      window.removeEventListener("scroll", positionPopup, true);
+      window.visualViewport?.removeEventListener("resize", positionPopup);
+      window.visualViewport?.removeEventListener("scroll", positionPopup);
+    };
+  }, [profilePhotoMenuOpen]);
   useEffect(() => {
     if (!profilePhotoMenuOpen) return;
 
     const closePhotoMenuOnOutsidePress = (event: MouseEvent | TouchEvent) => {
-      if (!profilePhotoMenuRef.current?.contains(event.target as Node)) {
+      if (!profilePhotoMenuRef.current?.contains(event.target as Node) && !profilePhotoPopupRef.current?.contains(event.target as Node)) {
         setProfilePhotoMenuOpen(false);
       }
     };
     const closePhotoMenuOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setProfilePhotoMenuOpen(false);
+      if (event.key === "Escape") {
+        setProfilePhotoMenuOpen(false);
+        profilePhotoMenuRef.current?.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+      }
     };
 
     document.addEventListener("mousedown", closePhotoMenuOnOutsidePress);
@@ -9048,11 +9084,13 @@ export default function ClientProfilePage() {
                   Edit
                 </span>
               </button>
-              {profilePhotoMenuOpen ? (
+              {profilePhotoMenuOpen && typeof document !== "undefined" ? createPortal(
                 <div
+                  ref={profilePhotoPopupRef}
+                  style={{ position: "fixed", zIndex: 300, width: "min(180px, calc(100vw - 16px))", maxHeight: "calc(100dvh - 16px)", overflowY: "auto", left: profilePhotoPopupPosition?.left ?? 8, top: profilePhotoPopupPosition?.top ?? 8, visibility: profilePhotoPopupPosition ? "visible" : "hidden" }}
                   role="menu"
                   aria-label="Profile photo options"
-                  className="absolute left-1/2 top-[calc(100%+0.45rem)] z-[90] w-32 -translate-x-1/2 rounded-2xl border border-cyan-100/22 bg-slate-950/96 p-1.5 text-left shadow-[0_20px_60px_rgba(0,0,0,0.46),0_0_22px_rgba(34,211,238,0.14)] backdrop-blur-xl"
+                  className="rounded-2xl border border-cyan-100/22 bg-slate-950/96 p-1.5 text-left shadow-[0_20px_60px_rgba(0,0,0,0.46),0_0_22px_rgba(34,211,238,0.14)] backdrop-blur-xl"
                 >
                   <button
                     type="button"
@@ -9079,7 +9117,7 @@ export default function ClientProfilePage() {
                       Remove
                     </button>
                   ) : null}
-                </div>
+                </div>, document.body
               ) : null}
               <input
                 accept="image/*"
@@ -9093,27 +9131,20 @@ export default function ClientProfilePage() {
             <div className="min-w-0 flex-1">
               <div className={`${heroStyles.identityHeading} flex flex-wrap items-start justify-between`}>
                 <div className="min-w-0">
-                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
-                    Sound Fitness ID
+                  <p className={`${heroStyles.identityName} flex items-center gap-2 break-words text-3xl font-black uppercase tracking-wide text-white drop-shadow-[0_0_22px_rgba(34,211,238,0.18)] sm:text-4xl`}>
+                    <span className="min-w-0 break-words">{identityDisplayName}</span>
+                    <button type="button" aria-label="Edit profile name" aria-haspopup="dialog"
+                      onPointerDown={event => { event.stopPropagation(); profileOrbiterPointerMovedRef.current = false; }}
+                      onPointerUp={event => event.stopPropagation()}
+                      onClick={event => { event.stopPropagation(); setIdentityNameDraft(identityDisplayName); setIdentityHandleDraft(identityHandle); setIsEditingIdentity(true); }}
+                      className="inline-grid h-8 w-8 shrink-0 place-items-center border-0 bg-transparent text-cyan-100/75 transition hover:text-cyan-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-200"
+                      title="Edit profile name"><Pencil aria-hidden="true" className="pointer-events-none h-4 w-4" /></button>
                   </p>
-                  <p className="mt-1.5 break-words text-3xl font-black uppercase tracking-wide text-white drop-shadow-[0_0_22px_rgba(34,211,238,0.18)] sm:text-4xl">
-                    {identityDisplayName}
-                  </p>
-                  <p className="mt-1.5 text-sm font-black text-cyan-100">
+                  <p className={`${heroStyles.identityHandle} mt-1.5 text-sm font-black text-cyan-100`}>
                     @{identityHandle}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIdentityNameDraft(identityDisplayName);
-                    setIdentityHandleDraft(identityHandle);
-                    setIsEditingIdentity((current) => !current);
-                  }}
-                  className="rounded-full border border-white/10 bg-white/[0.055] px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-slate-200 transition hover:border-cyan-200/35 hover:bg-cyan-300/12 hover:text-cyan-100"
-                >
-                  {isEditingIdentity ? "Close" : "Edit Profile Name"}
-                </button>
+
               </div>
 
               {isEditingIdentity ? createPortal(
@@ -9165,20 +9196,7 @@ export default function ClientProfilePage() {
           <p className="mx-auto mt-2 max-w-3xl text-sm font-semibold leading-5 text-slate-300">
             Your identity, health background, experience and preferences.
           </p>
-          <ProfileHeroPillRail accent="orange" label="Personal profile details">
-            {[
-              `Experience: ${profile.trainingAge || "Not set"}`,
-              profile.height ? `Height: ${profile.height}` : "Height not set",
-              profile.memberType || "Member",
-            ].map((chip) => (
-              <span
-                key={chip}
-                className="rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-200"
-              >
-                {chip}
-              </span>
-            ))}
-          </ProfileHeroPillRail>
+
           </div>
         </div>
         <div className="min-h-0 min-w-0 flex-1">
@@ -15770,14 +15788,13 @@ export default function ClientProfilePage() {
             "absolute inset-x-0 top-2 mx-auto",
           )
         )}
-        <div ref={profileOrbiterRailRef} data-profile-row-rail="true" className="absolute left-2 top-1 z-[90]">
-          <button type="button" aria-label="Profile section menu" aria-expanded={profileRowMenuOpen} aria-controls="profile-section-menu" onClick={() => setProfileRowMenuOpen(open => !open)} className={`${heroStyles.sectionMenuToggle} flex h-10 items-center gap-1 border-0 bg-transparent px-2 text-cyan-100 drop-shadow-[0_0_10px_rgba(103,232,249,0.5)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-200`}>
-            <SelectorIcon name="circle-dot" className="h-5 w-5" /><span aria-hidden="true">⌄</span>
-          </button>
-          {profileRowMenuOpen && <nav id="profile-section-menu" aria-label="Profile sections" className="mt-1 w-60 max-h-[calc(100dvh-10rem)] overflow-y-auto rounded-2xl border border-cyan-100/20 bg-slate-950/95 p-2 shadow-2xl backdrop-blur-xl">
-            {profileOrbiterRows.map((row, index) => <button key={row.title} type="button" aria-current={clampedActiveProfileOrbiterRow === index ? "location" : undefined} disabled={profileOrbiterLocked} onClick={() => { setProfileOrbiterRow(index); setProfileRowMenuOpen(false); }} className={`block w-full rounded-xl px-3 py-3 text-left text-xs font-bold ${clampedActiveProfileOrbiterRow === index ? "bg-cyan-300/15 text-cyan-100" : "text-slate-300 hover:bg-white/10"}`}>{row.title}</button>)}
-          </nav>}
-        </div>
+        <SessionsCardNavigation labelPrefix="profile" showTitle={false} disabled={profileOrbiterLocked}
+          rows={profileOrbiterRows.map((row,index)=>({title:row.title,cards:index===0?[{title:"Your Profile",icon:"Profile"}]:(profileCardRows.find(item=>item.rowIndex===index)?.cards || []).map(card=>({title:card.label,icon:card.icon}))}))}
+          row={clampedActiveProfileOrbiterRow} card={activeProfileCardRowIndex}
+          onRow={setProfileOrbiterRow}
+          onCard={index=>{if(!profileOrbiterLocked && activeProfileCardRow)setProfileSectionOrbitIndex(activeProfileCardRow.tab.id,index);}}
+          onNavigate={direction=>{if(profileOrbiterLocked)return;if(direction==="up"||direction==="down")scrollProfileOrbiterRow(direction==="up"?-1:1);else if(activeProfileCardRow)moveProfileSectionOrbit(activeProfileCardRow.tab.id,activeProfileCardRow.cards.length,direction==="left"?-1:1);}}
+        />
 
         <div
           ref={profileOrbiterViewportRef}

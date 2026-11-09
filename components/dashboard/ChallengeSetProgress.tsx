@@ -1,7 +1,7 @@
 "use client";
 
 import { usePublishedContent } from "@/lib/usePublishedContent";
-import dynamic from "next/dynamic";
+import ChallengeRewardOrbit from "./ChallengeRewardOrbit";
 import { memo, useEffect, useSyncExternalStore } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { publishWeeklyRewards } from "@/lib/planning/weeklyRewardBalances";
@@ -9,10 +9,6 @@ import { currentChallengeSet, type ChallengeMetrics } from "@/lib/planning/chall
 import { readChallengeActivity } from "@/lib/planning/challengeActivity";
 import { subscribePlanning } from "@/lib/planning/store";
 import styles from "./HeroMeterCards.module.css";
-
-const Coin = dynamic(() => import("./DashboardTreasureChest3D").then(module => module.DashboardSpinningSoundCoin3D), { ssr: false });
-const Bolt = dynamic(() => import("./DashboardLightningBolt3D"), { ssr: false });
-const Sapphire = dynamic(() => import("./DashboardTornadoEmeralds3D").then(module => module.DashboardGemStage3D), { ssr: false });
 
 const snapshot = () => JSON.stringify(readChallengeActivity());
 const serverSnapshot = () => "{}";
@@ -47,9 +43,7 @@ function ChallengeSetProgress({ category }: { category: string }) {
   </div><aside className={styles.challengeSetRewards} aria-label="Challenge set rewards">
     <h4>Set rewards</h4>
     <p>Complete all three</p>
-    <div className={styles.challengeRewardRow}><div><span className={styles.challengeCurrencyArtwork} aria-hidden="true"><Coin className="h-full w-full" paused /></span><strong>{100 * rewardScale}</strong><span>Coins</span></div>
-    <div><span className={styles.challengeCurrencyArtwork} aria-hidden="true"><Bolt className="h-full w-full" paused /></span><strong>{25 * rewardScale}</strong><span>Bolts</span></div>
-    <div><span className={styles.challengeCurrencyArtwork} aria-hidden="true"><Sapphire className="h-full w-full" paused tones={["blue"]} framingScale={3} /></span><strong>{2 * rewardScale}</strong><span>Sapphires</span></div></div>
+    <ChallengeRewardOrbit scale={rewardScale} />
   </aside></div>;
 }
 export default memo(ChallengeSetProgress);

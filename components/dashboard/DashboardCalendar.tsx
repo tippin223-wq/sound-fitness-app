@@ -25,8 +25,6 @@ import {
   Activity,
   CheckCircle2,
   ClipboardCheck,
-  CalendarDays,
-  CalendarRange,
   Apple,
   ChevronDown,
   ChevronLeft,
@@ -941,9 +939,7 @@ export default function DashboardCalendar({
             </span>
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: calendarMonthColor(activeCursorDate.getMonth()) }}>
-              My Training Calendar
-            </p>
+
             <p className="mt-1 text-lg font-black text-white">
               {isSameDate(activeSelectedDate, activeToday)
                 ? "Today"
@@ -995,9 +991,7 @@ export default function DashboardCalendar({
       ) : (
         <>
       <div className={`${styles.header} px-3 sm:px-4`}>
-          <p className={`${styles.title} text-[10px] font-black uppercase tracking-[0.18em]`} style={{ color: calendarMonthColor(activeCursorDate.getMonth()) }}>
-            My Training Calendar
-          </p>
+
           <div className={styles.range}>
             <button
               aria-label={`Previous ${view}`}
@@ -1022,16 +1016,15 @@ export default function DashboardCalendar({
             </button>
           </div>
         <div className={styles.modes}>
-          <CalendarAppearancePicker appearance={appearance} monthKey={appearanceMonth} />
-          <div className="inline-flex rounded-full border border-white/10 bg-slate-950/58 p-1">
+          <div aria-label="Calendar view" className="inline-flex items-center gap-0.5 rounded-xl border border-white/15 bg-slate-950/70 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
             {(["month", "week"] as const).map((option) => (
               <button
                 aria-pressed={view === option}
                 aria-label={option === "month" ? "Month view" : "Week view"}
                 title={option === "month" ? "Month view" : "Week view"}
-                className={`grid h-10 w-10 place-items-center rounded-full text-[10px] font-black uppercase tracking-[0.14em] transition ${
+                className={`relative grid h-9 w-10 place-items-center rounded-lg text-[10px] font-black uppercase tracking-[0.14em] transition ${
                   view === option
-                    ? "bg-cyan-300 text-slate-950 shadow-[0_0_22px_rgba(34,211,238,0.24)]"
+                    ? "bg-cyan-300/15 text-cyan-100 shadow-[inset_0_-3px_0_#67e8f9,inset_0_1px_0_rgba(255,255,255,0.12)]"
                     : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
                 }`}
                 key={option}
@@ -1039,10 +1032,15 @@ export default function DashboardCalendar({
                 onClick={() => setView(option)}
                 type="button"
               >
-                {option === "month" ? <CalendarDays aria-hidden="true" className="h-5 w-5" /> : <CalendarRange aria-hidden="true" className="h-5 w-5" />}
+                <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="17" rx="2" />
+                  <path d="M3 9h18M8 2v4M16 2v4" />
+                  {option === "month" ? <path d="M7 13h2m3 0h2m3 0h0M7 17h2m3 0h2m3 0h0" strokeWidth="2.2" /> : <><path d="M9 9v12M15 9v12" /><path d="M5.5 13h1M11.5 16h1M17.5 12h1" strokeWidth="2.4" /></>}
+                </svg>
               </button>
             ))}
           </div>
+          <CalendarAppearancePicker appearance={appearance} monthKey={appearanceMonth} />
 
           {collapsible ? (
             <button

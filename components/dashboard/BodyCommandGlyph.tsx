@@ -32,6 +32,12 @@ import {
  * their detail.
  */
 export type BodyCommandGlyphName =
+  | "protein"
+  | "carbs"
+  | "fat"
+  | "meals"
+  | "weight"
+  | "photos"
   | "arms"
   | "back"
   | "chest"
@@ -86,9 +92,21 @@ const STRETCH_ARMS = "M12 8.8L7.2 4.8M12 8.8L16.8 4.8";
 const STRETCH_LEGS = "M12 14.2L9.4 20.4M12 14.2L14.6 20.4";
 
 const glyphArt: Record<BodyCommandGlyphName, ReactNode> = {
+  protein: <><path d="M5 6c5-5 15 0 13 6-1 4-7 7-11 5S1 10 5 6Z" fill="#fb7185" stroke="#9f1239"/><path d="M7 8c3-2 8 0 7 3s-5 4-7 2 0-5 0-5Z" fill="#fda4af"/><path d="m16 16 4 4m-2 0 2-2" stroke="#ffe4e6" strokeWidth="3"/></>,
+  carbs: <><path d="M6 20 17 3M10 14l-5-1 2-4 5 1m1-3-1-4 5-1m-2 11 5-2-1-4m-8 11 6-1 2-4" fill="none" stroke="#fbbf24" strokeWidth="3" strokeLinecap="round"/></>,
+  fat: <><path d="M12 3c4 5 7 9 7 12a7 7 0 0 1-14 0c0-3 3-7 7-12Z" fill="#c084fc" stroke="#7e22ce"/><path d="M8 15c0 3 2 4 4 4" stroke="#f3e8ff" fill="none" strokeWidth="2"/></>,
+  meals: <><circle cx="13" cy="12" r="8" fill="#d9f99d" stroke="#65a30d"/><circle cx="13" cy="12" r="5" fill="#a3e635"/><path d="M2 3v7m3-7v7M2 8h3M3.5 10v11m18-18v18" stroke="#ecfccb" strokeWidth="1.5"/></>,
+  weight: <><rect x="3" y="4" width="18" height="17" rx="4" fill="#67e8f9" stroke="#0e7490"/><path d="M7 10a5 5 0 0 1 10 0Z" fill="#ecfeff"/><path d="m12 10 2-3" stroke="#155e75" strokeWidth="1.5"/><path d="M7 15v3m10-3v3" stroke="#0891b2" strokeWidth="2"/></>,
+  photos: <><rect x="3" y="6" width="18" height="14" rx="3" fill="#c084fc" stroke="#7e22ce"/><path d="m8 6 2-3h4l2 3" fill="#e9d5ff"/><circle cx="12" cy="13" r="4" fill="#f3e8ff" stroke="#7e22ce"/><circle cx="12" cy="13" r="2" fill="#a855f7"/></>,
   // Flexed bicep: upper arm, forearm and fist merged into one contour, with
   // the bicep swelling above the arm's own line.
-  arms: (<><path d="M3 18.5 5 14l3-1c1-3 3-4 5-2l2 1 1-5-2-1 .8-3 3-.8 2.2 2.8-.6 10c-.2 4-3.4 6-7.4 6H6Z" fill="#33485b" stroke="#8ca5b7" strokeWidth=".8" strokeLinejoin="round"/><path d="M7 15c1-3 3-5 5-3s2 5-1 6l-5 .5Z" fill={MUSCLE}/><path d="m16.8 8-.8 6.5c-.3 2-1 3-2.5 3.5" fill="none" stroke={MUSCLE} strokeWidth="2.4" strokeLinecap="round"/><path d="M8.8 14c1-1.3 2-1.4 2.8-.2" fill="none" stroke={MUSCLE_LIGHT} strokeWidth=".8" strokeLinecap="round"/></>),
+  // A single flexed arm: fist, upright forearm, bent elbow and biceps peak.
+  arms: (<>
+    <path d="M3 18.8 4.8 14.5C5.5 12.8 7.6 11.6 9.4 12.1 11 12.5 12 13.7 12.6 15.1L14 14.4 15 8.2 14.3 6.8 14.6 3.8 16.2 2.6 19.7 3.1 21 4.8 20.4 7.3 19.3 8.5 19 16.6C18.8 20 16.6 21.4 13.4 21.4L6 21Z" fill="#33485b" stroke="#9eb4c4" strokeWidth=".8" strokeLinejoin="round" />
+    <path d="M4.7 18.5 6 15.5C6.6 14 8.2 13.3 9.5 14 10.5 14.5 10.9 15.5 11.3 17.1L14.2 18.3 13.1 20 6.5 19.8Z" fill={MUSCLE} />
+    <path d="m16.1 8.5 2 .2-.4 7.7c-.1 1.1-.6 1.8-1.6 2.1l-1.4-.9Z" fill={MUSCLE} />
+    <path d="m15.7 4.5 3.5.4m-3.5 1 3 .4M6.5 16.4c.5-1.1 1.7-1.5 2.6-.7" fill="none" stroke={MUSCLE_LIGHT} strokeWidth=".8" strokeLinecap="round" />
+  </>),
   // Rear double-biceps. Arms and head go down first so the trunk's own outline
   // lands on top as the shoulder seam; lats spread from the armpits to the
   // waist. It gets a head because a pose without one reads as decapitated
@@ -189,11 +207,12 @@ const glyphArt: Record<BodyCommandGlyphName, ReactNode> = {
   ),
   // Deltoids: caps straddling the shoulder corner, where the arm meets the
   // trap line. Any lower and they read as the top of the bicep.
+  // Front upper torso gives the two deltoid caps a clear anatomical anchor.
   shoulders: (<>
-    <path d="M9 2.5v3c-1.7.2-3.3.8-4.5 1.8C2.2 9.2 2 12.6 2.8 17L6 18l1-6.2 1.6 1h6.8l1.6-1 1 6.2 3.2-1c.8-4.4.6-7.8-1.7-9.7-1.2-1-2.8-1.6-4.5-1.8v-3" fill="#33485b" stroke="#8ca5b7" strokeWidth=".8" strokeLinejoin="round" />
-    <path d="M6.9 6.5c-2.2.4-3.9 2-4 4.6 0 1.5.4 3 1.2 4.1l2.4-.7.5-3.2 1.4-2.7Zm10.2 0c2.2.4 3.9 2 4 4.6 0 1.5-.4 3-1.2 4.1l-2.4-.7-.5-3.2-1.4-2.7Z" fill={MUSCLE} />
-    <path d="m8.4 7.5 3.6 1 3.6-1M12 8.5v2" fill="none" stroke="#9eb4c4" strokeWidth=".8" strokeLinecap="round" />
-    <path d="M5.8 8.3c-1 .8-1.4 1.8-1.4 3.2m13.8-3.2c1 .8 1.4 1.8 1.4 3.2" fill="none" stroke={MUSCLE_LIGHT} strokeWidth=".9" strokeLinecap="round" />
+    <path d="M9 2h6v3.7l2.7 1.1C21 8 22 10.2 22 13.4V20h-4l-1-7.1V22H7v-9.1L6 20H2v-6.6C2 10.2 3 8 6.3 6.8L9 5.7Z" fill="#33485b" stroke="#9eb4c4" strokeWidth=".8" strokeLinejoin="round" />
+    <path d="M6.8 7C3.7 7.6 2.8 10 3 13.8l3.1.7c.4-2.4 1.1-4.5 2.8-6.1Zm10.4 0c3.1.6 4 3 3.8 6.8l-3.1.7c-.4-2.4-1.1-4.5-2.8-6.1Z" fill={MUSCLE} />
+    <path d="m9 6 3 2 3-2M8 10l4 1 4-1m-4 1v7" stroke="#91a8ba" strokeWidth=".65" fill="none" strokeLinecap="round" />
+    <path d="M6.2 8.5c-1.1.6-1.7 1.6-1.8 3.4m13.4-3.4c1.1.6 1.7 1.6 1.8 3.4" fill="none" stroke={MUSCLE_LIGHT} strokeWidth=".9" strokeLinecap="round" />
   </>),
   sleep: (
     <>

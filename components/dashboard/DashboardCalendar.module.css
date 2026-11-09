@@ -27,3 +27,8 @@
   .dayControls { grid-column: 2; grid-row: 1; gap: .5rem; }
   .timeControls button, .dayControls button { width: 2.75rem; height: 2.25rem; }
 }
+
+/* Keep calendar navigation clear of the dashboard's floating card joystick. */
+:global([data-card-navigation-open]) .header {
+  padding-inline-start: 76px;
+}

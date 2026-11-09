@@ -41,9 +41,9 @@ export function dashboardCompoundEvidence(records: readonly unknown[], now = new
   const highlight = (entry: Entry | null, detail: string, rank: number, tone: string, value?: string) => {
     const group = entry ? groups.get(entry.key) || [] : [];
     const sets = group.reduce((sum, row) => sum + row.sets, 0), volume = group.reduce((sum, row) => sum + row.pounds * row.reps * row.sets, 0);
-    return { categoryId: entry?.categoryId || "integrated", detail, rank, tone, label: entry?.name || "No comparable record", value: value ?? (entry ? load(entry.pounds) : "Unavailable"),
-      weightLabel: entry ? load(entry.pounds) : "Load unavailable", repsLabel: entry ? String(entry.reps) : "Not recorded", dateLabel: entry ? localDate(new Date(entry.timestamp)) : "Not recorded",
-      setsLabel: entry && Number.isSafeInteger(sets) ? sets.toLocaleString() : "Unavailable", volumeLabel: entry && Number.isFinite(volume) ? load(volume) + "·reps" : "Unavailable",
+    return { categoryId: entry?.categoryId || "integrated", detail, rank, tone, label: entry?.name || "Record your best", value: value ?? (entry ? load(entry.pounds) : "—"),
+      weightLabel: entry ? load(entry.pounds) : "—", repsLabel: entry ? String(entry.reps) : "—", dateLabel: entry ? localDate(new Date(entry.timestamp)) : "—",
+      setsLabel: entry && Number.isSafeInteger(sets) ? sets.toLocaleString() : "—", volumeLabel: entry && Number.isFinite(volume) ? load(volume) + "·reps" : "—",
       windowLabel: `30 days · known-unit records${excluded ? " · some entries excluded" : ""}` };
   };
   const delta = change ? (change.delta > 0 ? "+" : change.delta < 0 ? "−" : "") + load(Math.abs(change.delta)) + ` at ${change.latest.reps} reps` : "Baseline needed";

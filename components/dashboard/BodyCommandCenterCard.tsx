@@ -40,6 +40,7 @@ import {
 } from "@/components/dashboard/BodyCommandGlyph";
 import { getSegmentedRingDashes } from "@/components/dashboard/segmentedRing";
 import {
+  Pencil,
   Hand,
   MoveUpRight,
   StretchHorizontal,
@@ -73,6 +74,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import {
+  createContext,
+  useContext,
   useCallback,
   useEffect,
   useId,
@@ -93,6 +96,14 @@ import { subscribeDashboardPlanEvidence } from "@/lib/planning/dashboardPlanEvid
 import { createPortal } from "react-dom";
 import layoutStyles from "./BodyCommandCenterLayout.module.css";
 import SupportSignalLog from "./SupportSignalLog";
+import BodyCommandGlyph from "./BodyCommandGlyph";
+import { planningKeys, planningSnapshot, planningOwner, subscribePlanning, writePlanning } from "@/lib/planning/store";
+import { exerciseMuscleMap } from "@/components/anatomy/exerciseMuscleMap";
+import { cloudHistorySnapshot } from "@/lib/planning/availableLogs";
+import { readWorkoutCompletionEvidence } from "@/lib/planning/logs";
+import { workoutHistory, workoutSetCount } from "@/lib/planning/history";
+import { localDate } from "@/lib/planning/dates";
+import { SUPPORT_RECORDS_KEY, validSupportHistory } from "@/lib/planning/supportSignalValidation";
 import type { MuscleSlug } from "@/components/anatomy/exerciseMuscleMap";
 
 type BodyStatTone = "blue" | "cyan" | "emerald" | "gold" | "lime" | "purple" | "rose" | "teal";
@@ -126,6 +137,7 @@ type BodyCommandCenterCardProps = {
   active?: boolean;
   bodyMapHref: string;
   commandCenterSlot?: ReactNode;
+  trainingWeekStart?: string;
 };
 
 type AvatarLabTab = "body" | "face" | "outfit" | "skin" | "hair" | "gear" | "motion";
@@ -321,6 +333,9 @@ const bodyCommandSupportDefinitions: Array<{ glyph: keyof BodyCommandEvidence; l
   { glyph: "fatigue", label: "Fatigue", tone: "gold" }, { glyph: "soreness", label: "Soreness", tone: "rose" },
   { glyph: "recovery", label: "Recovery Sessions", tone: "emerald" }, { glyph: "core", label: "Core", tone: "cyan" },
   { glyph: "fuel", label: "Fuel", tone: "lime" }, { glyph: "hydration", label: "Hydration", tone: "teal" },
+  { glyph: "weight", label: "Weight", tone: "cyan" }, { glyph: "photos", label: "Photos", tone: "purple" },
+  { glyph: "protein", label: "Protein", tone: "rose" }, { glyph: "carbs", label: "Carbs", tone: "gold" },
+  { glyph: "fat", label: "Fat", tone: "purple" }, { glyph: "meals", label: "Meals", tone: "lime" },
 ];
 function createBodyCommandSupportStats(evidence: BodyCommandEvidence): BodyStatCardDefinition[] {
   return bodyCommandSupportDefinitions.map(definition => {
@@ -403,7 +418,7 @@ function getSevenDayTrainingStatus({
   completed,
   target,
 }: SevenDayTrainingLoad): SevenDayTrainingStatus {
-  if (target <= 0) return "unknown";
+  if (target <= 0) return completed > 0 ? "recorded" : "untrained";
   if (completed === 0) return "untrained";
   const ratio = completed / target;
   if (ratio < 0.5) return "good";
@@ -427,8 +442,8 @@ function getSupportSignalStatus({
   return "good";
 }
 
-function formatTrainingLoad(load: SevenDayTrainingLoad) { return load.target > 0 ? `${load.completed}/${load.target}` : "—"; }
-function describeTrainingLoad(load: SevenDayTrainingLoad) { return load.target > 0 ? `${load.completed} of ${load.target} planned sets in the last 7 days` : "Muscle-specific recorded sets and plan targets are not mapped"; }
+function formatTrainingLoad(load: SevenDayTrainingLoad) { return load.target > 0 ? `${load.completed}/${load.target}` : load.completed.toLocaleString("en-US", { maximumFractionDigits: 1 }); }
+function describeTrainingLoad(load: SevenDayTrainingLoad) { return load.target > 0 ? `${load.completed} of ${load.target} planned sets in the selected week` : `${load.completed.toLocaleString("en-US", { maximumFractionDigits: 1 })} mapped effective sets in the selected week; no plan target assigned`; }
 
 function getSevenDayFill({ completed, target }: SevenDayTrainingLoad) {
   if (target <= 0) return 0;
@@ -857,9 +872,9 @@ function SegmentedRing({
         fill="none"
         pathLength="100"
         r="33"
-        stroke="rgba(148,163,184,0.18)"
+        stroke="rgba(203,213,225,0.38)"
         strokeDasharray={track}
-        strokeWidth="5"
+        strokeWidth="4"
       />
       <circle
         cx="36"
@@ -1495,10 +1510,10 @@ function SupportSignalDetailDialog({
           data-dashboard-orbiter-local-scroll="true"
         >
           <SupportSignalLog kind={stat.glyph} />
-          <SupportSignalLastSevenDays
+          {stat.glyph !== "weight" && stat.glyph !== "photos" && <SupportSignalLastSevenDays
             stat={stat}
             statusTheme={statusTheme}
-          />
+          />}
 
           <div className="mt-3">
             <DetailInlineScrollSection
@@ -1552,19 +1567,68 @@ export function DailyCheckInPopup({ onClose }: { onClose: () => void }) {
   return stats[index] ? <SupportSignalDetailDialog stat={stats[index]} onClose={onClose} onNavigate={direction => setIndex(value => (value + direction + stats.length) % stats.length)} /> : null;
 }
 
-function BodyStatStack({
+type SupportStackProps = { compact?: boolean; label: string; showLabel?: boolean; stats: BodyStatCardDefinition[]; vertical?: boolean };
+
+function BodyStatStack(props: SupportStackProps) {
+  const preference = useSyncExternalStore(subscribePlanning, () => JSON.stringify(planningSnapshot()[planningKeys.dashboardSupportSignals] ?? null), () => "null");
+  const owner = useSyncExternalStore(subscribePlanning, planningOwner, () => null);
+  const selected: string[] = useMemo(() => {
+    const saved = JSON.parse(preference);
+    return Array.isArray(saved) ? saved.filter((id: unknown): id is string => typeof id === "string") : props.stats.filter(stat => !["core", "protein", "carbs", "fat", "meals"].includes(stat.glyph)).map(stat => stat.glyph);
+  }, [preference, props.stats]);
+  const visibleStats = props.stats.filter(stat => selected.includes(stat.glyph));
+  const [editing, setEditing] = useState(false);
+  const [error, setError] = useState("");
+  const editorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!editing) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    editorRef.current?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setEditing(false);
+      if (event.key === "Tab") {
+        const buttons = editorRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)");
+        if (!buttons?.length) return;
+        const first = buttons[0], last = buttons[buttons.length - 1];
+        if (event.shiftKey && (document.activeElement === first || document.activeElement === editorRef.current)) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => { window.removeEventListener("keydown", onKey); previousFocus?.focus(); };
+  }, [editing]);
+  const toggle = (id: string) => {
+    try {
+      writePlanning(planningKeys.dashboardSupportSignals, selected.includes(id) ? selected.filter(value => value !== id) : [...selected, id]);
+      setError("");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save your menu."); }
+  };
+  return <>
+    <SupportSignalStack {...props} stats={visibleStats} key={`${owner}:${visibleStats.map(stat => stat.glyph).join(":")}`} onEdit={() => { setError(""); setEditing(true); }} />
+    {editing && createPortal(<div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md" data-dashboard-wheel-lock="true" onMouseDown={event => { if (event.currentTarget === event.target) setEditing(false); }}>
+      <div ref={editorRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Edit support signals" className="flex max-h-[85dvh] w-full max-w-md flex-col rounded-2xl border border-cyan-200/25 bg-slate-950 p-4 text-white shadow-2xl outline-none">
+        <div className="mb-4 flex items-center justify-between gap-3"><h2 className="text-lg font-bold text-cyan-100">Support Signals</h2><button type="button" aria-label="Close support signal editor" onClick={() => setEditing(false)} className="p-2"><X size={24} /></button></div>
+        <div className="min-h-0 overflow-y-auto" data-dashboard-orbiter-local-scroll="true">
+          {[true, false].map(added => <section key={String(added)} className="mb-5"><h3 className="mb-2 text-sm font-bold text-slate-300">{added ? "On your dashboard" : "Available to add"}</h3>
+            <div className="space-y-2">{props.stats.filter(stat => selected.includes(stat.glyph) === added).map(stat => <div key={stat.glyph} className="flex items-center gap-3 rounded-xl bg-white/5 px-3 py-2"><BodyCommandGlyph name={stat.glyph} tone={stat.tone} className="h-8 w-8 shrink-0" /><span className={`flex-1 font-semibold ${statToneClasses[stat.tone].text}`}>{stat.label}</span><button type="button" disabled={!owner} aria-label={`${added ? "Remove" : "Add"} ${stat.label}`} onClick={() => toggle(stat.glyph)} className="rounded-lg border border-cyan-100/20 px-3 py-2 text-sm text-cyan-100 disabled:opacity-40">{added ? "Remove" : "Add"}</button></div>)}</div>
+            {!props.stats.some(stat => selected.includes(stat.glyph) === added) && <p className="py-2 text-sm text-slate-400">{added ? "No signals selected. Add some below." : "All signals are on your dashboard."}</p>}
+          </section>)}
+        </div>
+        {error && <p role="alert" className="mt-2 text-sm text-rose-200">{error}</p>}
+        <button type="button" onClick={() => setEditing(false)} className="mt-2 rounded-lg bg-cyan-300/15 px-4 py-2 font-semibold text-cyan-100">Done</button>
+      </div>
+    </div>, document.body)}
+  </>;
+}
+
+function SupportSignalStack({
   compact = false,
   label,
   showLabel = true,
   stats,
   vertical = false,
-}: {
-  compact?: boolean;
-  label: string;
-  showLabel?: boolean;
-  stats: BodyStatCardDefinition[];
-  vertical?: boolean;
-}) {
+  onEdit,
+}: SupportStackProps & { onEdit: () => void }) {
   const {
     scrollRef,
     scrollToIndex,
@@ -1598,7 +1662,8 @@ function BodyStatStack({
       scroller.scrollLeft +
       itemRect.left +
       itemRect.width / 2 -
-      (targetRect.left + targetRect.width / 2);
+      (targetRect.left + targetRect.width / 2 -
+        (Number(scroller.dataset.visibleSlots || 1) % 2 === 0 ? (itemRect.width + 8) / 2 : 0));
     scroller.scrollTo({
       behavior,
       left: Math.max(0, nextLeft),
@@ -1618,6 +1683,7 @@ function BodyStatStack({
   }, [activeSupportItemIndex, compact, highlightedIndex, scrollToIndex, scrollToCenteredCardIndex, vertical]);
 
   const moveHighlight = (direction: -1 | 1) => {
+    if (!stats.length) return;
     clearTimeout(supportScrollTimer.current);
     setHighlightedIndex((currentIndex) => {
       const nextIndex =
@@ -1665,7 +1731,12 @@ function BodyStatStack({
           const scroller = scrollRef.current;
           if (!scroller) return;
           const host = (scroller.parentElement ?? scroller).getBoundingClientRect();
-          const center = vertical ? host.top + host.height / 2 : host.left + host.width / 2;
+          const slotWidth = (scroller.firstElementChild as HTMLElement | null)?.getBoundingClientRect().width ?? 0;
+          // Match the selection anchor used by programmatic scrolling. With
+          // two slots, comparing to the middle instead picked the neighbour
+          // and repeatedly advanced the rail without user input.
+          const center = vertical ? host.top + host.height / 2 : host.left + host.width / 2 -
+            (Number(scroller.dataset.visibleSlots || 1) % 2 === 0 ? (slotWidth + 8) / 2 : 0);
           let nearest = activeSupportItemIndex, distance = Infinity;
           Array.from(scroller.children).forEach((child, index) => {
             const bounds = child.getBoundingClientRect();
@@ -1714,10 +1785,10 @@ function BodyStatStack({
       if (!firstCard) return;
       const available = host.clientWidth;
       if (available <= 0) return;
-      // An odd number of complete slots puts the selection in the middle
-      // and both edge neighbours fully inside the visible rail at rest.
-      const fittingSlots = Math.floor(available / 104);
-      const visibleCount = Math.max(1, Math.min(7, fittingSlots % 2 ? fittingSlots : fittingSlots - 1));
+      // Use every complete slot, including a pair on medium-width columns.
+      const fittingSlots = Math.floor((available + 8) / 104);
+      const visibleCount = Math.max(1, Math.min(7, fittingSlots));
+      scroller.dataset.visibleSlots = String(visibleCount);
       scroller.style.setProperty("--support-slot-width", `${(available - (visibleCount - 1) * 8) / visibleCount}px`);
       const sidePad = 0;
       scroller.style.width = `${available}px`;
@@ -1744,6 +1815,7 @@ function BodyStatStack({
       scroller.style.paddingRight = "";
       scroller.style.scrollPaddingInline = "";
       scroller.style.removeProperty("--support-slot-width");
+      delete scroller.dataset.visibleSlots;
     };
   }, [activeSupportItemIndex, compact, scrollRef, scrollToCenteredCardIndex, vertical]);
 
@@ -1763,6 +1835,7 @@ function BodyStatStack({
           <span className={`${layoutStyles.supportSignalTitleText} shrink-0 text-[9px] font-black uppercase tracking-[0.18em] ${activeTone.text}`}>
             {label}
           </span>
+          <button type="button" aria-label="Edit support signals" aria-haspopup="dialog" onClick={event => { event.stopPropagation(); onEdit(); }} className="shrink-0 p-1 text-cyan-100/80 hover:text-white"><Pencil aria-hidden="true" className="h-4 w-4" /></button>
           {supportArrowsInTitle ? (
             <ScrollControlButton
               direction="right"
@@ -1862,11 +1935,11 @@ const avatarHeatLegend = [
   },
 ] as const;
 
-function AvatarDetailLegend({ backgroundControl, averageIndex }: { backgroundControl?: ReactNode; averageIndex: number }) {
+function AvatarDetailLegend({ backgroundControl, averageIndex, averageLabel }: { backgroundControl?: ReactNode; averageIndex: number; averageLabel?: string }) {
   const [tip, setTip] = useState<number | null>(null);
   const tipId = useId();
   const status = avatarHeatLegend[averageIndex];
-  const descriptions = [
+  const descriptions = averageLabel ? ["Recorded fatigue 0–2 / 10", "Recorded fatigue 2–4 / 10", "Recorded fatigue 4–6 / 10", "Recorded fatigue 6–8 / 10", "Recorded fatigue 8–10 / 10"] : [
     "Untrained — no recorded training load yet.",
     "Cool — light training load.",
     "Halfway — moderate training load.",
@@ -1877,11 +1950,11 @@ function AvatarDetailLegend({ backgroundControl, averageIndex }: { backgroundCon
     <div className="flex min-w-0 items-center gap-2">
       <div className={layoutStyles.fatigueBarShell}>
         <div className="text-center text-[7px] font-black uppercase tracking-wider text-cyan-100/80">Average fatigue</div>
-        <div className={layoutStyles.fatigueBar} aria-label={`Average fatigue: ${status.label}`}>
+        <div className={layoutStyles.fatigueBar} aria-label={`Average fatigue: ${averageLabel || status.label}`}>
           {avatarHeatLegend.map((entry, index) => (
             <button type="button" key={entry.label} aria-label={descriptions[index]}
               aria-describedby={tip === index ? tipId : undefined}
-              data-status={entry.label.toLowerCase()} data-current={index === averageIndex ? "true" : undefined}
+              data-status={entry.label.toLowerCase()} data-current={averageLabel !== "Not recorded" && index === averageIndex ? "true" : undefined}
               className={layoutStyles.fatigueBarSegment}
               onPointerEnter={() => setTip(index)} onPointerLeave={() => setTip(null)}
               onFocus={() => setTip(index)} onBlur={() => setTip(null)}
@@ -1889,10 +1962,10 @@ function AvatarDetailLegend({ backgroundControl, averageIndex }: { backgroundCon
               onClick={event => { event.stopPropagation(); setTip(index); }}
               onKeyDown={event => { if (event.key === "Escape") setTip(null); }} />
           ))}
-          <span aria-hidden="true" className={layoutStyles.fatigueBarMarker} style={{ left: `${(averageIndex + .5) * 20}%` }} />
+          {averageLabel !== "Not recorded" && <span aria-hidden="true" className={layoutStyles.fatigueBarMarker} style={{ left: `${(averageIndex + .5) * 20}%` }} />}
         </div>
         {tip !== null ? <div id={tipId} role="tooltip" className={layoutStyles.fatigueTooltip}>{descriptions[tip]}</div> : null}
-        <div className={layoutStyles.fatigueBarLabel} data-status={status.label.toLowerCase()}>{status.label}</div>
+        <div className={layoutStyles.fatigueBarLabel} data-status={averageLabel ? "recorded" : status.label.toLowerCase()}>{averageLabel || status.label}</div>
       </div>
       {backgroundControl}
     </div>
@@ -2305,6 +2378,8 @@ const musclePartExplainers: Record<string, { detail: string; focus: string }> = 
   },
 };
 
+const WeeklyTrainingContext = createContext({ muscles: muscleMeta, groups: {} as Record<string, SevenDayTrainingLoad> });
+
 function getMusclePartExplainer(part: string, muscleLabel: string) {
   return (
     musclePartExplainers[part] ?? {
@@ -2316,8 +2391,8 @@ function getMusclePartExplainer(part: string, muscleLabel: string) {
 
 const muscleDetailOrder = bodyPartGroups.flatMap((group) => group.muscles);
 
-function getMuscleTrainingInsight(slug: BodyCommandMuscleSlug) {
-  const meta = muscleMeta[slug];
+function getMuscleTrainingInsight(slug: BodyCommandMuscleSlug, muscles = muscleMeta) {
+  const meta = muscles[slug];
   if (meta.load.target <= 0) return "Muscle-specific workload and targets are unavailable. Review recorded workouts in History; no training dose or recovery status is inferred.";
   const trainingStatus = getSevenDayTrainingStatus(meta.load);
   const difference = Math.abs(meta.load.target - meta.load.completed);
@@ -2334,7 +2409,8 @@ function getMuscleTrainingInsight(slug: BodyCommandMuscleSlug) {
   return "This area is in the prime weekly set zone. Maintain the current dose and let performance and recovery determine the next increase.";
 }
 
-function getBodyPartGroupLoad(group: BodyPartGroup): SevenDayTrainingLoad {
+function getBodyPartGroupLoad(group: BodyPartGroup, groups?: Record<string, SevenDayTrainingLoad>): SevenDayTrainingLoad {
+  if (groups?.[group.id]) return groups[group.id];
   return group.muscles.reduce<SevenDayTrainingLoad>(
     (total, slug) => ({
       completed: total.completed + muscleMeta[slug].load.completed,
@@ -3151,6 +3227,7 @@ function TrainingCategorySelector({
   onHoverGroup?: (id: string | null) => void;
   onSelectGroup: (id: string) => void;
 }) {
+  const { muscles: muscleMeta, groups: weeklyGroups } = useContext(WeeklyTrainingContext);
   const {
     canScrollBackward,
     canScrollForward,
@@ -3330,7 +3407,7 @@ function TrainingCategorySelector({
     const categoryColors = exerciseAnatomyRegionVisuals[categoryColorGroups[group.id]];
     // Already the sum of every muscle in the group, so the ring shows the
     // category's combined sets for the last 7 days.
-    const groupLoad = getBodyPartGroupLoad(group);
+    const groupLoad = getBodyPartGroupLoad(group, weeklyGroups);
     const groupStatus = getSevenDayTrainingStatus(groupLoad);
     const statusTheme = sevenDayStatusTheme[groupStatus];
     const fill = getSevenDayFill(groupLoad);
@@ -3404,19 +3481,20 @@ function TrainingCategorySelector({
         />
         <span className="relative flex max-w-[66px] flex-col items-center text-center leading-none min-[520px]:max-w-[62px]">
           <BodyCommandRingFace
+            capGlyph
             glyph={group.glyph}
             glyphClassName={
               isSide
-                ? "h-7 w-7 translate-y-0.5"
-                : "h-[46px] w-[46px] translate-y-[8px] min-[520px]:h-10 min-[520px]:w-10"
+                ? "h-7 w-7 -translate-y-2"
+                : "h-9 w-9 -translate-y-2"
             }
             caption={group.label}
-            captionClassName="text-inherit text-[10px] min-[520px]:text-[9px]"
+            captionClassName={`${layoutStyles.categoryCaption} text-inherit text-[10px] min-[520px]:text-[9px]`}
             showGlyph={showGlyph}
             tone={group.tone}
           >
             <span
-              className={`block max-w-full truncate font-black uppercase leading-tight tracking-normal text-inherit text-[10px] min-[520px]:text-[9px]`}
+              className={layoutStyles.categoryLabel}
             >
               {group.label}
             </span>
@@ -3445,6 +3523,7 @@ function MuscleDetailDialog({
   onNavigate: (direction: -1 | 1) => void;
   slug: BodyCommandMuscleSlug;
 }) {
+  const { muscles: muscleMeta, groups: weeklyGroups } = useContext(WeeklyTrainingContext);
   const meta = muscleMeta[slug];
   const details = muscleDetailMeta[slug] ?? {
     parts: [meta.label],
@@ -3602,7 +3681,7 @@ function MuscleDetailDialog({
 
           <div className={`mt-3 rounded-[10px] border p-3 ${categoryTone.icon}`}>
             <span className="block text-[8px] font-black uppercase tracking-[0.16em]">Plan insight</span>
-            <p className="mt-1.5 text-[11px] font-semibold leading-relaxed text-slate-100">{getMuscleTrainingInsight(slug)}</p>
+            <p className="mt-1.5 text-[11px] font-semibold leading-relaxed text-slate-100">{getMuscleTrainingInsight(slug, muscleMeta)}</p>
           </div>
         </div>
 
@@ -3665,6 +3744,7 @@ function CategoryBreakdownRail({
   muscles: BodyCommandMuscleSlug[];
   titleClassName: string;
 }) {
+  const { muscles: muscleMeta, groups: weeklyGroups } = useContext(WeeklyTrainingContext);
   const [activeIndex, setActiveIndex] = useState(0);
   const railRef = useRef<HTMLDivElement>(null);
   const dragScrollHandlers = useHorizontalDragScroll(railRef);
@@ -3819,11 +3899,12 @@ function CategoryDetailDialog({
   onClose: () => void;
   onNavigate: (direction: -1 | 1) => void;
 }) {
+  const { muscles: muscleMeta, groups: weeklyGroups } = useContext(WeeklyTrainingContext);
   const group =
     bodyPartGroups.find((candidate) => candidate.id === groupId) ??
     bodyPartGroups[0];
   const groupTone = statToneClasses[group.tone];
-  const groupLoad = getBodyPartGroupLoad(group);
+  const groupLoad = getBodyPartGroupLoad(group, weeklyGroups);
   const groupStatus = getSevenDayTrainingStatus(groupLoad);
   const statusTheme = sevenDayStatusTheme[groupStatus];
   const fill = getSevenDayFill(groupLoad);
@@ -3980,6 +4061,7 @@ function MuscleGroupPanel({
   showTitle?: boolean;
   selectedGroupId: string;
 }) {
+  const { muscles: muscleMeta, groups: weeklyGroups } = useContext(WeeklyTrainingContext);
   const selectedGroup =
     bodyPartGroups.find((group) => group.id === selectedGroupId) ??
     bodyPartGroups[0];
@@ -4391,10 +4473,40 @@ export default function BodyCommandCenterCard({
   active = true,
   bodyMapHref,
   commandCenterSlot,
+  trainingWeekStart,
 }: BodyCommandCenterCardProps) {
   const publishedThemes=usePublishedContent("themes");
   const evidenceSnapshot = useSyncExternalStore(subscribeDashboardPlanEvidence, bodyCommandEvidenceSnapshot, serverBodyCommandEvidence);
   const bodyCommandSupportStats = useMemo(() => createBodyCommandSupportStats(JSON.parse(evidenceSnapshot) as BodyCommandEvidence), [evidenceSnapshot]);
+  const trainingSnapshot = useSyncExternalStore(subscribeDashboardPlanEvidence, () => JSON.stringify({ ...planningSnapshot(), __cloud: cloudHistorySnapshot() }), () => "{}");
+  const weeklyTraining = useMemo(() => {
+    const start = trainingWeekStart || localDate();
+    const endDate = new Date(`${start}T12:00:00`); endDate.setDate(endDate.getDate() + 6);
+    const end = localDate(endDate);
+    const muscles = Object.fromEntries(Object.entries(muscleMeta).map(([slug, meta]) => [slug, { ...meta, load: { ...meta.load, completed: 0 } }])) as typeof muscleMeta;
+    const groups = Object.fromEntries(bodyPartGroups.map(group => [group.id, { completed: 0, target: 0, unit: "sets" as const }]));
+    const category: Record<string, string> = { chest: "chest", deltoids: "shoulders", biceps: "arms", triceps: "arms", forearm: "arms", abs: "core", obliques: "core", "lower-back": "core", trapezius: "back", "upper-back": "back", quadriceps: "legs", hamstring: "legs", gluteal: "legs", calves: "legs", adductors: "legs", "hip-flexors": "legs", tibialis: "legs" };
+    try {
+      for (const log of workoutHistory(readWorkoutCompletionEvidence()).filter(log => log.date >= start && log.date <= end)) {
+        for (const entry of log.entries) {
+          const weights = exerciseMuscleMap[entry.exerciseId];
+          if (!weights) continue;
+          const sets = workoutSetCount(entry.sets);
+          for (const [slug, weight] of Object.entries(weights)) {
+            const amount = sets * (weight ?? 0);
+            if (slug in muscles) muscles[slug as BodyCommandMuscleSlug].load.completed += amount;
+            if (category[slug]) groups[category[slug]].completed += amount;
+          }
+        }
+      }
+    } catch { /* Unreadable workout records do not become invented workload. */ }
+    const records = JSON.parse(trainingSnapshot)[SUPPORT_RECORDS_KEY];
+    const fatigue = validSupportHistory(records) ? records.filter(row => row.kind === "fatigue" && row.date >= start && row.date <= end && Date.parse(row.recordedAt) <= Date.now()) : [];
+    const fatigueAverage = fatigue.length ? fatigue.reduce((sum, row) => sum + row.value, 0) / fatigue.length : null;
+    return { muscles, groups, fatigueAverage };
+  }, [trainingSnapshot, trainingWeekStart]);
+  const { muscles: weeklyMuscles, groups: weeklyGroups } = weeklyTraining;
+
   // Shared between the avatar hotspots and the muscle-group panel.
   const [selectedGroupId, setSelectedGroupId] = useState<string>("legs");
   // Reported up by MuscleGroupPanel — drives the posterior view flip below,
@@ -4460,12 +4572,12 @@ export default function BodyCommandCenterCard({
     return () => window.clearTimeout(timer);
   }, [avatarSelectionPulseToken, avatarHoveredBodyPart, menuHoveredGroup, menuHoveredMuscle]);
   const muscleStatusRing = (slug: BodyCommandMuscleSlug) =>
-    sevenDayStatusTheme[getSevenDayTrainingStatus(muscleMeta[slug].load)].ring;
+    sevenDayStatusTheme[getSevenDayTrainingStatus(weeklyMuscles[slug].load)].ring;
   const groupStatusRing = (groupId: string) => {
     const group = bodyPartGroups.find((entry) => entry.id === groupId);
     if (!group) return undefined;
     return sevenDayStatusTheme[
-      getSevenDayTrainingStatus(getBodyPartGroupLoad(group))
+      getSevenDayTrainingStatus(getBodyPartGroupLoad(group, weeklyGroups))
     ].ring;
   };
   const selectedBodyPartGroup =
@@ -4700,6 +4812,7 @@ export default function BodyCommandCenterCard({
     avatarSceneOptions[0];
 
   return (
+    <WeeklyTrainingContext.Provider value={weeklyTraining}>
     <div
       aria-label="Body Command Center"
       className={`${layoutStyles.card} dashboard-hero-card dashboard-hero-card--body-command relative z-10 flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden overscroll-contain rounded-[30px] border border-cyan-100/22 bg-[radial-gradient(circle_at_50%_-8%,rgba(34,211,238,0.24),transparent_34%),radial-gradient(circle_at_9%_32%,rgba(56,189,248,0.18),transparent_30%),radial-gradient(circle_at_90%_22%,rgba(251,191,36,0.13),transparent_27%),linear-gradient(135deg,rgba(8,13,26,0.98),rgba(2,6,23,0.94))] p-3 shadow-[0_30px_82px_rgba(0,0,0,0.54),0_0_54px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.12)]`}
@@ -4755,14 +4868,7 @@ export default function BodyCommandCenterCard({
               zoneGlowActive={avatarSelectionPulse}
               zoneGlowColors={avatarZoneGlowColors}
             />
-            <AvatarDetailLegend averageIndex={(() => {
-              const loads = Object.values(muscleMeta).map(muscle => muscle.load);
-              const completed = loads.reduce((sum, load) => sum + load.completed, 0);
-              const target = loads.reduce((sum, load) => sum + load.target, 0);
-              if (completed === 0) return 0;
-              const ratio = target > 0 ? completed / target : 0;
-              return ratio < .5 ? 1 : ratio < .8 ? 2 : ratio < 1.25 ? 3 : 4;
-            })()} backgroundControl={
+            <AvatarDetailLegend averageIndex={weeklyTraining.fatigueAverage === null ? 0 : Math.min(4, Math.floor(weeklyTraining.fatigueAverage / 2))} averageLabel={weeklyTraining.fatigueAverage === null ? "Not recorded" : `${weeklyTraining.fatigueAverage.toFixed(1)} / 10`} backgroundControl={
         <button
           aria-expanded={backgroundPickerOpen}
           aria-haspopup="menu"
@@ -4787,7 +4893,7 @@ export default function BodyCommandCenterCard({
           </div>
 
           <div className={`${layoutStyles.controlsHost} min-[700px]:min-w-[320px]`}>
-          <div className={layoutStyles.controlsLayout}>
+          <div className={layoutStyles.controlsLayout} data-area-tone={bodyPartGroups.find(group => group.id === selectedGroupId)?.tone || "cyan"}>
             <TrainingCategorySelector
               compact
               onHoverGroup={(id) =>
@@ -4843,5 +4949,6 @@ export default function BodyCommandCenterCard({
         />
       ) : null}
     </div>
+    </WeeklyTrainingContext.Provider>
   );
 }

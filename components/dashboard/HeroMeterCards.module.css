@@ -695,7 +695,7 @@
 .constellationCard { container-type: inline-size; container-name: constellation-toolbar; }
 .constellationToolbar { display: flex; flex-direction: column; flex-shrink: 0; min-width: 0; }
 @container constellation-toolbar (min-width: 560px) {
-  .constellationToolbar { display: grid; grid-template-columns: minmax(0,1fr) 170px; column-gap: 12px; row-gap: 8px; align-items: center; }
+  .constellationToolbar { display: grid; grid-template-columns: minmax(0,1.15fr) minmax(220px,1fr); column-gap: 12px; row-gap: 8px; align-items: center; }
   .constellationToolbar > header { grid-column: 1; grid-row: 1; }
   .constellationToolbar > div:nth-child(2) { grid-column: 1; grid-row: 2; margin-top: 0; }
   .constellationToolbar > div:nth-child(4) { grid-column: 2; grid-row: 1 / 3; margin-top: 0; }
@@ -881,7 +881,8 @@
   width: 100%;
   max-width: none !important;
   margin: 0;
-  min-height: 40px;
+  min-height: 28px !important;
+  line-height: 1.05;
   text-align: left;
   white-space: normal;
   overflow-wrap: normal;
@@ -893,3 +894,236 @@
 .achievements .heading > p { padding-inline-start: 0 !important; }
 
 .achievements .heading { padding-inline: 0 !important; width: 100%; }
+
+/* This heading sits below the joystick, so it uses the full card width. */
+.centeredHeading { padding-inline: 0 !important; width: 100%; text-align: center; }
+.centeredHeading h2 { padding-inline-start: 0 !important; width: 100%; justify-content: center; }
+.centeredHeading > p { padding-inline-start: 0 !important; }
+
+/* Lower only the News heading; preserve the toolbar and article layout. */
+.newsHeroToolbar[data-news-toolbar="true"] > h2 { top: 10px; }
+
+/* Keep each currency name beneath its artwork and amount at every width. */
+.challengeRewardRow > div { display: grid; grid-template-columns: 36px auto; justify-content: center; align-items: center; gap: 2px 4px; }
+.challengeRewardRow > div > .challengeCurrencyArtwork { grid-column: 1; grid-row: 1; }
+.challengeRewardRow > div > strong { grid-column: 2; grid-row: 1; }
+.challengeRewardRow > div > span:last-child { grid-column: 1 / -1; grid-row: 2; text-align: center; }
+
+.challengeSetRewards h4 { margin: 0; font-size: 14px; line-height: 1.1; }
+.challengeSetRewards > p { margin: 0; font-size: 10px; line-height: 1.1; }
+.challengeSetRewards { row-gap: 1px; }
+.challengeSetRewards .challengeRewardRow { margin-top: 2px; }
+
+/* Lightweight horizontal reward orbit: one front reward and two side previews. */
+.challengeSetRewards .challengeRewardRow {
+  position: relative;
+  display: block;
+  height: 66px;
+  min-width: 0;
+  perspective: 500px;
+  overflow: hidden;
+  isolation: isolate;
+}
+.challengeRewardRow > div {
+  position: absolute;
+  top: 5px;
+  left: 37%;
+  width: 26%;
+  min-width: 0;
+  transform-origin: center;
+  will-change: transform;
+  transition: filter 300ms ease;
+}
+.challengeRewardRow > div[data-front="true"] {
+  filter: brightness(1.2) drop-shadow(0 0 8px currentColor);
+}
+@media (prefers-reduced-motion: reduce) {
+  .challengeSetRewards .challengeRewardRow { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); height: auto; min-height: 50px; }
+  .challengeRewardRow > div { position: static; width: auto; animation: none; transform: none; }
+}
+
+.challengeSetRewards {
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 12% 23%, #e0f2feaa 0 1px, transparent 1.5px),
+    radial-gradient(circle at 78% 14%, #bae6fdbb 0 1px, transparent 1.5px),
+    radial-gradient(circle at 91% 71%, #ffffff88 0 1px, transparent 1.5px),
+    radial-gradient(circle at 37% 82%, #ffffff66 0 1px, transparent 1.5px),
+    radial-gradient(ellipse at 20% 70%, #4338ca44, transparent 55%),
+    radial-gradient(ellipse at 82% 25%, var(--challenge-soft), transparent 65%),
+    linear-gradient(135deg, #09142b, #020510);
+  box-shadow: inset 0 0 20px #02061799, 0 0 16px var(--challenge-soft);
+}
+
+/* Center each currency label under the icon column, independent of its amount. */
+.challengeRewardRow > div > span:last-child {
+  grid-column: 1;
+  justify-self: center;
+  width: max-content;
+  white-space: nowrap;
+}
+/* The checkbox belongs to the full task row, including its progress line. */
+.challengeSetTasks .challengeItem { position: relative; padding-inline-start: 36px; }
+.challengeSetTasks .challengeCheckbox {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  margin: 0;
+  transform: translateY(-50%);
+}
+
+/* Rewards float directly on the card, without a nested box or backplates. */
+.challengeSetRewards {
+  border: 1px solid color-mix(in srgb, var(--challenge-color) 35%, transparent);
+  border-radius: 16px;
+  box-shadow: inset 0 1px 0 #ffffff0a, 0 0 16px var(--challenge-soft);
+  background:
+    radial-gradient(circle at 12% 23%, #e0f2feaa 0 1px, transparent 1.5px),
+    radial-gradient(circle at 78% 14%, #bae6fdbb 0 1px, transparent 1.5px),
+    radial-gradient(circle at 91% 71%, #ffffff88 0 1px, transparent 1.5px),
+    radial-gradient(circle at 37% 82%, #ffffff66 0 1px, transparent 1.5px),
+    radial-gradient(ellipse at 20% 70%, #4338ca44, transparent 65%),
+    radial-gradient(ellipse at 82% 25%, var(--challenge-soft), transparent 70%);
+}
+
+
+/* Clip achievements only at the outer card, never at its padded content edge. */
+.achievements {
+  overflow: visible;
+  min-height: 0;
+  grid-template-rows: auto minmax(150px, 1fr) 30px 30px;
+  gap: 6px;
+}
+.achievementStage {
+  height: auto;
+  min-height: 0;
+  grid-template-rows: 36px minmax(0, 1fr);
+  overflow: visible;
+}
+.achievementOrbit { height: 100%; min-height: 0; overflow: visible; }
+.achievements > .footer { min-height: 30px; align-self: stretch; }
+
+.achievements > .achievementControls { transform: translateY(-18px); }
+
+/* Shared raised chevrons for category and achievement browsing. */
+.achievementControls button, .cloudCategoryControls button {
+  width: 40px;
+  height: 36px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.achievementControls svg, .cloudCategoryControls svg {
+  width: 26px;
+  height: 26px;
+  overflow: visible;
+  stroke-width: 2.8;
+  transform: translateY(-1px);
+  filter: drop-shadow(0 1px 0 #b68c35) drop-shadow(0 2px 0 #725019) drop-shadow(0 3px 0 #35250e) drop-shadow(0 4px 3px #000b) drop-shadow(0 0 5px #fde68a40);
+  transition: transform 100ms ease-out, filter 100ms ease-out;
+}
+.achievementControls button:hover svg, .cloudCategoryControls button:hover svg {
+  transform: translateY(-2px) scale(1.08);
+  filter: drop-shadow(0 1px 0 #e4be65) drop-shadow(0 2px 0 #94702e) drop-shadow(0 3px 0 #493318) drop-shadow(0 5px 4px #000b) drop-shadow(0 0 8px #fde68a80);
+}
+.achievementControls button:active svg, .cloudCategoryControls button:active svg {
+  transform: translateY(2px) scale(.94);
+  filter: drop-shadow(0 1px 0 #725019) drop-shadow(0 1px 2px #000a);
+}
+@media (prefers-reduced-motion: reduce) {
+  .achievementControls svg, .cloudCategoryControls svg { transition: none; }
+}
+
+.cloudCategoryControls button { color: var(--cloud-arrow-color); }
+.cloudCategoryControls svg {
+  filter: drop-shadow(0 1px 0 color-mix(in srgb, var(--cloud-arrow-color) 65%, #172033)) drop-shadow(0 2px 0 color-mix(in srgb, var(--cloud-arrow-color) 35%, #081020)) drop-shadow(0 3px 0 #081020) drop-shadow(0 4px 3px #000b) drop-shadow(0 0 6px color-mix(in srgb, var(--cloud-arrow-color) 40%, transparent));
+}
+.cloudCategoryControls button:hover svg {
+  filter: drop-shadow(0 1px 0 var(--cloud-arrow-color)) drop-shadow(0 3px 0 color-mix(in srgb, var(--cloud-arrow-color) 35%, #081020)) drop-shadow(0 5px 4px #000b) drop-shadow(0 0 8px var(--cloud-arrow-color));
+}
+.cloudCategoryControls button:active svg {
+  filter: drop-shadow(0 1px 0 color-mix(in srgb, var(--cloud-arrow-color) 40%, #081020)) drop-shadow(0 1px 2px #000a);
+}
+
+.achievements { --meter-accent: var(--hero-card-color); }
+.themedPanel :global(.dashboard-hero-card--achievements)::before {
+  background: radial-gradient(ellipse at 18% 12%, color-mix(in srgb, var(--hero-card-color) 20%, transparent), transparent 60%), radial-gradient(ellipse at 85% 80%, color-mix(in srgb, var(--hero-card-color) 14%, transparent), transparent 65%);
+}
+.achievements .achievementControls svg {
+  filter: drop-shadow(0 1px 0 color-mix(in srgb, var(--hero-card-color) 65%, #172033)) drop-shadow(0 2px 0 color-mix(in srgb, var(--hero-card-color) 35%, #081020)) drop-shadow(0 3px 0 #081020) drop-shadow(0 4px 3px #000b) drop-shadow(0 0 6px color-mix(in srgb, var(--hero-card-color) 40%, transparent));
+}
+.achievements .achievementControls button:hover svg {
+  filter: drop-shadow(0 1px 0 var(--hero-card-color)) drop-shadow(0 3px 0 #081020) drop-shadow(0 0 8px var(--hero-card-color));
+}
+
+.achievementItem[data-active-achievement="true"] > div:last-child { width: 100%; max-width: none; }
+.achievementDescription {
+  width: 100%;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  font-size: clamp(9px, 2.2cqw, 11px);
+  line-height: 1.25;
+}
+
+/* News uses the full row height; only Next Event clears the floating joystick. */
+.newsHeroToolbar[data-news-toolbar="true"] { height: 16px; min-height: 16px; margin-top: 0; margin-bottom: 4px; }
+.newsHeroToolbar[data-news-toolbar="true"] > h2 { top: 0; height: 28px; min-height: 28px !important; }
+
+@media (max-width: 559px) {
+  .newsNextEventInline { margin-left: 68px; width: calc(100% - 68px); }
+}
+
+.challengeSetRewards { padding-block: 5px; row-gap: 0; }
+
+/* Full control-column width, with the original 20px week / 24px day rows. */
+.constellationToolbar > :global(.dashboard-training-constellation-selectors) {
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: 24px minmax(0, 1fr) 24px;
+  grid-template-rows: 20px 24px;
+  gap: 0 4px;
+  align-items: center;
+}
+.constellationToolbar > :global(.dashboard-training-constellation-selectors) > div:first-child {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 24px;
+  column-gap: 4px;
+  width: 100%;
+  height: 20px;
+  min-width: 0;
+  padding: 0;
+}
+.constellationToolbar > :global(.dashboard-training-constellation-selectors) > div:first-child > span {
+  min-width: 0;
+  white-space: nowrap;
+}
+.constellationToolbar > :global(.dashboard-training-constellation-selectors) > div:not(:first-child) {
+  width: 100%;
+  min-width: 0;
+  text-align: center;
+}
+.constellationToolbar > :global(.dashboard-training-constellation-selectors) button {
+  width: 24px;
+  height: 20px;
+}
+.constellationToolbar > :global(.dashboard-training-constellation-selectors) > button { height: 24px; }
+@media (max-width: 639px) {
+  .constellationToolbar > :global(.dashboard-training-constellation-selectors.sm\:hidden) { display: grid; }
+  .constellationToolbar > :global(.dashboard-training-constellation-selectors.hidden) { display: none; }
+}
+@media (min-width: 640px) {
+  .constellationToolbar > :global(.dashboard-training-constellation-selectors.sm\:hidden) { display: none; }
+  .constellationToolbar > :global(.dashboard-training-constellation-selectors.sm\:flex) { display: grid; }
+}
+@container constellation-toolbar (min-width: 560px) and (max-width: 639px) {
+  .constellationToolbar > :global(.dashboard-training-constellation-selectors):nth-child(3) { display: grid; }
+  .constellationToolbar > :global(.dashboard-training-constellation-selectors):nth-child(4) { display: none; }
+}
+@container constellation-toolbar (min-width: 640px) {
+  .constellationToolbar > :global(.dashboard-training-constellation-selectors):nth-child(3) { display: none; }
+  .constellationToolbar > :global(.dashboard-training-constellation-selectors):nth-child(4) { display: grid; }
+}

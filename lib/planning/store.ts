@@ -5,6 +5,7 @@ const backendFailureStatus = (cause: unknown) => backendSyncIssue(cause, "planni
 
 export const PLANNING_UPDATED = "soundFitnessPlanningUpdated";
 export const planningKeys = {
+  dashboardSupportSignals: "soundFitnessDashboardSupportSignals",
   goals: "soundFitnessGoals", plans: "soundFitnessWorkoutPlans",
   active: "soundFitnessActiveWorkoutPlanId", context: "soundFitnessActiveWorkoutSessionContext",
   logs: "soundFitnessPlanningLogs", calendar: "soundFitnessPlanningCalendar",

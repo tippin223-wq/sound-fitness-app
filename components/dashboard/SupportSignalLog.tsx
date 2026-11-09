@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState, useSyncExternalStore } from "react";
 import { planningAccountGeneration, planningOwner, planningSnapshot, planningStatus, subscribePlanning } from "@/lib/planning/store";
 import { localDate } from "@/lib/planning/dates";
@@ -15,6 +16,8 @@ const button = "rounded-lg border border-cyan-200/30 px-3 py-2 text-sm font-semi
 export default function SupportSignalLog({ kind }: { kind: string }) {
   const owner = useSyncExternalStore(subscribePlanning, planningOwner, () => null);
   const generation = useSyncExternalStore(subscribePlanning, planningAccountGeneration, () => -1);
+  if (["protein", "carbs", "fat", "meals"].includes(kind)) return <section className="space-y-3 p-2 text-sm text-slate-200"><p>Review today’s food records and log meals in Nutrition. Nutrient totals update from your saved meals.</p><Link className={`${button} inline-flex`} href="/dashboard/nutrition">View and log food</Link></section>;
+  if (kind === "weight" || kind === "photos") return <section className="space-y-3 p-2 text-sm text-slate-200"><p>{kind === "weight" ? "Check your weight and update your body measurements." : "View your progress photos or add a new photo."}</p><Link className={`${button} inline-flex`} href={kind === "weight" ? "/dashboard/profile#my-body" : "/dashboard/profile#measurements"}>{kind === "weight" ? "View and record weight" : "View and add photos"}</Link></section>;
   return <AccountLog key={`${owner}:${generation}:${kind}`} kind={kind} account={owner} generation={generation} />;
 }
 function AccountLog({ kind, account, generation }: { kind: string; account: string | null; generation: number }) {

@@ -48,7 +48,7 @@ const smoothStepNumber = (value: number) => {
 // hop, then a long dead-still hold so the text is actually readable. During
 // each hold the centered tab replays its level-progress sweep.
 const DASHBOARD_CATEGORY_UFO_CHYRON_HOLD_SECONDS = 10;
-const DASHBOARD_CATEGORY_UFO_CHYRON_SLIDE_SECONDS = 0.9;
+const DASHBOARD_CATEGORY_UFO_CHYRON_SLIDE_SECONDS = 0.24;
 const DASHBOARD_CATEGORY_UFO_CHYRON_SWEEP_SECONDS = 2.4;
 // Redraws per second for the settled part of the hold (see the quantiser in
 // the render loop). 4Hz keeps the scanline shimmer alive at ~1/4 the cost.
@@ -64,11 +64,11 @@ const DASHBOARD_CATEGORY_UFO_CHYRON_PIN_SECONDS =
   DASHBOARD_CATEGORY_UFO_CHYRON_HOLD_SECONDS * 0.55;
 const DASHBOARD_CATEGORY_UFO_MAX_DELTA_SECONDS = 1 / 30;
 // How long the tractor beam takes to switch off before the ship departs.
-const DASHBOARD_CATEGORY_UFO_CLOSE_LIGHT_OUT_SECONDS = 0.16;
+const DASHBOARD_CATEGORY_UFO_CLOSE_LIGHT_OUT_SECONDS = 0.20;
 // The meter panel is display:none this long after a close (it mirrors
 // DASHBOARD_HEADER_METER_MENU_EXIT_MS in the dashboard page), so any fly-out
 // frame drawn after it lands in an invisible canvas. (Speed audit.)
-const DASHBOARD_CATEGORY_UFO_CLOSE_DRAW_MS = 520;
+const DASHBOARD_CATEGORY_UFO_CLOSE_DRAW_MS = 410;
 // Cap this heavy ambient scene to ~30fps. Motion is delta-timed so it animates
 // at the same speed, but doing half the per-frame work keeps the meter menu
 // responsive while it is open.
@@ -76,7 +76,7 @@ const DASHBOARD_CATEGORY_UFO_MIN_FRAME_MS = 1000 / 32;
 const DASHBOARD_CATEGORY_UFO_ACTIVE_CHYRON_TEXTURE_MS = 64;
 // During the quick hop the band moves a full tab in under a second — redraw
 // near the scene's ~32fps cap so the slide reads smooth, not steppy.
-const DASHBOARD_CATEGORY_UFO_SLIDE_CHYRON_TEXTURE_MS = 33;
+const DASHBOARD_CATEGORY_UFO_SLIDE_CHYRON_TEXTURE_MS = 16;
 const DASHBOARD_CATEGORY_UFO_INACTIVE_CHYRON_TEXTURE_MS = 220;
 const DASHBOARD_CATEGORY_UFO_TENDRIL_GEOMETRY_MS = 34;
 // Matches DashboardTornadoEmeralds3D: after a lost WebGL context, wait briefly
@@ -830,38 +830,27 @@ const drawDashboardCategoryUfoChyronTexture = ({
       context.restore();
     }
 
-    const actorX = 300;
-    const textX = tabWidth * 0.52;
-  
+    const actorX = 235;
+    const textLeft = 480;
+    const textX = tabWidth / 2;
+    const textWidth = 2 * (textX - textLeft);
+
+    context.save();
+    context.beginPath();
+    context.rect(30, 0, 410, tabHeight);
+    context.clip();
     drawDashboardChyronActor(
       context,
       item.id,
       actorX,
       tabHeight / 2,
-      395,
+      330,
       item.color,
       distanceStrength,
       seconds,
     );
 
-    if (item.levelNumber !== null && isHeldEntry && holdOverlayAlpha > 0.01) {
-      // Live percent counter ticking up with the sweep — the explicit
-      // level-progress readout. Drawn after the actor so athletic poses
-      // can't glow-wash it.
-      const levelPercent = Math.round(
-        clampNumber(item.level, 0, 100) * holdSweepProgress,
-      );
-      context.save();
-      context.globalAlpha = holdOverlayAlpha;
-      context.textAlign = "left";
-      context.textBaseline = "middle";
-      context.font = "950 87px Arial, sans-serif";
-      context.shadowBlur = 26;
-      context.shadowColor = "rgba(2, 6, 23, 0.95)";
-      context.fillStyle = "rgba(255, 255, 255, 0.98)";
-      context.fillText(`${levelPercent}%`, 76, 84);
-      context.restore();
-    }
+    context.restore();
 
     context.textAlign = "center";
     context.textBaseline = "middle";
@@ -872,12 +861,12 @@ const drawDashboardCategoryUfoChyronTexture = ({
     context.fillText(
       ellipsizeCanvasText(
         context,
-        `${item.shortLabel} ${item.levelNumber === null ? "Level unavailable" : "LV " + item.levelNumber}`,
-        1400,
+        item.shortLabel,
+        textWidth,
       ),
       textX,
       212,
-      1420,
+      textWidth,
     );
 
     // Reps remaining now carries this row on its own — the recommendation
@@ -887,7 +876,7 @@ const drawDashboardCategoryUfoChyronTexture = ({
     context.shadowColor = colorToRgba(item.color, 0.96);
     context.fillStyle = "rgba(240, 253, 250, 0.98)";
     context.font = "950 112px Arial, sans-serif";
-    context.fillText(item.repsLabel, textX, 350, 1320);
+    context.fillText(`Level ${item.levelNumber ?? 1}`, textX, 350, textWidth);
 
     context.restore();
   }
@@ -954,6 +943,7 @@ export default function DashboardCategoryUfoScene3D({
   color,
   isActive = true,
   isOpen = true,
+  onDockedChange,
   progress,
 }: {
   activeCategoryId?: string;
@@ -962,9 +952,12 @@ export default function DashboardCategoryUfoScene3D({
   color: string;
   isActive?: boolean;
   isOpen?: boolean;
+  onDockedChange?: (docked: boolean) => void;
   progress: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const arrowRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const shipHitRef = useRef<HTMLSpanElement | null>(null);
   const [contextResetToken, setContextResetToken] = useState(0);
   const budgetRetryCountRef = useRef(0);
   const activeCategoryIdRef = useRef(activeCategoryId);
@@ -973,6 +966,8 @@ export default function DashboardCategoryUfoScene3D({
   const colorRef = useRef(color);
   const isActiveRef = useRef(isActive);
   const isOpenRef = useRef(isOpen);
+  const onDockedChangeRef = useRef(onDockedChange);
+  onDockedChangeRef.current = onDockedChange;
   const progressRef = useRef(progress);
 
   useEffect(() => {
@@ -1762,6 +1757,7 @@ export default function DashboardCategoryUfoScene3D({
           transparent: true,
         }),
       ];
+      grabObjectMaterials.forEach(material => { material.transparent = true; });
       const grabObjectLineMaterial = new THREE.LineBasicMaterial({
         color: new THREE.Color("#e0f2fe"),
         depthTest: false,
@@ -1898,37 +1894,6 @@ export default function DashboardCategoryUfoScene3D({
       tractorClaw.visible = false;
       ship.add(tractorClaw);
 
-      const tractorTendrils = Array.from({ length: 6 }, (_, index) => {
-        const segments = 30;
-        const positions = new Float32Array((segments + 1) * 3);
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute(
-          "position",
-          new THREE.BufferAttribute(positions, 3),
-        );
-        const material = new THREE.LineBasicMaterial({
-          blending: THREE.AdditiveBlending,
-          color: beamAccent.clone().lerp(whiteColor, 0.22),
-          depthTest: false,
-          depthWrite: false,
-          opacity: 0,
-          transparent: true,
-        });
-        const line = new THREE.Line(geometry, material);
-        line.renderOrder = pickupEffectRenderOrder + 14 + index;
-        line.visible = false;
-        ship.add(line);
-
-        return {
-          geometry,
-          line,
-          material,
-          phase: (index / 6) * Math.PI * 2,
-          positions,
-          segments,
-        };
-      });
-
       const grabBeamStartPoint = new THREE.Vector3();
       const grabBeamEndPoint = new THREE.Vector3();
       const grabBeamMidPoint = new THREE.Vector3();
@@ -2060,6 +2025,7 @@ export default function DashboardCategoryUfoScene3D({
       let closeStartedAt = 0;
       let canvasLive = false;
       let hasChyronAdvancedAfterDock = false;
+      let reportedDocked = false;
       // Wall-clock accumulator (see realDeltaSeconds) plus the zero point for
       // the chyron's hold/hop cycle. On dock the cycle starts at phase 0 so
       // the active category's level sweep plays first; on a later UFO
@@ -2112,11 +2078,12 @@ export default function DashboardCategoryUfoScene3D({
       // Horizontal scroll (and horizontal drags) scrub the level band by one
       // category per gesture. Only while the UFO holds the highlight, so the
       // wheel keeps its normal meaning everywhere else.
+      let chyronManualFrom = 0;
+      let chyronManualTo = 0;
       const stepChyron = (dir: -1 | 1) => {
-        if (!isActiveRef.current || !isOpenRef.current) return;
+        if (!isOpenRef.current) return;
         const now = performance.now();
         chyronManualLastInputMs = now;
-        if (chyronManualSlide !== 0) return; // a hop is already running
         if (!chyronManualActive) {
           chyronManualActive = true;
           // Adopt whatever tab the auto cycle is showing so the hand-off does
@@ -2126,6 +2093,11 @@ export default function DashboardCategoryUfoScene3D({
             live / DASHBOARD_CATEGORY_UFO_CHYRON_PERIOD_SECONDS,
           );
         }
+        const currentPosition = chyronManualBase + chyronManualSlide;
+        chyronManualFrom = currentPosition;
+        chyronManualTo = chyronManualDir === dir
+          ? chyronManualTo + dir
+          : dir > 0 ? Math.floor(currentPosition + 0.0001) + 1 : Math.ceil(currentPosition - 0.0001) - 1;
         chyronManualDir = dir;
         chyronManualSlideStartMs = now;
       };
@@ -2133,7 +2105,7 @@ export default function DashboardCategoryUfoScene3D({
         if (!isActiveRef.current || !isOpenRef.current) return;
         if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
         event.preventDefault();
-        if (performance.now() - chyronManualLastInputMs < 260) {
+        if (performance.now() - chyronManualLastInputMs < 120) {
           chyronManualLastInputMs = performance.now();
           return;
         }
@@ -2156,6 +2128,7 @@ export default function DashboardCategoryUfoScene3D({
       // Explicit scrub request (the panel's horizontal arrow keys dispatch
       // this so they drive the same path as the wheel/drag gesture).
       const handleChyronStepEvent = (event: Event) => {
+        if (!isOpenRef.current) return;
         const dir = (event as CustomEvent<{ dir?: number }>).detail?.dir;
         if (dir === 1 || dir === -1) stepChyron(dir);
       };
@@ -2167,11 +2140,15 @@ export default function DashboardCategoryUfoScene3D({
       canvas.addEventListener("pointercancel", endChyronDrag);
       canvas.addEventListener("pointerleave", endChyronDrag);
 
+      let lastArrowLayoutTime = -Infinity;
+      const arrowProjection = new THREE.Vector3();
       const render = (time: number) => {
         // ~30fps frame-rate cap (see DASHBOARD_CATEGORY_UFO_MIN_FRAME_MS). The
         // rAF keeps firing at display rate but we only do scene work on ~half
         // the frames; delta-timing below keeps the motion speed identical.
-        if (time - lastDrawTime < DASHBOARD_CATEGORY_UFO_MIN_FRAME_MS) {
+        const interacting = chyronManualDir !== 0 || (isOpenRef.current ? presence < 0.995 : presence > 0.004);
+        const minimumFrameMs = interacting ? 1000 / 60 : DASHBOARD_CATEGORY_UFO_MIN_FRAME_MS;
+        if (time - lastDrawTime < minimumFrameMs - 0.5) {
           frameId = window.requestAnimationFrame(render);
           return;
         }
@@ -2237,26 +2214,27 @@ export default function DashboardCategoryUfoScene3D({
         if (isOpenNow) {
           closeLightOut = 0;
         } else {
-          closeLightOut = Math.min(
-            1,
-            closeLightOut +
-              Math.max(deltaSeconds, 1 / 60) /
-                DASHBOARD_CATEGORY_UFO_CLOSE_LIGHT_OUT_SECONDS,
-          );
+          closeLightOut = Math.min(1, (performance.now() - closeStartedAt) /
+            (DASHBOARD_CATEGORY_UFO_CLOSE_LIGHT_OUT_SECONDS * 1000));
         }
         if (isOpenNow || closeLightOut >= 0.995) {
           presence +=
-            (targetPresence - presence) * (isOpenNow ? 0.18 : 0.2);
+            (targetPresence - presence) * (1 - Math.exp(-realDeltaSeconds / (isOpenNow ? 0.10 : 0.05)));
         }
         const flyEase = 1 - Math.pow(1 - presence, 3);
+        const docked = isOpenNow && flyEase > 0.985;
+        if (docked !== reportedDocked) {
+          reportedDocked = docked;
+          onDockedChangeRef.current?.(docked);
+        }
         // The throat/pickup column (emitter throat, beam, laser, vortex,
         // projector kit) deploys only while the UFO holds the highlight —
         // deployed over the meter states it painted a shady cone on top of
         // the meter cards.
         ufoThroatPresence +=
-          ((isUfoSelected ? 1 : 0) - ufoThroatPresence) * 0.14;
+          ((isUfoSelected ? 1 : 0) - ufoThroatPresence) * (1 - Math.exp(-realDeltaSeconds / 0.07));
         const tornadoDeployProgress =
-          smoothStepNumber((flyEase - 0.82) / 0.16) *
+          smoothStepNumber((flyEase - 0.985) / 0.015) *
           smoothStepNumber(ufoThroatPresence) *
           (1 - smoothStepNumber(closeLightOut));
         if (isOpenNow && !hasChyronAdvancedAfterDock && flyEase > 0.985) {
@@ -2343,6 +2321,7 @@ export default function DashboardCategoryUfoScene3D({
         const grabRevealProgress = grabObjectIsRevealed
           ? smoothStepNumber(grabCyclePhase / grabRevealLeadSeconds)
           : 0;
+        const objectOpacity = grabRevealProgress * (1 - smoothStepNumber((grabPullProgress - 0.86) / 0.10));
         const grabGlow =
           grabIsActive && grabReachProgress > 0
             ? (1 - grabFadeProgress * 0.72) *
@@ -2412,9 +2391,9 @@ export default function DashboardCategoryUfoScene3D({
               1,
               (time - chyronManualSlideStartMs) / slideMs,
             );
-            chyronManualSlide = chyronManualDir * smoothStepNumber(t);
+            chyronManualSlide = chyronManualFrom + (chyronManualTo - chyronManualFrom) * smoothStepNumber(t) - chyronManualBase;
             if (t >= 1) {
-              chyronManualBase += chyronManualDir;
+              chyronManualBase = chyronManualTo;
               chyronManualDir = 0;
               chyronManualSlide = 0;
             }
@@ -2637,12 +2616,7 @@ export default function DashboardCategoryUfoScene3D({
           .copy(beamAccent)
           .lerp(whiteColor, 0.26 + grabGlow * 0.2);
         tractorClawMaterial.opacity = grabGlow;
-        tractorTendrils.forEach(({ material }, index) => {
-          material.color
-            .copy(beamAccent)
-            .lerp(whiteColor, 0.24 + grabGlow * 0.22 + index * 0.01);
-          material.opacity = grabGlow * (0.48 + index * 0.035);
-        });
+
         projectorReflectorMaterial.color.copy(beamAccent).lerp(
           whiteColor,
           0.22 + tornadoSync * 0.12,
@@ -2709,6 +2683,37 @@ export default function DashboardCategoryUfoScene3D({
           0.55 + hover + (1 - flyEase) * 0.38,
           0,
         );
+        if (isOpenNow && time - lastArrowLayoutTime > 100) {
+          lastArrowLayoutTime = time;
+          const canvasBounds = canvas.getBoundingClientRect();
+          const parentBounds = canvas.parentElement?.getBoundingClientRect();
+          if (parentBounds) {
+            camera.updateMatrixWorld();
+            ship.updateWorldMatrix(true, false);
+            const panel = canvas.closest<HTMLElement>(".dashboard-header-meter-panel");
+            const stack = panel?.querySelector<HTMLElement>(".dashboard-header-meter-panel__stack--orbit");
+            if (panel && stack) {
+              const underside = ship.localToWorld(arrowProjection.set(0, -0.66, 0.3)).project(camera);
+              const screenY = canvasBounds.top + (1 - underside.y) * canvasBounds.height / 2;
+              panel.style.setProperty("--ufo-cast-top", `${screenY - stack.getBoundingClientRect().top}px`);
+            }
+            const shipHit = shipHitRef.current;
+            if (shipHit) {
+              const center = ship.localToWorld(arrowProjection.set(0, -0.1, 0.62)).project(camera);
+              shipHit.style.left = `${canvasBounds.left - parentBounds.left + (center.x + 1) * canvasBounds.width / 2}px`;
+              shipHit.style.top = `${canvasBounds.top - parentBounds.top + (1 - center.y) * canvasBounds.height / 2}px`;
+              shipHit.style.width = `${Math.min(300, canvasBounds.width * 0.48)}px`;
+              shipHit.style.height = `${canvasBounds.height * 0.17}px`;
+            }
+            [-1, 1].forEach((direction, index) => {
+              const button = arrowRefs.current[index];
+              if (!button) return;
+              const point = ship.localToWorld(arrowProjection.set(direction * 1.85, chyronDisplay.position.y, chyronDisplay.position.z)).project(camera);
+              button.style.left = `${canvasBounds.left - parentBounds.left + (point.x + 1) * canvasBounds.width / 2}px`;
+              button.style.top = `${canvasBounds.top - parentBounds.top + (1 - point.y) * canvasBounds.height / 2}px`;
+            });
+          }
+        }
         ship.rotation.set(
           Math.sin(seconds * 0.62) * 0.008,
           (1 - flyEase) * -0.5 + Math.sin(seconds * 0.48) * 0.018,
@@ -2757,8 +2762,8 @@ export default function DashboardCategoryUfoScene3D({
           grabObject.scale.setScalar(0.72 + grabRevealProgress * 0.28);
           grabObject.visible =
             isSelected &&
-            grabIsActive &&
-            grabRevealProgress > 0.02 &&
+            grabObjectIsRevealed &&
+            grabRevealProgress > 0.001 &&
             !capturedBetweenCycles;
 
           if (isSelected && grabIsActive) {
@@ -2766,15 +2771,9 @@ export default function DashboardCategoryUfoScene3D({
             grabObject.scale.setScalar(
               Math.max(0.08, 1 - grabPullProgress * 0.68),
             );
-            grabObject.visible = grabPullProgress < 0.96;
+            grabObject.visible = grabPullProgress < 0.96 && grabRevealProgress > 0.001;
           }
         });
-
-        const shouldUpdateTendrilGeometry =
-          grabIsActive &&
-          grabReachProgress > 0.01 &&
-          time - lastTendrilGeometryUpdate >=
-            DASHBOARD_CATEGORY_UFO_TENDRIL_GEOMETRY_MS;
 
         if (grabIsActive && grabReachProgress > 0.01) {
           const selectedObject = grabObjects[activeGrabObjectIndex];
@@ -2811,115 +2810,23 @@ export default function DashboardCategoryUfoScene3D({
             grabBeamUnitDirection,
           );
 
-          tractorClaw.visible = true;
+          tractorClaw.visible = false;
           tractorClaw.position.copy(grabBeamEndPoint);
           tractorClaw.scale.setScalar(0.86 + grabReachProgress * 0.42);
           tractorClaw.rotation.x = Math.PI / 2;
           tractorClaw.rotation.z = tornadoMotionSeconds * 1.25;
 
-          tractorTendrils.forEach(
-            ({ geometry, line, phase, positions, segments }, index) => {
-              if (shouldUpdateTendrilGeometry) {
-                const orbit =
-                  phase + tornadoMotionSeconds * (0.74 + index * 0.035);
-                const gripOrbit =
-                  orbit +
-                  Math.PI * 1.12 +
-                  Math.sin(grabActionPhase * 0.42) * 0.2;
-                const startRadius = 0.18 + grabGlow * 0.055;
-                const gripRadius = 0.045 + (1 - grabPullProgress) * 0.065;
-                grabTendrilStartPoint
-                  .copy(grabBeamStartPoint)
-                  .addScaledVector(
-                    grabBeamSideAxis,
-                    Math.cos(orbit) * startRadius,
-                  )
-                  .addScaledVector(
-                    grabBeamNormalAxis,
-                    Math.sin(orbit) * startRadius * 0.62,
-                  )
-                  .addScaledVector(
-                    grabBeamUnitDirection,
-                    grabReachProgress * 0.02,
-                  );
-                grabTendrilEndPoint
-                  .copy(grabBeamEndPoint)
-                  .addScaledVector(
-                    grabBeamSideAxis,
-                    Math.cos(gripOrbit) * gripRadius,
-                  )
-                  .addScaledVector(
-                    grabBeamNormalAxis,
-                    Math.sin(gripOrbit) * gripRadius * 0.72,
-                  )
-                  .addScaledVector(
-                    grabBeamUnitDirection,
-                    -0.022 * (1 - grabPullProgress),
-                  );
 
-                for (let segment = 0; segment <= segments; segment += 1) {
-                  const progressValue = segment / segments;
-                  const curl = Math.sin(progressValue * Math.PI);
-                  const hook = smoothStepNumber((progressValue - 0.72) / 0.28);
-                  const wave =
-                    Math.sin(
-                      tornadoMotionSeconds * 3.4 + phase + progressValue * 5.2,
-                    ) *
-                    0.052 *
-                    curl *
-                    (1 - grabPullProgress * 0.38);
-                  const side =
-                    Math.cos(
-                      tornadoMotionSeconds * 1.7 + phase + progressValue * 2.6,
-                    ) *
-                    0.032 *
-                    curl;
 
-                  grabTendrilPoint
-                    .copy(grabTendrilStartPoint)
-                    .lerp(grabTendrilEndPoint, progressValue);
-                  grabTendrilPoint
-                    .addScaledVector(
-                      grabBeamSideAxis,
-                      Math.cos(orbit + progressValue * Math.PI * 1.7) *
-                        (wave + side) -
-                        Math.cos(phase) * hook * 0.032,
-                    )
-                    .addScaledVector(
-                      grabBeamNormalAxis,
-                      Math.sin(orbit + progressValue * Math.PI * 1.4) *
-                        (wave * 0.68 + side * 0.5),
-                    )
-                    .addScaledVector(
-                      grabBeamUnitDirection,
-                      curl *
-                        (0.035 + grabReachProgress * 0.035) *
-                        grabPullProgress,
-                    );
 
-                  const offset = segment * 3;
-                  positions[offset] = grabTendrilPoint.x;
-                  positions[offset + 1] = grabTendrilPoint.y;
-                  positions[offset + 2] = grabTendrilPoint.z;
-                }
-
-                geometry.attributes.position.needsUpdate = true;
-              }
-
-              line.visible = grabGlow > 0.025 && grabReachProgress > 0.05;
-            },
-          );
-
-          if (shouldUpdateTendrilGeometry) {
-            lastTendrilGeometryUpdate = time;
-          }
         } else {
           tractorGrabBeam.visible = false;
           tractorClaw.visible = false;
-          tractorTendrils.forEach(({ line }) => {
-            line.visible = false;
-          });
+
         }
+        grabObjectMaterials.forEach(material => { material.opacity = objectOpacity; });
+        grabObjectLineMaterial.opacity = 0.62 * objectOpacity;
+        grabObjectGlowMaterial.opacity *= objectOpacity;
         dome.scale.y = 0.72 + Math.sin(seconds * 1.1) * 0.018;
         cockpitCrown.scale.set(
           1.18 + tornadoSync * 0.03,
@@ -3048,7 +2955,9 @@ export default function DashboardCategoryUfoScene3D({
           tornadoDeployProgress;
         const grabThroatIsVisible =
           tornadoIsDeployed && grabThroatProgress > 0.025;
-        emitterThroat.visible = grabThroatIsVisible;
+        // Opaque throat/cone shells left a stationary pattern behind the
+        // moving pickup. Keep only the animated pickup beam.
+        emitterThroat.visible = false;
         emitterThroat.position.y = emitterThroatY;
         emitterThroat.scale.set(
           emitterThroatScaleX,
@@ -3062,7 +2971,7 @@ export default function DashboardCategoryUfoScene3D({
           (emitterBeamTopY - emitterBeamBottomY) /
             (emitterBeamHalfHeight * 2),
         );
-        emitterBeam.visible = tornadoIsDeployed;
+        emitterBeam.visible = false;
         emitterBeam.position.y = (emitterBeamTopY + emitterBeamBottomY) / 2;
         emitterBeam.scale.set(
           0.34 + tornadoDeployProgress * (0.36 + tornadoSync * 0.08),
@@ -3075,7 +2984,7 @@ export default function DashboardCategoryUfoScene3D({
         const pickupLaserScaleY =
           (pickupColumnTopY - pickupColumnBottomY) /
           (pickupLaserHalfHeight * 2);
-        pickupLaser.visible = tornadoIsDeployed;
+        pickupLaser.visible = false;
         pickupLaser.position.y = (pickupColumnTopY + pickupColumnBottomY) / 2;
         pickupLaser.scale.set(
           0.62 + tornadoDeployProgress * (0.2 + tornadoSync * 0.05),
@@ -3088,7 +2997,10 @@ export default function DashboardCategoryUfoScene3D({
         pickupLaserMaterial.opacity =
           (0.1 + levelGlow * 0.035 + tornadoSync * 0.075) *
           tornadoDeployProgress;
-        vortexGroup.visible = grabThroatIsVisible;
+        // The spiral tube/ring layer spans the entire column before the
+        // pickup light reaches the object, reading as premature tentacles.
+        // Keep this entire decorative layer off throughout the sequence.
+        vortexGroup.visible = false;
         vortexGroup.position.set(0, pickupColumnTopY - 0.018, throatExitZ - 0.02);
         vortexGroup.rotation.y = tornadoMotionSeconds * 0.095;
         vortexGroup.scale.set(
@@ -3152,6 +3064,13 @@ export default function DashboardCategoryUfoScene3D({
           );
         });
 
+        grabObjectGroup.visible = isOpenNow || closeLightOut < 0.995;
+        if (!isOpenNow && closeLightOut >= 0.995) {
+          // Nothing projected by the ship may survive into its departure.
+          [emitterBeam, emitterThroat, pickupLaser, vortexGroup, tractorGrabBeam,
+            tractorClaw, grabObjectGroup, projector, projectorReflector, chyronCradleGlow]
+            .forEach(object => { object.visible = false; });
+        }
         renderer.render(scene, camera);
         frameId = window.requestAnimationFrame(render);
       };
@@ -3236,6 +3155,7 @@ export default function DashboardCategoryUfoScene3D({
   }, [contextResetToken]);
 
   return (
+    <>
     <canvas
       ref={canvasRef}
       aria-hidden="true"
@@ -3255,5 +3175,15 @@ export default function DashboardCategoryUfoScene3D({
       }
       width={720}
     />
+    {isOpen ? <span ref={shipHitRef} aria-hidden="true" className="dashboard-ufo-hit-area" /> : null}
+    {isOpen && isActive ? ([-1, 1] as const).map(direction => (
+      <button ref={element => { arrowRefs.current[direction < 0 ? 0 : 1] = element; }} key={direction} type="button" className="dashboard-ufo-level-arrow" data-direction={direction < 0 ? "left" : "right"}
+        aria-label={direction < 0 ? "Previous category level" : "Next category level"}
+        onPointerDown={event => event.stopPropagation()}
+        onClick={event => { event.stopPropagation(); canvasRef.current?.dispatchEvent(new CustomEvent("sf-chyron-step", {detail:{dir:direction}})); }}>
+        <svg aria-hidden="true" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d={direction < 0 ? "M15 5l-7 7 7 7" : "M9 5l7 7-7 7"} /></svg>
+      </button>
+    )) : null}
+    </>
   );
 }

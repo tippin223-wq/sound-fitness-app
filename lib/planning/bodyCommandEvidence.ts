@@ -1,5 +1,7 @@
+import { validMealHistory } from "./mealValidation";
+import { nutritionDay } from "./nutritionSummary";
 import { readDashboardHealthEvidence } from "./dashboardHealthEvidence";
-import { planningSnapshot } from "./store";
+import { planningKeys, planningSnapshot } from "./store";
 import { localDate } from "./dates";
 import { SUPPORT_RECORDS_KEY, validSupportHistory, type SupportKind } from "./supportSignalValidation";
 
@@ -25,7 +27,22 @@ export function readBodyCommandEvidence(now = new Date(), values: Readonly<Recor
       recorded: amount !== null,
     };
   };
+  const meals = values[planningKeys.meals] ?? [];
+  const nutrition = nutritionDay(validMealHistory(meals) ? meals.filter(meal => Date.parse(meal.recordedAt) <= now.getTime() && Date.parse(meal.updatedAt) <= now.getTime()) : [], [], today);
+  const macro = (kind: "protein" | "carbs" | "fat"): BodyCommandReading => {
+    const total = nutrition.nutrients[kind];
+    return { value: `${total.value ?? 0} g`, detail: "Log food", description: health.nutritionIssue || `${kind}: ${total.value ?? 0} g logged today. Open Nutrition to review meals or log food.`, recorded: !health.nutritionIssue && total.reported > 0 };
+  };
+  const profile = (values[planningKeys.profile] ?? {}) as Record<string, unknown>;
+  const weight = typeof profile.currentWeight === "string" || typeof profile.currentWeight === "number" ? String(profile.currentWeight) : "";
+  const measurements = profile.measurements as { progressPhotos?: unknown[] } | undefined;
+  const weightUnit = (profile.appPersonalization as { preferredUnitSystem?: string } | undefined)?.preferredUnitSystem === "kg" ? "kg" : "lb";
+  const photoCount = Array.isArray(measurements?.progressPhotos) ? measurements.progressPhotos.length : 0;
   return {
+    protein: macro("protein"), carbs: macro("carbs"), fat: macro("fat"),
+    meals: { value: String(nutrition.mealCount), detail: "Log food", description: `${nutrition.mealCount} meals logged today. Open Nutrition to review meals or log food.`, recorded: nutrition.mealCount > 0 },
+    weight: { value: `${weight || "—"} ${weightUnit}`, detail: "View weight", description: "Review your weight and body measurements in your profile.", recorded: Boolean(weight) },
+    photos: { value: String(photoCount), detail: "View photos", description: "Review and add progress photos in your profile.", recorded: photoCount > 0 },
     sleep: reading("sleep", "/10"), stress: reading("stress", "/10"), soreness: reading("soreness", "/10"),
     fatigue: reading("fatigue", "/10"), recovery: reading("recovery", "min"), core: reading("core", "sets"),
     fuel: reading("fuel", "kcal"), hydration: reading("hydration", "L"),

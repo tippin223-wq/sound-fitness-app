@@ -1307,3 +1307,230 @@
 @media (prefers-reduced-motion: reduce) {
   .fatigueBarLabel:is([data-status="cool"], [data-status="halfway"], [data-status="prime"]) { animation: none; }
 }
+
+/* Category and muscle columns share their selected training area's aura. */
+.controlsLayout { --area-aura: #22d3ee; }
+.controlsLayout[data-area-tone="emerald"] { --area-aura: #34d399; }
+.controlsLayout[data-area-tone="blue"] { --area-aura: #60a5fa; }
+.controlsLayout[data-area-tone="rose"] { --area-aura: #fb7185; }
+.controlsLayout[data-area-tone="gold"] { --area-aura: #fbbf24; }
+.controlsLayout[data-area-tone="purple"] { --area-aura: #c084fc; }
+.controlsLayout[data-area-tone="teal"] { --area-aura: #2dd4bf; }
+.controlsLayout[data-area-tone="lime"] { --area-aura: #a3e635; }
+.controlsLayout > :is(.categorySelector, .compactMuscles, .expandedMuscles) {
+  position: relative;
+  isolation: isolate;
+}
+.controlsLayout > :is(.categorySelector, .compactMuscles, .expandedMuscles)::before {
+  content: "";
+  position: absolute;
+  inset: 0 -4px;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--area-aura) 58%, transparent), color-mix(in srgb, var(--area-aura) 30%, transparent) 48%, transparent 74%);
+  border-radius: 45%;
+  transition: background 180ms ease;
+}
+.supportSignalRail[data-visible-slots="2"] > *,
+.supportSignalRail[data-visible-slots="4"] > *,
+.supportSignalRail[data-visible-slots="6"] > * { scroll-snap-align: start; }
+
+/* Readable hero type over photography, without growing the control footprints. */
+.card :global(.dashboard-hero-active-profile) {
+  text-shadow: 0 1px 3px #020617, 0 0 8px #020617;
+}
+.card :global(.dashboard-hero-active-profile) a > span[aria-hidden="true"] {
+  border: 0 !important;
+  background: none !important;
+  box-shadow: none !important;
+}
+.card :global(.dashboard-hero-active-profile) a > span:not([aria-hidden]) > span:first-child > span:first-child {
+  color: #e2e8f0 !important;
+  font-size: 11px;
+  letter-spacing: .08em;
+}
+.card :global(.dashboard-hero-training-week) { font-size: 11px; line-height: 1.2; padding-top: 3px; }
+.card :global(.dashboard-hero-training-week) > div { font-size: 13px; }
+.card :is(.categoryRing, .compactMuscleActive > button) {
+  background: radial-gradient(ellipse at 35% 18%, #ffffff1c, transparent 48%), linear-gradient(160deg, #102335b8, #020617d4) !important;
+  box-shadow: inset 0 1px 2px #e0f2fe66, inset 0 -3px 8px #020617b3, 0 4px 12px #02061766 !important;
+}
+.card :is(.categoryRing, .compactMuscleActive > button) > span {
+  text-shadow: 0 1px 3px #020617, 0 0 5px #020617;
+}
+.card :is(.categoryRing, .compactMuscleActive > button) > span > span:last-child {
+  color: #f1f5f9 !important;
+  font-size: 11px !important;
+  line-height: 1.2;
+}
+.card :is(.categoryRing, .compactMuscleActive > button) :global(.text-slate-400) {
+  color: #e2e8f0 !important;
+  font-size: 9px !important;
+  letter-spacing: .02em;
+}
+.card :is(.categoryRing, .compactMuscleActive > button) > svg > circle:last-child {
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 2px currentColor);
+}
+.card .controlTitleRow { text-shadow: 0 1px 3px #020617, 0 0 6px #020617; }
+.card .supportSignalCaption, .card .supportSignalStatus { text-shadow: 0 1px 3px #020617; }
+
+/* Avatar canvas may visually overhang; summary controls must remain clickable. */
+.card .commandHeader { position: relative; z-index: 30 !important; }
+
+.card :global(.dashboard-hero-training-week) { position: relative; }
+
+/* Center the actual word, rather than a narrow box that long labels overflow. */
+.card .categoryRing > span { max-width: none !important; width: calc(100% - 8px); }
+.card .categoryCaption { width: max-content; max-width: none !important; text-align: center; white-space: nowrap; font-size: 10px !important; letter-spacing: 0 !important; }
+.card .categoryRing > span > span > span:first-child > span { display: flex; justify-content: center; width: 100%; overflow: visible; }
+
+/* Category names stay in one fixed, centered row while only artwork swaps. */
+.card .categoryRing > span > span { min-height: 14px; }
+.card .categoryLabel {
+  display: block !important;
+  width: max-content !important;
+  max-width: none !important;
+  margin-inline: auto;
+  overflow: visible !important;
+  white-space: nowrap;
+  color: inherit;
+  font-size: 11px !important;
+  font-weight: 900;
+  line-height: 14px;
+  letter-spacing: 0;
+  text-align: center;
+  transform: none;
+}
+.card .categoryRing > span > span > span:first-child {
+  opacity: 1 !important;
+  translate: none !important;
+  scale: none !important;
+  transition: none !important;
+}
+.card .categoryPreview .categoryLabel { font-size: 10px !important; line-height: 13px; }
+
+.card .categoryLabel { text-transform: uppercase; }
+
+.card .categoryRing > span > span { min-width: 0; grid-template-columns: minmax(0, 1fr); }
+.card .categoryRing > span > span > span:first-child { min-width: 0 !important; width: 100% !important; justify-self: center; }
+.card .categoryLabel { margin-inline: 0; align-self: center; }
+
+/* Training area is the parent category; give its ring a clear size hierarchy. */
+.card .categorySelector {
+  --category-ring-size: calc(var(--control-ring-size, var(--body-control-ring-size, 72px)) * 1.22);
+}
+.card .categoryTrio > .categoryRing {
+  width: var(--category-ring-size) !important;
+  height: auto !important;
+  min-height: 0;
+  max-width: calc(100% - 8px);
+  aspect-ratio: 1;
+}
+.card .categoryTrio > .categoryPreview:first-child {
+  right: calc(50% + var(--category-ring-size) / 2 + 6px);
+}
+.card .categoryTrio > .categoryPreview:last-child {
+  left: calc(50% + var(--category-ring-size) / 2 + 6px);
+}
+
+/* Lightweight embossed type and raised artwork: no extra scene or animation. */
+.card {
+  --hero-type-depth: 0 -0.5px 0 #ffffff38, 0 1px 0 #203348, 0 2px 0 #081424, 0 3px 4px #020617b3;
+  --hero-small-type-depth: 0 -0.35px 0 #ffffff26, 0 1px 0 #071322, 0 2px 3px #020617cc;
+}
+.card :is(.controlTitleRow, .supportSignalTitleText, .avatarActionLabel, .categoryLabel, .categoryCaption, .supportSignalLoaderTitle, .fatigueBarLabel) {
+  text-shadow: var(--hero-type-depth);
+}
+.card :global(.dashboard-hero-active-profile) a span,
+.card :global(.dashboard-hero-training-week) > span,
+.card :global(.dashboard-hero-training-week) > div > span {
+  text-shadow: var(--hero-type-depth);
+}
+.card :is(.supportSignalCaption, .supportSignalStatus),
+.card .fatigueBarShell > div:first-child,
+.card :is(.categoryRing, .compactMuscleActive > button) > span > span:last-child {
+  text-shadow: var(--hero-small-type-depth);
+}
+.card :is(.categoryRing, .compactMuscleActive > button) > span > span > span {
+  text-shadow: var(--hero-type-depth);
+}
+.card .avatarActionIcon,
+.card :global(.dashboard-hero-active-profile) svg,
+.card :global(.dashboard-hero-training-week) button > svg,
+.card .controlTitleRow button > svg,
+.card .supportSignalTitleRow button > svg {
+  filter: drop-shadow(0 -0.5px 0 #ffffff80) drop-shadow(0 1px 0 #16435b) drop-shadow(0 2px 0 #041323) drop-shadow(0 3px 3px #02061799);
+}
+.card :is(.categoryRing, .supportSignalFace) svg[viewBox="0 0 24 24"] {
+  filter: drop-shadow(0 -0.5px 0 #ffffff66) drop-shadow(0 1px 0 #122638) drop-shadow(0 2px 0 #06111f) drop-shadow(0 3px 3px #02061799) !important;
+}
+
+/* Separate the two profile summaries by their existing domain colors. */
+.card :global([data-hero-profile-tone]) {
+  border-radius: 9px;
+  padding: 3px 6px;
+  align-self: stretch;
+  align-items: center;
+  box-shadow: inset 0 1px 0 #ffffff1c, 0 2px 5px #02061733;
+}
+.card :global([data-hero-profile-tone="gold"]) {
+  background: radial-gradient(ellipse at 15% 0%, #fcd34d38, transparent 75%), linear-gradient(120deg, #784b1670, #291b1370);
+}
+.card :global([data-hero-profile-tone="blue"]) {
+  background: radial-gradient(ellipse at 15% 0%, #7dd3fc38, transparent 75%), linear-gradient(120deg, #15548c70, #10244080);
+  border-left: 0;
+}
+.card :global([data-hero-profile-tone="gold"]) > span:not([aria-hidden]) > span:first-child > span:first-child { color: #fef3c7 !important; }
+.card :global([data-hero-profile-tone="blue"]) > span:not([aria-hidden]) > span:first-child > span:first-child { color: #bae6fd !important; }
+
+/* Full-width glass summary strips, with gold and blue tint through the photo. */
+.card :global(.dashboard-hero-active-profile) {
+  max-width: none !important;
+  width: 100%;
+  align-items: stretch;
+  column-gap: 4px;
+}
+.card :global([data-hero-profile-tone]) {
+  min-width: 0;
+  flex: 1 1 0%;
+  padding: 5px 8px;
+  border: 1px solid #ffffff30;
+  border-radius: 10px;
+  backdrop-filter: blur(14px) saturate(145%);
+  -webkit-backdrop-filter: blur(14px) saturate(145%);
+  box-shadow: inset 0 1px 0 #ffffff66, inset 0 -1px 0 #ffffff14, 0 3px 8px #02061726;
+}
+.card :global([data-hero-profile-tone="gold"]) {
+  background: linear-gradient(165deg, #ffffff26 0%, #ffffff08 38%, transparent 39%), linear-gradient(110deg, #fbbf241f, #fcd34d0a);
+  border-color: #fde68a40;
+}
+.card :global([data-hero-profile-tone="blue"]) {
+  background: linear-gradient(165deg, #ffffff26 0%, #ffffff08 38%, transparent 39%), linear-gradient(110deg, #38bdf826, #7dd3fc0a);
+  border-color: #bae6fd40;
+}
+
+/* One connected glass strip with a stronger lower edge. */
+.card :global(.dashboard-hero-active-profile) {
+  column-gap: 0;
+  margin-inline: -12px;
+  width: calc(100% + 24px);
+}
+.card :global([data-hero-profile-tone]) {
+  border-radius: 0;
+  border-width: 1px 0 3px;
+  border-top-color: #ffffff1a;
+  padding-inline: 10px;
+  box-shadow: inset 0 1px 0 #ffffff12, 0 3px 8px #02061726;
+}
+.card :global([data-hero-profile-tone="gold"]) {
+  border-bottom-color: #fbbf24cc;
+}
+.card :global([data-hero-profile-tone="blue"]) {
+  border-bottom-color: #38bdf8cc;
+}
+@container body-card (min-width: 520px) {
+  .card :global([data-hero-profile-tone="blue"]) {
+    border-left: 1px solid #ffffff24;
+  }
+}

@@ -32,6 +32,7 @@ type DashboardTreasureChest3DProps = {
 };
 
 type DashboardSpinningSoundCoin3DProps = {
+  spinSpeed?: number;
   className?: string;
   paused?: boolean;
   tone?: SoundCoinTone;
@@ -1089,6 +1090,7 @@ const createGiftBoxScene = (THREE: ThreeModule) => {
 };
 
 export function DashboardSpinningSoundCoin3D({
+  spinSpeed = 1,
   className,
   paused = false,
   tone = "gold",
@@ -1096,6 +1098,9 @@ export function DashboardSpinningSoundCoin3D({
 }: DashboardSpinningSoundCoin3DProps) {
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
+
+  const spinSpeedRef = useRef(spinSpeed);
+  spinSpeedRef.current = Number.isFinite(spinSpeed) ? Math.max(0, spinSpeed) : 1;
 
   const build = useMemo<DashboardWidgetBuilder>(
     () =>
@@ -1218,7 +1223,7 @@ export function DashboardSpinningSoundCoin3D({
 
         if (!pausedRef.current) {
           coinPulseTime += frameDelta;
-          coinSpinRotation += frameDelta * 0.0022;
+          coinSpinRotation += frameDelta * 0.0022 * spinSpeedRef.current;
           coinGroup.rotation.y = coinSpinRotation;
           coinGroup.rotation.x =
             -0.08 + Math.sin(coinPulseTime * 0.0014) * 0.06;

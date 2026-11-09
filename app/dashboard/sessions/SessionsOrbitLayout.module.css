@@ -1,0 +1,5 @@
+/* Preserve the original journey orbit; constrain only its overflowing content. */
+.viewport { height: calc(100dvh - 4.48rem) !important; max-height: calc(100dvh - 4.48rem); }
+.viewport [data-sessions-hero-card] { max-height: 100%; overflow-y: auto !important; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: #334155 transparent; overscroll-behavior: contain; }
+.viewport [data-sessions-hero-card] h1 { font-size: clamp(24px, 3vw, 40px); }
+.viewport [data-sessions-legacy-row-title] { display: none; }

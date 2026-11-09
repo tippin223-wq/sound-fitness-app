@@ -1,5 +1,9 @@
 "use client";
 
+import MomentumPageOrbit from "./MomentumPageOrbit";
+
+import BestLiftMetricReadout from "./BestLiftMetricReadout";
+
 import WeeklyRewardSpin, { RewardArtwork } from "./WeeklyRewardSpin";
 import NewsPhotoCredit from "./NewsPhotoCredit";
 import NewsDiscussion, { NewsArticleActions, NewsArticleOpen } from "./NewsDiscussion";
@@ -111,6 +115,7 @@ import masterJourneyStyles from "@/components/dashboard/MasterJourneyLayout.modu
 import { normalizeCalendarItems, calendarDateKey, calendarAddDays, calendarWeekStart, formatCalendarTime, parseCalendarDate } from "@/lib/dashboard-calendar";
 import { getConstellationWeek, getConstellationSessions, type TrainingConstellationLane } from "@/lib/training-constellation";
 import dynamic from "next/dynamic";
+import TrainingWeekDotPicker from "./TrainingWeekDotPicker";
 import BodyCommandCenterCard, { DailyCheckInPopup } from "@/components/dashboard/BodyCommandCenterCard";
 import DashboardScrollIndicator from "@/components/dashboard/DashboardScrollIndicator";
 import DashboardLightningBolt3D from "@/components/dashboard/DashboardLightningBolt3D";
@@ -1586,7 +1591,7 @@ const dashboardHeaderRunnerCharacter = {
 } as const;
 const DASHBOARD_HEADER_METER_AUTOSCROLL_MS = 6200;
 const DASHBOARD_HEADER_METER_RAIL_PULSE_MS = 1400;
-const DASHBOARD_HEADER_METER_MENU_EXIT_MS = 520;
+const DASHBOARD_HEADER_METER_MENU_EXIT_MS = 410;
 const DASHBOARD_HEADER_ACHIEVEMENT_ROTATE_MS = 9200;
 const DASHBOARD_HEADER_COMPOUND_PR_AUTOSCROLL_MS = 4800;
 const DASHBOARD_HEADER_CATEGORY_LEVEL_AUTOSCROLL_MS = 6400;
@@ -4631,6 +4636,7 @@ type AdminSettingsSection = {
 };
 
 type DashboardMasterPlanTimelineItem = {
+  actionLabel?: string;
   dateLabel: string;
   detail: string;
   href: string;
@@ -4739,7 +4745,29 @@ const dashboardHeroAchievementOrbitSlots = [
   },
 ];
 
+const dashboardSectionNames: Record<string, string> = {
+  "Workout / Sessions": "Workouts",
+  "Nutrition / Fuel": "Nutrition",
+  "Profile & Goals": "Profile & Goals",
+  "Performance": "Cardio & Performance",
+  "Education": "Learning",
+};
+const dashboardSectionName = (title: string) => dashboardSectionNames[title] || title;
+
 const dashboardNavigationCards: DashboardNavigationCard[] = [
+  {
+    title: "Profile & Goals",
+    href: ROUTES.dashboard.profile,
+    description: "Your profile, goals, and overall training plans.",
+    icon: "profile",
+    tone: "sky",
+    status: "Foundation",
+    journeySteps: [
+      { icon: "profile", label: "Profile", href: ROUTES.dashboard.profile, state: "active" },
+      { icon: "goals", label: "Goals", href: ROUTES.dashboard.goals, state: "default" },
+      { icon: "plan", label: "Training Plans", href: ROUTES.dashboard.trainingPlans, state: "default" },
+    ],
+  },
   {
     title: "Workout / Sessions",
     href: ROUTES.dashboard.sessions,
@@ -4750,7 +4778,7 @@ const dashboardNavigationCards: DashboardNavigationCard[] = [
     journeySteps: [
       {
         icon: "Dash",
-        label: "Dashboard",
+        label: "Workout Dashboard",
         href: ROUTES.dashboard.sessions,
         state: "complete",
       },
@@ -4784,7 +4812,7 @@ const dashboardNavigationCards: DashboardNavigationCard[] = [
     journeySteps: [
       {
         icon: "🧭",
-        label: "Overview",
+        label: "Nutrition Dashboard",
         href: ROUTES.nutritionPortal.home,
         state: "complete",
       },
@@ -4844,7 +4872,7 @@ const dashboardNavigationCards: DashboardNavigationCard[] = [
     journeySteps: [
       {
         icon: "🧭",
-        label: "Overview",
+        label: "Performance Dashboard",
         href: ROUTES.performance.home,
         state: "complete",
       },
@@ -5049,6 +5077,8 @@ const dashboardCommandCenterCards = dashboardNavigationCards.filter(
   (card) => !dashboardSystemCardTitles.has(card.title),
 );
 
+const dashboardDefaultCommandCenterIndex = Math.max(0, dashboardCommandCenterCards.findIndex(card => card.href === ROUTES.dashboard.sessions));
+
 const dashboardSystemCards = dashboardNavigationCards
   .filter((card) => dashboardSystemCardTitles.has(card.title))
   .sort(
@@ -5114,11 +5144,7 @@ const dashboardDailyToolLaunchers: readonly DashboardDailyToolLauncher[] = [
   { description: "Tick off today's habits.", href: ROUTES.dashboard.habitTracker, icon: ListChecks, id: "habits", label: "Habits", tone: "emerald" },
   { description: "Write a training journal entry.", href: ROUTES.dashboard.journal, icon: Pencil, id: "journal", label: "Journal", tone: "violet" },
   { description: "Book a session.", href: ROUTES.dashboard.sessionBooking, icon: CalendarCheck, id: "book", label: "Book", tone: "cyan" },
-  { description: "Charts, trends and recent activity.", href: ROUTES.dashboard.stats, icon: Activity, id: "stats", label: "Stats", tone: "sky" },
-  { description: "Plan completion, check-ins and training milestones.", href: ROUTES.dashboard.progress, icon: ListChecks, id: "progress", label: "Progress", tone: "amber" },
   { description: "Message your coach.", href: ROUTES.dashboard.coachMessaging, icon: MessageCircle, id: "messages", label: "Messages", tone: "fuchsia" },
-  { description: "Community feed.", href: ROUTES.dashboard.social, icon: Users, id: "social", label: "Social", tone: "fuchsia" },
-  { description: "Badges, streaks and rewards.", href: ROUTES.dashboard.achievements, icon: Star, id: "rewards", label: "Rewards", tone: "amber" },
 ];
 
 
@@ -10708,7 +10734,7 @@ type DashboardHeaderMenuViewProps = {
   handleDashboardHeaderMeterPanelKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
   handleDashboardHeaderMeterPanelWheel: (event: ReactWheelEvent<HTMLDivElement>) => void;
   dashboardHeaderMeterTornadoColor: "#facc15" | "#fb7185" | "#60a5fa";
-  dashboardHeaderCategoryUfoChyronItems: { color: "rgba(110, 231, 183, 0.96)" | "rgba(190, 242, 100, 0.92)" | "rgba(153, 246, 228, 0.94)" | "rgba(186, 230, 253, 0.96)" | "rgba(199, 210, 254, 0.96)" | "rgba(216, 180, 254, 0.96)" | "rgba(253, 186, 116, 0.96)" | "rgba(251, 207, 232, 0.94)" | "rgba(207, 250, 254, 0.96)" | "rgba(226, 232, 240, 0.9)"; id: "athletic" | "cervical" | "core" | "integrated" | "arm-isolation" | "lower-compound" | "lower-isolation" | "mobility" | "upper-pull" | "upper-push"; level: 0; levelNumber: null; recommendedLabel: string; recommendedStatus: string; repsLabel: string; shortLabel: "Arms" | "Core" | "Lower Comp" | "Lower Iso" | "Push" | "Pull" | "Athletic" | "Integrated" | "Mobility" | "Neck"; }[];
+  dashboardHeaderCategoryUfoChyronItems: { color: "rgba(110, 231, 183, 0.96)" | "rgba(190, 242, 100, 0.92)" | "rgba(153, 246, 228, 0.94)" | "rgba(186, 230, 253, 0.96)" | "rgba(199, 210, 254, 0.96)" | "rgba(216, 180, 254, 0.96)" | "rgba(253, 186, 116, 0.96)" | "rgba(251, 207, 232, 0.94)" | "rgba(207, 250, 254, 0.96)" | "rgba(226, 232, 240, 0.9)"; id: "athletic" | "cervical" | "core" | "integrated" | "arm-isolation" | "lower-compound" | "lower-isolation" | "mobility" | "upper-pull" | "upper-push"; level: 0; levelNumber: number; recommendedLabel: string; recommendedStatus: string; repsLabel: string; shortLabel: "Arms" | "Core" | "Lower Comp" | "Lower Iso" | "Push" | "Pull" | "Athletic" | "Integrated" | "Mobility" | "Neck"; }[];
   activeDashboardHeaderCategoryLevelDetails: { readonly focus: "Power / speed"; readonly next: "Cleaner landings"; readonly recommendedPatterns: readonly ["Jump", "Sprint", "Throw", "Power"]; readonly signal: "Explosive base"; } | { readonly focus: "Neck control"; readonly next: "Gentle range"; readonly recommendedPatterns: readonly ["Neck flexion", "Neck extension", "Neck rotation"]; readonly signal: "Foundation"; } | { readonly focus: "Bracing / anti-rotation"; readonly next: "Add carries"; readonly recommendedPatterns: readonly ["Anti-rotation", "Anti-extension", "Carry", "Rotation"]; readonly signal: "Stable trunk"; } | { readonly focus: "Full-body patterns"; readonly next: "Link strength"; readonly recommendedPatterns: readonly ["Squat to press", "Carry", "Complex", "Crawl"]; readonly signal: "Coordination"; } | { readonly focus: "Curls / extensions"; readonly next: "More clean reps"; readonly recommendedPatterns: readonly ["Curl", "Triceps extension", "Face pull", "External rotation"]; readonly signal: "Accessory base"; } | { readonly focus: "Squat / hinge / lunge"; readonly next: "Push clean load"; readonly recommendedPatterns: readonly ["Squat", "Hinge", "Lunge", "Step-up"]; readonly signal: "Strong base"; } | { readonly focus: "Quads / hamstrings"; readonly next: "Build volume"; readonly recommendedPatterns: readonly ["Leg extension", "Leg curl", "Calf raise", "Hip abduction"]; readonly signal: "Machine work"; } | { readonly focus: "Range / control"; readonly next: "Daily flow"; readonly recommendedPatterns: readonly ["Hip mobility", "Thoracic mobility", "Shoulder mobility", "Cervical mobility"]; readonly signal: "Movement prep"; } | { readonly focus: "Rows / pulls"; readonly next: "Own scap control"; readonly recommendedPatterns: readonly ["Horizontal pull", "Vertical pull", "Row", "Pull-up"]; readonly signal: "Back strength"; } | { readonly focus: "Press / push-up"; readonly next: "Stack shoulders"; readonly recommendedPatterns: readonly ["Horizontal push", "Vertical push", "Press", "Push-up"]; readonly signal: "Pressing base"; } | null;
   activeDashboardHeaderCategoryRepsToNextLevelLabel: "Level target unavailable";
   activeDashboardHeaderCategoryPatternRecommendation: { label: string; recentSets: number; totalSets: number; status: string; level: null; } | null;
@@ -10946,6 +10972,8 @@ function DashboardHeaderMenuView({
   dashboardHeaderNewsHeadlineRef,
 }: DashboardHeaderMenuViewProps) {
   "use memo";
+  const [ufoDocked, setUfoDocked] = useState(false);
+  useEffect(() => { if (!dashboardHeaderMeterMenuOpen) setUfoDocked(false); }, [dashboardHeaderMeterMenuOpen]);
   return (
     <div
       className={`dashboard-header-vortex-shell dashboard-header-vortex-shell--${dashboardHeaderVortexPhase} ${
@@ -11345,7 +11373,7 @@ function DashboardHeaderMenuView({
                     ? "Close Sound popup"
                     : "Open Sound popup"
                 }
-                className={`dashboard-header-trophy-selector group absolute left-1/2 top-[-0.82rem] z-[4] grid h-11 w-11 place-items-center rounded-full outline-none ${
+                className={`dashboard-header-trophy-selector group absolute top-[-0.82rem] z-[4] grid h-11 w-11 place-items-center rounded-full outline-none ${
                   dashboardHeaderTimedOut
                     ? "dashboard-header-trophy-selector--behind-idle"
                     : ""
@@ -11368,7 +11396,6 @@ function DashboardHeaderMenuView({
                       : "drop-shadow(0 0.16rem 0.28rem rgba(2, 6, 23, 0.5)) drop-shadow(0 0 0.82rem rgba(34, 211, 238, 0.24))",
                     opacity: dashboardHeaderTimedOut ? 0.2 : 1,
                     pointerEvents: dashboardHeaderTimedOut ? "none" : "auto",
-                    transform: "translate3d(-50%, 0, 0)",
                     transformStyle: "preserve-3d",
                     zIndex: dashboardHeaderTimedOut ? 0 : undefined,
                   } as CSSProperties
@@ -11740,18 +11767,11 @@ function DashboardHeaderMenuView({
               }
             >
               <span className="dashboard-header-compound-pr-meter__header">
-                <span
-                  aria-hidden="true"
-                  className="dashboard-header-compound-pr-meter__badge"
-                >
-                  LOAD
-                </span>
+
                 <span className="dashboard-header-compound-pr-meter__heading-copy">
-                  <span className="dashboard-header-compound-pr-meter__eyebrow">
-                    Recorded Loads
-                  </span>
+
                   <span className="dashboard-header-compound-pr-meter__heading">
-                    Compound Lifts
+                    Best Lifts
                   </span>
                 </span>
               </span>
@@ -11827,9 +11847,7 @@ function DashboardHeaderMenuView({
                           tabIndex={isActivePrCard ? 0 : -1}
                           type="button"
                         >
-                          <span className="dashboard-header-compound-pr-meter__rank">
-                            {highlight.rank}
-                          </span>
+
                           <span className="dashboard-header-compound-pr-meter__copy">
                             <span className="dashboard-header-compound-pr-meter__title">
                               {highlight.label}
@@ -11880,12 +11898,7 @@ function DashboardHeaderMenuView({
                               </span>
                             </span>
                           </span>
-                          <span
-                            aria-label={`${highlight.detail} trend ${highlight.value}`}
-                            className="dashboard-header-compound-pr-meter__value"
-                          >
-                            {highlight.value}
-                          </span>
+
                         </button>
                       );
                     },
@@ -11954,7 +11967,7 @@ function DashboardHeaderMenuView({
                     <span
                       aria-hidden="true"
                       className="dashboard-header-achievement-meter__progress-item"
-                      key={`dashboard-header-achievement-active-${activeHeaderAchievement.label}`}
+                      key={`dashboard-header-achievement-active-${activeHeaderAchievement.label.replace(/\s*[·–-]\s*\d+\s*$/, "")}`}
                       style={
                         {
                           "--dashboard-header-achievement-item-progress": `${activeHeaderAchievementProgress}%`,
@@ -11966,14 +11979,14 @@ function DashboardHeaderMenuView({
                       </span>
                       <span className="dashboard-header-achievement-meter__progress-copy">
                         <span className="dashboard-header-achievement-meter__progress-title">
-                          {activeHeaderAchievement.label}
+                          {activeHeaderAchievement.label.replace(/\s*[·–-]\s*\d+\s*$/, "")}
                         </span>
                         <span className="dashboard-header-achievement-meter__progress-meta">
                           <span>
                             {Math.round(activeHeaderAchievementProgress)}%{" "}
                             {activeHeaderAchievement.statusLabel}
                           </span>
-                          <span>{activeHeaderAchievementEstimate.label}</span>
+
                         </span>
                         <span className="dashboard-header-achievement-meter__progress-bar">
                           <span />
@@ -14207,7 +14220,7 @@ function DashboardHeaderMenuView({
                     onClick={() => setDashboardHeaderMeterMenuOpen(false)}
                     type="button"
                   >
-                    <DashboardHeaderStaticFigure5 />
+                    <X aria-hidden="true" className="h-7 w-7" />
                   </button>
 
                   <div
@@ -14291,13 +14304,14 @@ function DashboardHeaderMenuView({
                             dashboardHeaderMeterPanelHighlightTarget === "ufo"
                           }
                           isOpen={dashboardHeaderMeterMenuOpen}
+                          onDockedChange={setUfoDocked}
                           progress={activeDashboardHeaderCategoryLevel.level}
                         />
                       ) : null}
                       {activeDashboardHeaderCategoryLevel &&
                       activeDashboardHeaderCategoryLevelDetails ? (
                         <div
-                          aria-label={`${activeDashboardHeaderCategoryLevel.label}. Level unavailable. ${activeDashboardHeaderCategoryRepsToNextLevelLabel}. Observed pattern ${activeDashboardHeaderCategoryPatternRecommendation?.label || "Not mapped"}, ${activeDashboardHeaderCategoryPatternSetLabel}`}
+                          aria-label={`${activeDashboardHeaderCategoryLevel.shortLabel}. Level 1. ${activeDashboardHeaderCategoryRepsToNextLevelLabel}. Observed pattern ${activeDashboardHeaderCategoryPatternRecommendation?.label || "Not mapped"}, ${activeDashboardHeaderCategoryPatternSetLabel}`}
                           aria-live="polite"
                           className="dashboard-header-category-levels-menu__ufo-chyron"
                           role="status"
@@ -14313,7 +14327,7 @@ function DashboardHeaderMenuView({
                                   key={`dashboard-header-category-ufo-chyron-loop-${loopIndex}`}
                                 >
                                   {dashboardHeaderCategoryLevels.map((category) => {
-                                    const categoryLevelNumber = "—";
+                                    const categoryLevelNumber = "1";
                                     const categoryPatternRecommendation =
                                       dashboardSummary
                                         .categoryPatternRecommendations[
@@ -14323,7 +14337,7 @@ function DashboardHeaderMenuView({
                                       categoryPatternRecommendation?.label ||
                                       "Not mapped";
                                     const categoryPatternSetLabel = categoryPatternRecommendation?.status || "No mapped records";
-                                    const categoryRepsToNextLevelCountLabel = "Level target unavailable";
+                                    const categoryRepsToNextLevelCountLabel = "Level 1";
                                     const categoryRepsGapLabelLeft = `${Math.min(
                                       category.level + 1,
                                       82,
@@ -14492,6 +14506,19 @@ function DashboardHeaderMenuView({
                     role="group"
                     tabIndex={0}
                   >
+                    {["Achievements + PR", "Daily + Plan", "Fuel + Body"].map((title, index) => getDashboardHeaderMeterPanelSectionSlot(index) === "center" ? (
+                      <div key="stable-meter-heading" className="dashboard-meter-stable-heading" style={{color: ["#fda4af", "#93c5fd", "#fde047"][index]}}>
+                        <button type="button" aria-label="Previous meter type" className="dashboard-meter-type-arrow"
+                          style={{visibility: dashboardHeaderMeterPanelHighlightTarget === "ufo" ? "hidden" : "visible"}}
+                          onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()}
+                          onClick={event => {event.stopPropagation();setDashboardHeaderMeterPanelSectionHighlight((index + 2) % 3, 0);}}><ChevronLeft aria-hidden="true" className="h-5 w-5" /></button>
+                        <span>{title}</span>
+                        <button type="button" aria-label="Next meter type" className="dashboard-meter-type-arrow"
+                          style={{visibility: dashboardHeaderMeterPanelHighlightTarget === "ufo" ? "hidden" : "visible"}}
+                          onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()}
+                          onClick={event => {event.stopPropagation();setDashboardHeaderMeterPanelSectionHighlight((index + 1) % 3, 0);}}><ChevronRight aria-hidden="true" className="h-5 w-5" /></button>
+                      </div>
+                    ) : null)}
                     {/* The stack body (~3,900 nodes) mounts one frame after
                         the panel opens, so the opening animation runs on a
                         free thread; the keep-mounted panel makes this a
@@ -14511,9 +14538,7 @@ function DashboardHeaderMenuView({
                           : "false"
                       }
                     >
-                      <div className="dashboard-header-meter-panel__section-label">
-                        Achievements + PR
-                      </div>
+                      <div aria-hidden="true" className="dashboard-header-meter-panel__section-label" />
                       <div
                         aria-label={`Compound recorded loads. ${dashboardSummary.compoundLiftHighlights
                           .map(
@@ -14570,18 +14595,11 @@ function DashboardHeaderMenuView({
                           />
                         </span>
                         <span className="dashboard-header-compound-pr-meter__header">
-                          <span
-                            aria-hidden="true"
-                            className="dashboard-header-compound-pr-meter__badge"
-                          >
-                            LOAD
-                          </span>
+
                           <span className="dashboard-header-compound-pr-meter__heading-copy">
-                            <span className="dashboard-header-compound-pr-meter__eyebrow">
-                              Recorded Loads
-                            </span>
+
                             <span className="dashboard-header-compound-pr-meter__heading">
-                              Compound Lifts
+                              Best Lifts
                             </span>
                           </span>
                         </span>
@@ -14672,9 +14690,7 @@ function DashboardHeaderMenuView({
                                     tabIndex={isActivePrCard ? 0 : -1}
                                     type="button"
                                   >
-                                    <span className="dashboard-header-compound-pr-meter__rank">
-                                      {highlight.rank}
-                                    </span>
+
                                     <span className="dashboard-header-compound-pr-meter__copy">
                                       <span className="dashboard-header-compound-pr-meter__title">
                                         {highlight.label}
@@ -14682,55 +14698,9 @@ function DashboardHeaderMenuView({
                                       <span className="dashboard-header-compound-pr-meter__detail">
                                         {highlight.detail}
                                       </span>
-                                      <span className="dashboard-header-compound-pr-meter__stats">
-                                        <span className="dashboard-header-compound-pr-meter__stat">
-                                          <span className="dashboard-header-compound-pr-meter__stat-label">
-                                            Weight
-                                          </span>
-                                          <span className="dashboard-header-compound-pr-meter__stat-value">
-                                            {highlight.weightLabel}
-                                          </span>
-                                        </span>
-                                        <span className="dashboard-header-compound-pr-meter__stat">
-                                          <span className="dashboard-header-compound-pr-meter__stat-label">
-                                            Reps
-                                          </span>
-                                          <span className="dashboard-header-compound-pr-meter__stat-value">
-                                            {highlight.repsLabel}
-                                          </span>
-                                        </span>
-                                        <span className="dashboard-header-compound-pr-meter__stat">
-                                          <span className="dashboard-header-compound-pr-meter__stat-label">
-                                            Date
-                                          </span>
-                                          <span className="dashboard-header-compound-pr-meter__stat-value">
-                                            {highlight.dateLabel}
-                                          </span>
-                                        </span>
-                                        <span className="dashboard-header-compound-pr-meter__stat">
-                                          <span className="dashboard-header-compound-pr-meter__stat-label">
-                                            Sets
-                                          </span>
-                                          <span className="dashboard-header-compound-pr-meter__stat-value">
-                                            {highlight.setsLabel}
-                                          </span>
-                                        </span>
-                                        <span className="dashboard-header-compound-pr-meter__stat">
-                                          <span className="dashboard-header-compound-pr-meter__stat-label">
-                                            Volume
-                                          </span>
-                                          <span className="dashboard-header-compound-pr-meter__stat-value">
-                                            {highlight.volumeLabel}
-                                          </span>
-                                        </span>
-                                      </span>
+                                      <BestLiftMetricReadout record={highlight} active={dashboardHeaderMeterPanelHighlightTarget === "compound-pr" && isActivePrCard} />
                                     </span>
-                                    <span
-                                      aria-label={`${highlight.detail} trend ${highlight.value}`}
-                                      className="dashboard-header-compound-pr-meter__value"
-                                    >
-                                      {highlight.value}
-                                    </span>
+
                                   </button>
                                 );
                               },
@@ -14829,7 +14799,7 @@ function DashboardHeaderMenuView({
                               <span
                                 aria-hidden="true"
                                 className="dashboard-header-achievement-meter__progress-item"
-                                key={`dashboard-header-meter-panel-achievement-${activeHeaderAchievement.label}`}
+                                key={`dashboard-header-meter-panel-achievement-${activeHeaderAchievement.label.replace(/\s*[·–-]\s*\d+\s*$/, "")}`}
                                 style={
                                   {
                                     "--dashboard-header-achievement-item-progress": `${activeHeaderAchievementProgress}%`,
@@ -14841,22 +14811,18 @@ function DashboardHeaderMenuView({
                                 </span>
                                 <span className="dashboard-header-achievement-meter__progress-copy">
                                   <span className="dashboard-header-achievement-meter__progress-title">
-                                    {activeHeaderAchievement.label}
+                                    {activeHeaderAchievement.label.replace(/\s*[·–-]\s*\d+\s*$/, "")}
                                   </span>
                                   <span className="dashboard-header-achievement-meter__progress-meta">
                                     <span>
-                                      {Math.round(
-                                        activeHeaderAchievementProgress,
-                                      )}
-                                      % {activeHeaderAchievement.statusLabel}
+{activeHeaderAchievement.statusLabel}
                                     </span>
-                                    <span>
-                                      {activeHeaderAchievementEstimate.label}
-                                    </span>
+
                                   </span>
                                   <span className="dashboard-header-achievement-meter__progress-bar">
                                     <span />
                                   </span>
+                                  <span className="dashboard-header-achievement-meter__percentage">{Math.round(activeHeaderAchievementProgress)}%</span>
                                 </span>
                               </span>
                             ) : null}
@@ -14878,9 +14844,7 @@ function DashboardHeaderMenuView({
                           : "false"
                       }
                     >
-                      <div className="dashboard-header-meter-panel__section-label">
-                        Daily + Plan
-                      </div>
+                      <div aria-hidden="true" className="dashboard-header-meter-panel__section-label" />
                       <div
                         aria-label={`${dashboardDailySetEvidence.detail}`}
 
@@ -14900,7 +14864,7 @@ function DashboardHeaderMenuView({
                       >
                         <span className="dashboard-header-sets-meter__tower">
                           <span className="dashboard-header-sets-meter__tallies">
-                            {dashboardSummary.dailySetTallyMarks.map(
+                            {(dashboardSummary.dailySetTallyMarks.length ? dashboardSummary.dailySetTallyMarks : Array.from({length: 12}, (_, index) => ({id: `empty-${index}`, group: "empty", filled: false}))).map(
                               (mark, markIndex) => (
                                 <span
                                   aria-hidden="true"
@@ -15185,9 +15149,7 @@ function DashboardHeaderMenuView({
                           : "false"
                       }
                     >
-                      <div className="dashboard-header-meter-panel__section-label">
-                        Fuel + Body
-                      </div>
+                      <div aria-hidden="true" className="dashboard-header-meter-panel__section-label" />
                       <div className="dashboard-header-fuel-meters">
                         <div
                           aria-label={`${dashboardSummary.weeklyCaloriesDisplay} total weekly calories`}
@@ -15217,10 +15179,11 @@ function DashboardHeaderMenuView({
                         >
                           <span
                             aria-hidden="true"
-                            className="dashboard-header-fuel-meter__ring"
+                            className="dashboard-header-fuel-meter__ring dashboard-header-fuel-meter__ring--week"
+                            title="Weekly calories · seven sections, Monday through Sunday"
                           >
                             <span className="dashboard-header-fuel-meter__value">
-                              {dashboardSummary.weeklyCaloriesDisplay}
+                              {dashboardSummary.weeklyCaloriesDisplay}<small className="block text-[11px]">cal</small>
                             </span>
                           </span>
                           <span className="dashboard-header-fuel-meter__label">
@@ -15232,14 +15195,14 @@ function DashboardHeaderMenuView({
                         </div>
 
                         <div
-                          aria-label={`Weight change ${dashboardSummary.weightChangeLabel}, ${dashboardSummary.weightChangeTrendLabel}`}
+                          aria-label={`Weight change ${/add|record|unavailable/i.test(`${dashboardSummary.weightChangeLabel} ${dashboardSummary.weightChangeTrendLabel}`) ? "—" : dashboardSummary.weightChangeLabel}, ${dashboardSummary.weightChangeTrendLabel}`}
                           aria-valuemax={5}
                           aria-valuemin={-5}
                           aria-valuenow={Number(
                             dashboardSummary.weightChange.toFixed(1),
                           )}
                           className={`dashboard-header-fuel-meter dashboard-header-fuel-meter--weight dashboard-header-meter-panel__highlight-meter dashboard-header-fuel-meter--${dashboardSummary.weightChangeTone}`}
-                          data-dashboard-tooltip={`Weight change ${dashboardSummary.weightChangeLabel}. ${dashboardSummary.weightChangeTrendLabel}`}
+                          data-dashboard-tooltip={`Weight change ${/add|record|unavailable/i.test(`${dashboardSummary.weightChangeLabel} ${dashboardSummary.weightChangeTrendLabel}`) ? "—" : dashboardSummary.weightChangeLabel}. ${dashboardSummary.weightChangeTrendLabel}`}
                           data-meter-highlight-target="weight"
                           data-meter-highlighted={
                             dashboardHeaderMeterPanelHighlightTarget ===
@@ -15262,14 +15225,14 @@ function DashboardHeaderMenuView({
                             className="dashboard-header-fuel-meter__ring"
                           >
                             <span className="dashboard-header-fuel-meter__value">
-                              {dashboardSummary.weightChangeLabel}
+                              {/add|record|unavailable/i.test(`${dashboardSummary.weightChangeLabel} ${dashboardSummary.weightChangeTrendLabel}`) ? "—" : dashboardSummary.weightChangeLabel}
                             </span>
                           </span>
                           <span className="dashboard-header-fuel-meter__label">
                             Weight +/-
                           </span>
                           <span className="dashboard-header-fuel-meter__meta">
-                            {dashboardSummary.weightChangeTrendLabel}
+                            {/add|record|unavailable/i.test(`${dashboardSummary.weightChangeLabel} ${dashboardSummary.weightChangeTrendLabel}`) ? <Link href={ROUTES.dashboard.profile} className="dashboard-fuel-log-button" onClick={event => event.stopPropagation()}>Add weigh-in</Link> : dashboardSummary.weightChangeTrendLabel}
                           </span>
                         </div>
                       </div>
@@ -15290,7 +15253,8 @@ function DashboardHeaderMenuView({
                           : "false"
                       }
                       data-gem-tone={dashboardHeaderMeterTornadoGemTone}
-                      style={{ zIndex: 6 }}
+                      data-cast-ready={(dashboardHeaderMeterMenuOpen && ufoDocked) || (!dashboardHeaderMeterMenuOpen && dashboardHeaderMeterPanelVisible) ? "true" : "false"}
+                      style={{ zIndex: 6, visibility: (dashboardHeaderMeterMenuOpen && ufoDocked) || (!dashboardHeaderMeterMenuOpen && dashboardHeaderMeterPanelVisible) ? "visible" : "hidden" }}
                     >
                       <span className="dashboard-header-meter-tornado__ribbon dashboard-header-meter-tornado__ribbon--front" />
                       <span className="dashboard-header-meter-tornado__ribbon dashboard-header-meter-tornado__ribbon--back" />
@@ -15299,11 +15263,12 @@ function DashboardHeaderMenuView({
                           meter group taking the highlight lightens the
                           tornado back to full display. */}
                       <DashboardTornadoEmeralds3D
+                        closing={!dashboardHeaderMeterMenuOpen}
                         dimmed={
                           dashboardHeaderMeterPanelHighlightTarget === "ufo"
                         }
                         paused={
-                          dashboardPointsMenuHighlighted ||
+                          !dashboardHeaderMeterMenuOpen || !ufoDocked || dashboardPointsMenuHighlighted ||
                           dashboardHeaderMeterPanelHighlightTarget === "ufo"
                         }
                         tone={dashboardHeaderMeterTornadoGemTone}
@@ -15484,6 +15449,7 @@ function DashboardWeeklyRecapRowView({
   return (
     <div
       aria-label="Weekly Recap row"
+      style={{ "--dashboard-title-accent": activeWeeklyRecapIndex === 1 ? "#6ee7b7" : activeWeeklyRecapIndex === 2 ? "#fde68a" : "#67e8f9" } as CSSProperties}
       data-dashboard-orbiter-row="2"
       className={`relative flex h-full min-h-0 w-full flex-col overflow-hidden px-2 py-3 transition-opacity duration-300 max-[430px]:pr-2 sm:px-4 lg:px-6 ${
         clampedDashboardOrbiterRow === 2
@@ -15512,15 +15478,16 @@ function DashboardWeeklyRecapRowView({
             </span>
             <button type="button" aria-label="Next recap week" className="grid h-7 w-7 shrink-0 place-items-center text-cyan-100/75 hover:text-cyan-100 focus-visible:outline focus-visible:outline-cyan-200" onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); onWeekChange(1); }}><ChevronRight className="h-3.5 w-3.5" /></button>
           </div>
-          <div className="-mt-1 flex min-h-8 min-w-0 shrink-0 items-center pb-0 sm:min-h-9">
-            <div className="flex min-w-0 items-center gap-2.5 pl-[60px]" style={{ color: activeWeeklyRecapIndex === 1 ? "#6ee7b7" : activeWeeklyRecapIndex === 2 ? "#fde047" : activeWeeklyRecapIndex === 3 ? "#93c5fd" : "#67e8f9" }}>
+          <div className="-mt-1 flex min-h-8 min-w-0 shrink-0 items-center justify-center pb-0 sm:min-h-9">
+            <div className="flex min-w-0 items-center justify-center gap-2.5 px-[60px] text-center" style={{ color: activeWeeklyRecapIndex === 1 ? "#6ee7b7" : activeWeeklyRecapIndex === 2 ? "#fde047" : activeWeeklyRecapIndex === 3 ? "#93c5fd" : "#67e8f9" }}>
               <h2 className="min-w-0 line-clamp-2 text-xl font-black leading-6 tracking-tight text-current sm:text-2xl sm:leading-7">{dashboardWeeklyRecapCards[activeWeeklyRecapIndex]?.title}</h2>
             </div>
           </div>
           <div className="w-full min-w-0" data-dashboard-orbiter-local-scroll="true" onPointerDown={(event) => event.stopPropagation()} onWheel={(event) => event.stopPropagation()}>
           <AdaptiveColumnIndicators
             label="Weekly recap card indicators"
-            compactSpacing
+            flat
+            className="!h-auto !min-h-11 !flex-wrap !justify-center !gap-2 py-1"
             activeIndex={activeWeeklyRecapIndex}
             onSelect={setActiveWeeklyRecapIndex}
             role="group"
@@ -15884,7 +15851,7 @@ function DashboardMySoundRowView({
     <div
       aria-label="My Sound row"
       data-dashboard-orbiter-row="5"
-      className={`relative flex h-full min-h-0 w-full flex-col overflow-hidden px-2 pt-2 transition-opacity duration-300 max-[430px]:pr-2 sm:px-4 sm:pt-3 lg:px-6 lg:pt-4 ${
+      className={`relative flex h-full min-h-0 w-full flex-col justify-center overflow-hidden px-2 pt-0 transition-opacity duration-300 max-[430px]:pr-2 sm:px-4 lg:px-6 ${
         clampedDashboardOrbiterRow === 5
           ? "pointer-events-auto opacity-100"
           : "pointer-events-none opacity-40"
@@ -15897,7 +15864,8 @@ function DashboardMySoundRowView({
 
       <div
         aria-label="My Sound insight orbit selector"
-        className="relative z-10 min-h-0 w-full flex-1 cursor-grab select-none overflow-hidden outline-none [touch-action:pan-y] active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-cyan-200/45"
+        data-dashboard-orbiter-local-scroll="true"
+        className="relative z-10 grid max-h-full min-h-0 w-full shrink cursor-grab select-none overflow-y-auto outline-none [touch-action:pan-y] active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-cyan-200/45"
         onClickCapture={(event) => {
           if (event.target instanceof Element && event.target.closest('[data-dashboard-orbiter-local-scroll="true"]')) return;
           if (mySoundPointerMovedRef.current) {
@@ -15939,7 +15907,6 @@ function DashboardMySoundRowView({
         }
         onWheel={(event) => {
           if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) handleDashboardOrbitWheel(event, rotateMySound);
-          else event.stopPropagation();
         }}
         tabIndex={0}
       >
@@ -15947,6 +15914,10 @@ function DashboardMySoundRowView({
           const distance = getMySoundOrbitDistance(index);
           const tone = dashboardToneStyles[card.tone];
           const isActive = distance === 0;
+          const signalColor = {
+            amber: "#fcd34d", cyan: "#67e8f9", emerald: "#6ee7b7",
+            fuchsia: "#f0abfc", sky: "#7dd3fc", violet: "#c4b5fd",
+          }[card.tone];
 
           return (
             <article
@@ -15954,14 +15925,12 @@ function DashboardMySoundRowView({
                 isActive ? `${card.title} selected` : `Select ${card.title}`
               }
               aria-pressed={isActive}
-              className={`group absolute left-1/2 top-0 h-full w-full overflow-y-auto overscroll-contain rounded-[30px] border p-4 text-left shadow-2xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+              className={`group col-start-1 row-start-1 flex h-auto w-full flex-col overflow-visible overscroll-contain rounded-[30px] border p-4 pt-2 text-left shadow-2xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
                 isActive
                   ? "dashboard-orbit-card--active border-cyan-200/45 bg-slate-950/86 shadow-cyan-950/35"
                   : "border-white/10 bg-slate-950/64 shadow-black/30 hover:border-cyan-200/28 hover:bg-slate-950/78"
               }`}
               data-dashboard-orbiter-local-scroll="true"
-              data-dashboard-wheel-lock="true"
-              onWheel={event => event.stopPropagation()}
               data-dashboard-orbit-card-index={index}
               key={card.title}
               onClick={() => {
@@ -15975,9 +15944,12 @@ function DashboardMySoundRowView({
               role="button"
               style={{
                 ...dashboardEffectToneStyles[card.tone],
+                borderColor: `color-mix(in srgb, ${signalColor} 45%, transparent)`,
+                background: `radial-gradient(ellipse at 85% 0%, color-mix(in srgb, ${signalColor} 17%, transparent), transparent 65%), #020617`,
+                boxShadow: `inset 0 1px 0 color-mix(in srgb, ${signalColor} 20%, transparent), 0 12px 40px #0005`,
                 opacity: isActive ? 1 : 0,
                 pointerEvents: isActive ? "auto" : "none",
-                transform: `translateX(calc(-50% + ${distance} * (100% + 16px)))`,
+                visibility: isActive ? "visible" : "hidden",
                 transition:
                   "transform 560ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 360ms ease, filter 360ms ease",
                 zIndex: isActive ? 2 : 1,
@@ -15989,27 +15961,17 @@ function DashboardMySoundRowView({
               <span
                 className={`absolute left-6 right-6 top-0 z-10 h-[2px] rounded-full ${tone.line}`}
               />
-              <div className="relative z-10 flex min-h-14 shrink-0 items-center gap-2.5">
-                <span
-                  className="relative grid h-10 w-10 shrink-0 place-items-center text-cyan-100"
-                  aria-hidden="true"
-                >
-                  <DashboardTabIcon
-                    className="h-6 w-6 drop-shadow-[0_0_10px_rgba(255,255,255,0.24)]"
-                    label={card.title}
-                    name={card.icon}
-                  />
-
-                </span>
-                <h2 className="min-w-0 flex-1 whitespace-normal break-normal text-xl font-black leading-6 tracking-tight text-white sm:text-2xl sm:leading-7">
+              <div className="relative z-10 flex min-h-8 shrink-0 items-center justify-center px-[60px] text-center">
+                <h2 style={{ color: signalColor }} className="min-w-0 flex-1 whitespace-normal break-normal text-xl font-black leading-6 tracking-tight text-white sm:text-2xl sm:leading-7">
                   {card.title}
                 </h2>
 
               </div>
-              <div className="relative z-20 mt-2 border-b border-white/10 pb-2" data-dashboard-orbiter-local-scroll="true" onPointerDownCapture={() => { mySoundPointerMovedRef.current = false; mySoundPointerStartRef.current = null; }} onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()} onWheel={event => event.stopPropagation()}>
+              <div className="relative z-20 mt-1 border-b border-white/10 pb-1" data-dashboard-orbiter-local-scroll="true" onPointerDownCapture={() => { mySoundPointerMovedRef.current = false; mySoundPointerStartRef.current = null; }} onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()} onWheel={event => event.stopPropagation()}>
           <AdaptiveColumnIndicators
             label="My Sound signal indicators"
-            className="!justify-center"
+            className="!mx-auto !h-auto !w-fit !justify-center !gap-0"
+            flat
             activeIndex={activeMySoundIndex}
             onSelect={setActiveMySoundIndex}
           >
@@ -16021,7 +15983,7 @@ function DashboardMySoundRowView({
                 <button
                   aria-label={`Show ${card.title}`}
                   aria-selected={isActive}
-                  className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border p-0 transition-[border-color,background-color,color,box-shadow] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/60 ${
+                  className={`grid h-8 w-8 shrink-0 place-items-center rounded-none !border-x-0 !border-t-0 !border-b-[3px] !border-b-transparent p-0 [&[aria-selected=true]]:!border-b-current transition-[border-color,background-color,color,box-shadow] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/60 ${
                     tone[isActive ? "active" : "idle"]
                   } ${isActive ? "" : "opacity-75 hover:opacity-100"}`}
                   data-dashboard-tooltip={card.title}
@@ -16040,16 +16002,23 @@ function DashboardMySoundRowView({
             })}
           </AdaptiveColumnIndicators>
               </div>
-              <p className="relative z-10 mt-3 text-base font-bold leading-6 text-cyan-50">
-                {card.description}
-              </p>
+              <div className="my-auto py-3 pl-5 sm:pl-2">
+              <div className="relative z-10">
+                <p className="text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: signalColor }}>Next step:</p>
+                <p className="mt-1 text-base font-bold leading-6 text-slate-50">{card.description}</p>
+                <p className="mt-1 text-sm leading-5 text-slate-300">
+                  {{ cyan: "One workout at a time. Every session builds your foundation.", emerald: "Small, consistent choices help fuel your week.", amber: "Taking time to check in with yourself counts, too.", sky: "Progress starts with where you are today.", violet: "Your direction can evolve with you.", fuchsia: "Every bit of participation adds to your story." }[card.tone]}
+                </p>
+              </div>
               <div className="relative z-10 mt-3 grid gap-1.5">
-                {card.rows.map((row) => (
+                {card.rows.map((row) => row.label === "Why" ? (
+                  <p key={`${card.title}-${row.label}`} className="text-sm leading-5 text-slate-400">{row.detail}</p>
+                ) : (
                   <span
-                    className="grid grid-cols-[72px_minmax(0,1fr)] gap-2 rounded-2xl border border-white/8 bg-slate-950/48 px-3 py-2"
+                    className="grid grid-cols-[48px_minmax(0,1fr)] gap-2 rounded-2xl border border-white/8 bg-slate-950/48 px-3 py-2"
                     key={`${card.title}-${row.label}`}
                   >
-                    <span className="text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">
+                    <span style={{ color: signalColor }} className="text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">
                       {row.label}
                     </span>
                     <span className="min-w-0">
@@ -16064,11 +16033,9 @@ function DashboardMySoundRowView({
                 ))}
               </div>
               <div className="relative z-10 mt-4 flex flex-wrap items-center justify-between gap-3">
-                <span className="min-w-0 flex-1 whitespace-normal break-words text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
-                  {isActive ? "Recommended path" : "Select insight"}
-                </span>
                 {isActive ? (
                   <Link
+                    style={{ color: signalColor, borderColor: `color-mix(in srgb, ${signalColor} 40%, transparent)` }}
                     className="shrink-0 rounded-full border border-cyan-200/30 bg-cyan-300/10 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-cyan-50 transition hover:border-cyan-100/50 hover:bg-cyan-300/16"
                     href={card.href}
                     onClick={(event) => {
@@ -16079,6 +16046,7 @@ function DashboardMySoundRowView({
                     {card.cta}
                   </Link>
                 ) : null}
+              </div>
               </div>
             </article>
           );
@@ -16099,6 +16067,8 @@ type DashboardMasterJourneyRowViewProps = {
   dashboardSummary: { totalLoggedEntries: number; workoutSessionEntries: number; categoryPatternRecommendations: Record<"athletic" | "cervical" | "core" | "integrated" | "arm-isolation" | "lower-compound" | "lower-isolation" | "mobility" | "upper-pull" | "upper-push", { label: string; recentSets: number; totalSets: number; status: string; level: null; }>; completedWorkouts: number; compoundLiftHighlights: { categoryId: string; detail: string; rank: number; tone: string; label: string; value: string; weightLabel: string; repsLabel: string; dateLabel: string; setsLabel: string; volumeLabel: string; windowLabel: string; }[]; planSessionsAttended: number; planSessionProgress: number; planSessionTarget: number; prProgress: number; workoutsThisWeek: number; weeklySessionDays: { dateKey: string; fullLabel: string; label: string; count: number; trained: boolean; today: boolean; missed: boolean; }[]; weeklySessionGoal: number; weeklySessionProgress: number; weeklyCalories: number; weeklyCaloriesDisplay: string; weeklyCaloriesGoal: number; weeklyCaloriesProgress: number; dailySetGroupSummary: string; dailySets: number; dailySetTallyMarks: { filled: boolean; group: string; id: string; }[]; weightChange: number; weightChangeLabel: string; weightChangeProgress: number; weightChangeTone: string; weightChangeTrendLabel: string; weeklyLoggedEntries: number; weeklySetGoal: number; weeklySetProgress: number; totalSets: number; totalVolume: number; weeklySets: number; weeklyVolume: number; uniqueExerciseCount: number; latestExercise: any; mostRecentDate: string; hasStats: boolean; latestEntries: LocalExerciseStatEntry[]; latestWorkoutSessionTimestamp: number | null; latestTemplate: LocalWorkoutBuilderTemplate; templateCount: number; };
   setDashboardMasterPlanScrollerNode: React.Dispatch<React.SetStateAction<HTMLDivElement | null>>;
   dashboardMasterPlanTimeline: DashboardMasterPlanTimelineItem[];
+  activeTimelinePlanTitle: string;
+  onNextTimelinePlan: () => void;
   activeMasterPlanStepIndex: number;
   setActiveMasterPlanStepIndex: React.Dispatch<React.SetStateAction<number>>;
 };
@@ -16113,6 +16083,8 @@ function DashboardMasterJourneyRowView({
   dashboardSummary,
   setDashboardMasterPlanScrollerNode,
   dashboardMasterPlanTimeline,
+  activeTimelinePlanTitle,
+  onNextTimelinePlan,
   activeMasterPlanStepIndex,
   setActiveMasterPlanStepIndex,
 }: DashboardMasterJourneyRowViewProps) {
@@ -16134,20 +16106,7 @@ function DashboardMasterJourneyRowView({
         <section className={masterJourneyStyles.layout}>
           <aside className={`${masterJourneyStyles.titleCard} relative min-w-0 overflow-hidden rounded-[30px] border border-cyan-100/18 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.14),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.76),rgba(2,6,23,0.58))] shadow-2xl shadow-black/25 backdrop-blur`}>
             <span className="pointer-events-none absolute inset-x-6 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-200/70 to-amber-200/55" />
-            <span className="absolute right-4 top-2 rounded-full border border-amber-200/28 bg-amber-300/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-amber-100">
-              {dashboardJourney.progressLabel}
-            </span>
-            <div className={`${masterJourneyStyles.titleHeader} flex min-w-0 items-center`}>
-              <span
-                className={masterJourneyStyles.titleIcon}
-                aria-hidden="true"
-              >
-                <DashboardTabIcon
-                  className="h-6 w-6 drop-shadow-[0_0_12px_rgba(255,255,255,0.24)]"
-                  label="Master Training Journey"
-                  name="plan"
-                />
-              </span>
+            <div className={`${masterJourneyStyles.titleHeader} flex min-w-0 items-center !pt-0 pl-[60px] min-h-10`}>
               <h2 className="min-w-0 text-xl font-black uppercase leading-tight tracking-tight text-white">
                 Plan timeline
               </h2>
@@ -16172,19 +16131,10 @@ function DashboardMasterJourneyRowView({
               onWheel={(event) => event.stopPropagation()}
             >
               <button
-                aria-label="Next plan detail"
-                aria-controls="master-plan-details"
+                aria-label={activeTimelinePlanTitle ? "Next active training plan" : "Add training plan"}
+
                 className="grid h-11 w-7 shrink-0 place-items-center border-0 bg-transparent p-0 text-cyan-200 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  const rail = dashboardMasterPlanDetailsRef.current;
-                  if (!rail) return;
-                  const nextIndex = (Math.round(rail.scrollLeft / rail.clientWidth) + 1) % rail.children.length;
-                  rail.scrollTo({
-                    left: nextIndex * rail.clientWidth,
-                    behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
-                  });
-                }}
+                onClick={(event) => { event.stopPropagation(); onNextTimelinePlan(); }}
                 type="button"
               >
                 <ChevronRight aria-hidden="true" className="h-5 w-5" />
@@ -16196,36 +16146,10 @@ function DashboardMasterJourneyRowView({
                 ref={dashboardMasterPlanDetailsRef}
                 tabIndex={0}
               >
-              {[
-                {
-                  label: "Current focus",
-                  value: masterJourneyCurrentFocus,
-                },
-                {
-                  label: "Plan source",
-                  value: dashboardPlanEvidence.issue || dashboardPlanEvidence.title || "No active plan",
-                },
-                {
-                  label: "Next action",
-                  value: nextAction.cta,
-                },
-                {
-                  label: "Training data",
-                  value: `${dashboardSummary.totalLoggedEntries} logs`,
-                },
-              ].map((item) => (
-                <span
-                  className="flex w-full min-w-0 shrink-0 snap-start flex-col justify-center gap-1 px-3 py-2"
-                  key={item.label}
-                >
-                  <span className="shrink-0 text-[8px] font-black uppercase tracking-[0.13em] text-slate-500">
-                    {item.label}
-                  </span>
-                  <span className="min-w-0 break-words text-[10px] font-black uppercase tracking-[0.1em] text-cyan-50">
-                    {item.value}
-                  </span>
+                <span className="flex w-full min-w-0 flex-col gap-1 px-3 py-2">
+                  <span className="text-[9px] font-black uppercase tracking-[0.13em] text-slate-400">Active training plan</span>
+                  <span className="break-words text-sm font-bold text-cyan-50">{activeTimelinePlanTitle || "Add"}</span>
                 </span>
-              ))}
               </div>
             </div>
           </aside>
@@ -16248,24 +16172,19 @@ function DashboardMasterJourneyRowView({
                         className={`${masterJourneyStyles.stepGroup} flex items-center`}
                         key={`${item.title}-${item.dateLabel}-${index}`}
                       >
-                        <Link
+                        <div
                           aria-current={isSelected ? "step" : undefined}
                           data-master-plan-selected={isSelected ? "true" : "false"}
                           onFocus={() => setActiveMasterPlanStepIndex(index)}
-                          className={`${masterJourneyStyles.step} group relative flex w-[188px] flex-col justify-between rounded-[26px] border text-left transition hover:-translate-y-1 ${tone.border} ${tone.glow} ${
+                          className={`${masterJourneyStyles.step} group relative flex w-[188px] flex-col justify-center gap-4 rounded-[26px] border text-left transition hover:-translate-y-1 ${tone.border} ${tone.glow} ${
                             isSelected
                               ? "border-cyan-200/75 bg-cyan-300/15 shadow-[inset_0_0_24px_rgba(34,211,238,0.12)] ring-1 ring-inset ring-cyan-100/35"
                               : "border-white/10 bg-slate-950/56 hover:bg-slate-950/72"
                           }`}
-                          href={item.href}
                         >
                           <span className="flex items-start justify-between gap-3">
                             <span
-                              className={`${masterJourneyStyles.stepIcon} grid h-12 w-12 shrink-0 place-items-center rounded-2xl border ${
-                                dashboardIconToneStyles[item.tone][
-                                  isSelected ? "active" : "idle"
-                                ]
-                              }`}
+                              className={`${masterJourneyStyles.stepIcon} grid h-12 w-12 shrink-0 place-items-center text-cyan-100`}
                               aria-hidden="true"
                             >
                               <DashboardTabIcon
@@ -16274,9 +16193,7 @@ function DashboardMasterJourneyRowView({
                                 name={item.icon}
                               />
                             </span>
-                            <span className="rounded-full border border-white/10 bg-slate-950/50 px-2 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-slate-300">
-                              {item.status}
-                            </span>
+
                           </span>
 
                           <span className="block min-w-0">
@@ -16291,10 +16208,13 @@ function DashboardMasterJourneyRowView({
                             </span>
                           </span>
 
-                          <span className="inline-flex w-fit rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100">
-                            {item.metric}
-                          </span>
-                        </Link>
+
+                          {item.actionLabel ? (
+                            <Link href={item.href} className="inline-flex w-fit items-center gap-1 rounded-full border border-cyan-200/25 bg-cyan-300/10 px-3 py-1.5 text-xs font-bold text-cyan-100 transition hover:bg-cyan-300/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100">
+                              {item.actionLabel}<ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
+                            </Link>
+                          ) : null}
+                        </div>
 
                         {index < dashboardMasterPlanTimeline.length - 1 ? (
                           <span className="mx-2 h-px w-12 shrink-0 bg-gradient-to-r from-cyan-300/48 via-amber-200/38 to-cyan-300/14 shadow-[0_0_16px_rgba(34,211,238,0.20)]" />
@@ -17385,10 +17305,10 @@ export default function DashboardExperience({
         }
       });
     if (typeof window.requestIdleCallback === "function") {
-      const idleId = window.requestIdleCallback(prelatch, { timeout: 2500 });
+      const idleId = window.requestIdleCallback(prelatch, { timeout: 500 });
       return () => window.cancelIdleCallback(idleId);
     }
-    const timeoutId = window.setTimeout(prelatch, 900);
+    const timeoutId = window.setTimeout(prelatch, 120);
     return () => window.clearTimeout(timeoutId);
   }, [
     dashboardDeferredRowsComplete,
@@ -17505,7 +17425,7 @@ export default function DashboardExperience({
     alignDashboardMobileHeaderLane();
   }, [dashboardHeaderLayoutIdle, dashboardMobileHeaderOrbitPanel, dashboardNarrowAccountIndex,
     dashboardHeaderMeterMenuOpen, dashboardHeaderRewardsMeterShared, dashboardHeaderIsNarrow]);
-  const [activeCommandCenterIndex, setActiveCommandCenterIndex] = useState(0);
+  const [activeCommandCenterIndex, setActiveCommandCenterIndex] = useState(dashboardDefaultCommandCenterIndex);
   const [activeAdminServiceIndex, setActiveAdminServiceIndex] = useState(0);
   const [adminServiceDetailsOpen, setAdminServiceDetailsOpen] = useState(false);
   const [activeDailyToolIndex, setActiveDailyToolIndex] = useState(0);
@@ -17896,15 +17816,21 @@ export default function DashboardExperience({
   const handleDashboardCalendarDateChange = useCallback((date: Date) => {
     setDashboardCalendarDate((current) => calendarDateKey(current) === calendarDateKey(date) ? current : date);
   }, []);
-  const [activeTrainingConstellationDayIndex, setActiveTrainingConstellationDayIndex] = useState(0);
+  const [activeTrainingConstellationDayIndex, setActiveTrainingConstellationDayIndex] = useState(() => {
+    const todayKey = calendarDateKey(dashboardToday);
+    return Math.max(0, getConstellationWeek(dashboardToday).findIndex(day => day.dateKey === todayKey));
+  });
   const [dashboardNavigationIndicatorsOpen, setDashboardNavigationIndicatorsOpen] = useState(false);
   const [dashboardScrollIndicatorAxis, setDashboardScrollIndicatorAxis] = useState<"horizontal" | "vertical" | null>(null);
   const dashboardIndicatorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const revealDashboardScrollIndicators = useCallback((axis: "horizontal" | "vertical") => {
+    // News uses this side panel for topics, not row navigation. Reading the
+    // feed must never open it; the joystick click still opens it explicitly.
+    if (axis === "vertical" && dashboardHeroNewsOpenRef.current) return;
     setDashboardNavigationIndicatorsOpen(false);
     setDashboardScrollIndicatorAxis(axis);
     if (dashboardIndicatorTimeoutRef.current) clearTimeout(dashboardIndicatorTimeoutRef.current);
-    dashboardIndicatorTimeoutRef.current = setTimeout(() => setDashboardScrollIndicatorAxis(null), 5000);
+    dashboardIndicatorTimeoutRef.current = setTimeout(() => setDashboardScrollIndicatorAxis(null), axis === "vertical" ? 3000 : 5000);
   }, []);
   const changeDashboardNavigationIndicators = useCallback((open: boolean) => {
     setDashboardNavigationIndicatorsOpen(open);
@@ -17947,7 +17873,11 @@ export default function DashboardExperience({
         const headerHeight = header?.offsetHeight ?? 0;
         scroller.style.scrollPaddingTop = `${headerHeight}px`;
         const scrollerRect = scroller.getBoundingClientRect();
-        const rowRect = dayRow.getBoundingClientRect();
+        // Keep Today selected while leaving the preceding day visible above it.
+        const precedingDay = dayRow.dataset.trainingConstellationToday === "true" && nextIndex > 0
+          ? scroller.querySelector<HTMLElement>(`[data-training-constellation-day-index="${nextIndex - 1}"]`)
+          : null;
+        const rowRect = (precedingDay ?? dayRow).getBoundingClientRect();
         scroller.scrollTo({
           left: 0,
           top: Math.max(0, scroller.scrollTop + rowRect.top - scrollerRect.top - headerHeight),
@@ -17992,6 +17922,29 @@ export default function DashboardExperience({
     if (header) observer.observe(header);
     return () => observer.disconnect();
   }, [activeTrainingConstellationDayIndex, activeDashboardHeroCardIndex, dashboardCalendarDate, selectedTrainingConstellationLanes.length, scrollTrainingConstellationToDay]);
+  useEffect(() => {
+    const scroller = dashboardTrainingConstellationScrollRef.current;
+    if (!scroller) return;
+    let visibilityObserver: IntersectionObserver | undefined;
+    const observeToday = () => {
+      visibilityObserver?.disconnect();
+      const rows = Array.from(scroller.querySelectorAll<HTMLElement>('[data-training-constellation-today="true"]'))
+        .filter(row => row.getClientRects().length > 0);
+      if (!rows.length) { setConstellationScrolledAwayFromToday(true); return; }
+      const header = scroller.querySelector<HTMLElement>('[data-training-constellation-track-header]');
+      const headerHeight = header?.getClientRects().length ? header.offsetHeight : 0;
+      const visible = new Map<Element, boolean>();
+      visibilityObserver = new IntersectionObserver(entries => {
+        for (const entry of entries) visible.set(entry.target, entry.isIntersecting && entry.intersectionRatio >= 0.05);
+        setConstellationScrolledAwayFromToday(![...visible.values()].some(Boolean));
+      }, { root: scroller, rootMargin: `-${headerHeight}px 0px 0px 0px`, threshold: [0, 0.05] });
+      rows.forEach(row => visibilityObserver!.observe(row));
+    };
+    const resize = new ResizeObserver(observeToday);
+    resize.observe(scroller);
+    observeToday();
+    return () => { resize.disconnect(); visibilityObserver?.disconnect(); };
+  }, [activeDashboardHeroCardIndex, dashboardCalendarDate, dashboardToday, selectedTrainingConstellationLanes.length]);
   const jumpTrainingConstellationToToday = useCallback(() => {
     const todayWeek = getConstellationWeek(dashboardToday);
     const todayDateKey = calendarDateKey(dashboardToday);
@@ -18173,6 +18126,7 @@ export default function DashboardExperience({
   // Goal focus and position need ~350px to sit side by side; below that they
   // take turns and the arrow swaps between them rather than wrapping to a
   // second row.
+  const [heroTrainingWeekOffset, setHeroTrainingWeekOffset] = useState(0);
   const [dashboardSummaryPane, setDashboardSummaryPane] = useState<
     "goal" | "position"
   >("goal");
@@ -20129,7 +20083,7 @@ export default function DashboardExperience({
         setActiveWeeklyRecapIndex(0);
         break;
       case "Dashboards":
-        setActiveCommandCenterIndex(0);
+        setActiveCommandCenterIndex(dashboardDefaultCommandCenterIndex);
         break;
       case "Calendar":
         setDashboardCalendarOrbitCommand(null);
@@ -20662,6 +20616,10 @@ export default function DashboardExperience({
     return true;
   };
   const selectDashboardHeroCard = (nextIndex: number) => {
+    // Keep automatically revealed tabs alive for five seconds after each use,
+    // including repeated clicks on the current card and keyboard activation.
+    // Explicitly opened navigation retains its own shared activity timer.
+    if (dashboardScrollIndicatorAxis === "horizontal") revealDashboardScrollIndicators("horizontal");
     // The news indicator sits at -1.
     if (nextIndex < 0) {
       openDashboardHeroNews();
@@ -20680,40 +20638,14 @@ export default function DashboardExperience({
   };
   const getDashboardHeroCardOrbitDistance = (index: number) =>
     index - activeDashboardHeroCardIndex + (dashboardHeroNewsOpen ? 1 : 0);
-  const handleDashboardHeroCardWheel = (
-    event: ReactWheelEvent<HTMLDivElement>,
-  ) => {
-    // Portal events follow the React tree, including this capture handler.
-    // Track-filter scrolling must not rotate the hero behind its dropdown.
+  const handleDashboardHeroCardWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
     const target = event.target;
+    // Inner feeds and controls retain their own wheel behavior.
     if (target instanceof Element && target.closest("[data-training-track-filter], dialog, [data-dashboard-orbiter-local-scroll='true']")) return;
-
-    const horizontalDelta =
-      Math.abs(event.deltaX) >= Math.abs(event.deltaY)
-        ? event.deltaX
-        : event.shiftKey
-          ? event.deltaY
-          : 0;
-
-    if (Math.abs(horizontalDelta) < 10) return;
-    if (dashboardHeroCardWheelLockedRef.current) return;
-
-    const direction = horizontalDelta > 0 ? "right" : "left";
-    if (!canRotateDashboardHeroCards(direction)) return;
-
-    event.preventDefault();
-    event.stopPropagation();
-    dashboardHeroCardWheelLockedRef.current = true;
-    rotateDashboardHeroCards(direction);
-
-    if (dashboardHeroCardWheelTimeoutRef.current !== null) {
-      window.clearTimeout(dashboardHeroCardWheelTimeoutRef.current);
+    if (Math.abs(event.deltaX) >= Math.abs(event.deltaY) || event.shiftKey) {
+      event.preventDefault();
+      event.stopPropagation();
     }
-
-    dashboardHeroCardWheelTimeoutRef.current = window.setTimeout(() => {
-      dashboardHeroCardWheelLockedRef.current = false;
-      dashboardHeroCardWheelTimeoutRef.current = null;
-    }, 220);
   };
   const getCommandCenterOrbitDistance = (index: number) =>
     getDashboardOrbitDistance(
@@ -22339,14 +22271,22 @@ export default function DashboardExperience({
 
     const closeOnOutside = (event: MouseEvent | TouchEvent) => {
       const target = event.target;
-      if (
-        target instanceof Element &&
-        !target.closest(
-          ".dashboard-header-meter-menu-shell, .dashboard-header-meter-panel",
-        )
-      ) {
-        setDashboardHeaderMeterMenuOpen(false);
+      if (!(target instanceof Element) || target.closest(
+        ".dashboard-header-meter-menu-shell, .dashboard-header-meter-panel",
+      )) return;
+      // The ship extends outside the panel and some decorative layers are
+      // pointer-transparent. Test its visible footprint before dismissing.
+      const point = "touches" in event ? event.touches[0] : event;
+      if (!point) return;
+      const protectedAreas = document.querySelectorAll(
+        ".dashboard-header-meter-panel, .dashboard-header-meter-panel .dashboard-header-category-levels-menu__ufo-webgl",
+      );
+      for (const area of protectedAreas) {
+        const rect = area.getBoundingClientRect();
+        if (rect.width && rect.height && point.clientX >= rect.left - 24 && point.clientX <= rect.right + 24
+          && point.clientY >= rect.top - 24 && point.clientY <= rect.bottom + 24) return;
       }
+      setDashboardHeaderMeterMenuOpen(false);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -23269,6 +23209,9 @@ export default function DashboardExperience({
       return clampDashboardPercent(step.completion);
     }
 
+    if (step.href === ROUTES.dashboard.profile) return dashboardTabCompletions.profile;
+    if (step.href === ROUTES.dashboard.goals) return dashboardTabCompletions.goals;
+    if (step.href === ROUTES.dashboard.trainingPlans) return dashboardTabCompletions.workout;
     if (step.href === ROUTES.dashboard.sessions) {
       return dashboardTabCompletions.workout;
     }
@@ -23300,6 +23243,8 @@ export default function DashboardExperience({
   const getDashboardNavigationCardCompletion = (
     card: DashboardNavigationCard,
   ) => {
+    if (card.title === "Profile & Goals")
+      return Math.round((dashboardTabCompletions.profile + dashboardTabCompletions.goals) / 2);
     if (card.title === "Workout / Sessions")
       return dashboardTabCompletions.workout;
     if (card.title === "Nutrition / Fuel")
@@ -23354,7 +23299,47 @@ export default function DashboardExperience({
     plan: dashboardPlanEvidence, active: activeSessionTemplate ? { title: activeSessionTemplate.title, count: activeSessionTemplate.exercises.length } : null,
     templateCount: dashboardSummary.templateCount, completed: dashboardSummary.completedWorkouts });
   const masterJourneyProgress = dashboardJourney.progress;
-  const dashboardMasterPlanTimeline: DashboardMasterPlanTimelineItem[] = dashboardJourney.rows;
+  const [timelinePlanIndex, setTimelinePlanIndex] = useState(0);
+  const timelinePlan = sharedProgramProgress.activePlans[Math.min(timelinePlanIndex, Math.max(0, sharedProgramProgress.activePlans.length - 1))];
+  const activeTimelinePlanTitle = timelinePlan?.program.title || dashboardPlanEvidence.title;
+  const timelineDate = (offset: number) => {
+    if (!timelinePlan?.startDate) return "";
+    const date = new Date(`${timelinePlan.startDate.slice(0, 10)}T12:00:00`);
+    if (!Number.isFinite(date.getTime())) return "";
+    date.setDate(date.getDate() + offset);
+    return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`;
+  };
+  const timelineTodayKey = `${dashboardToday.getFullYear()}-${String(dashboardToday.getMonth()+1).padStart(2,"0")}-${String(dashboardToday.getDate()).padStart(2,"0")}`;
+  const datedActivities = (timelinePlan?.program.activities || []).map(activity => ({
+    activity, date: timelineDate((activity.week - 1) * 7 + activity.day - 1),
+  })).sort((a,b) => a.date.localeCompare(b.date));
+  const nextWorkout = datedActivities.find(({activity,date}) => activity.kind === "workout" && !timelinePlan?.completedIds.includes(activity.id) && date >= timelineTodayKey);
+  const nextAssessment = datedActivities.find(({activity,date}) => /assess/i.test(`${activity.title} ${activity.signal.title}`) && !timelinePlan?.completedIds.includes(activity.id) && date >= timelineTodayKey);
+  const planEndDate = timelinePlan ? timelineDate(timelinePlan.program.weeks * 7 - 1) : dashboardPlanEvidence.steps?.map(step=>step.date).sort().at(-1) || "";
+  const nextWorkoutDate = timelinePlan ? nextWorkout?.date : dashboardPlanEvidence.next?.date;
+  const timelineReady = dashboardFoundationProgress.goalsCompletion === 100 && Boolean(activeTimelinePlanTitle);
+  const timelineStepActions = [
+    dashboardFoundationProgress.goalsCompletion === 100 ? "Review goals" : "Set goals",
+    timelineReady && nextWorkoutDate ? "Open next workout" : undefined,
+    timelineReady && nextAssessment ? "Complete assessment" : undefined,
+    timelineReady && planEndDate && planEndDate <= timelineTodayKey ? "Reassess goals" : undefined,
+  ];
+  const timelineSteps: DashboardMasterPlanTimelineItem[] = [
+    { title: "Goals", dateLabel: (dashboardFoundationProgress.goalsCompletion === 100 ? planEndDate : timelineDate(0)) || "Set a date", detail: dashboardFoundationProgress.goalsCompletion === 100 ? "Review your goals at the end of this plan, or update them when your needs change." : "Set your training focus and weekly targets before starting your plan.", href: ROUTES.dashboard.goals, icon: "goals", metric: dashboardFoundationProgress.goalFocus || "Choose your direction", status: dashboardFoundationProgress.goalsCompletion === 100 ? "Review goals" : "Next step", tone: "amber" },
+    { title: "Complete workouts", dateLabel: nextWorkoutDate || "Not scheduled", detail: nextWorkout ? `${nextWorkout.activity.title} · ${nextWorkout.activity.prescription}` : dashboardPlanEvidence.next?.title || "Schedule your next workout in your training plan.", href: ROUTES.dashboard.myPlan, icon: "workout", metric: activeTimelinePlanTitle || "Add a plan", status: nextWorkoutDate ? "Next workout" : "Schedule", tone: "cyan" },
+    { title: "Complete assessments", dateLabel: nextAssessment?.date || "Not scheduled", detail: nextAssessment ? `${nextAssessment.activity.title} · ${nextAssessment.activity.prescription}` : "Schedule an assessment to measure your progress against your starting point.", href: ROUTES.onboarding.assessment, icon: "stats", metric: "Measure progress", status: nextAssessment ? "Next assessment" : "Schedule", tone: "sky" },
+    { title: "Reassess", dateLabel: planEndDate || "Choose a plan", detail: "At plan completion, review your results, reassess your goals, and decide your next training cycle.", href: ROUTES.dashboard.goals, icon: "goals", metric: "Plan completion", status: planEndDate ? "Planned review" : "Not scheduled", tone: "emerald" },
+  ];
+  const dashboardMasterPlanTimeline = timelineSteps.map((step, index) => ({
+    ...step,
+    actionLabel: timelineStepActions[index],
+    ...(!timelineReady && index > 0 ? {
+      dateLabel: "After goals and plan setup",
+      detail: index === 1 ? "Your next workout will appear once your goals and training plan are ready."
+        : index === 2 ? "Your scheduled assessments will appear here after plan setup."
+        : "Your reassessment date will follow your training plan’s completion date.",
+    } : {}),
+  }));
   const soundPoints = dashboardRewardEvidence.points ?? 0;
   const dashboardWeeklySoundPointProgress = 0;
   const dashboardWeeklySoundPointFillStyle = { "--sound-points-weekly-cap-opacity": 0, "--sound-points-weekly-fill": "0%" } as CSSProperties;
@@ -24405,7 +24390,6 @@ export default function DashboardExperience({
       rows: [
         { label: "Why", value: "Your next training step", detail: signalTrainingAction.why },
         { label: "Based on", value: `${dashboardSummary.templateCount} saved workouts`, detail: dashboardPlanEvidence.title || "No active training plan is selected." },
-        { label: "Then", value: "Follow your schedule", detail: "Completing the plan matters more than adding extra workouts." },
         ...(dashboardPlanEvidence.steps || []).map(step => ({ label: step.date, value: step.title, detail: step.status })),
         ...(sharedProgramProgress.program?.activities || []).map(activity => ({
           label: `Week ${activity.week} · Day ${activity.day}`,
@@ -24420,7 +24404,6 @@ export default function DashboardExperience({
       rows: [
         { label: "Why", value: "Keep an accurate food and water record", detail: signalFuelAction.why },
         { label: "Based on", value: dashboardHealthEvidence.nutritionIssue ? "Records need review" : `${dashboardHealthEvidence.waterDays}/7 days with water records`, detail: dashboardHealthEvidence.nutritionIssue ? "Review the original entries before interpreting totals." : `${dashboardHealthEvidence.calorieDays}/7 days with calorie records.` },
-        { label: "Then", value: "Review your nutrition targets", detail: "Compare your food and water records with the targets you saved in Goals." },
       ],
     },
     {
@@ -24430,7 +24413,6 @@ export default function DashboardExperience({
       rows: [
         { label: "Why", value: "Give your training some context", detail: dashboardHealthEvidence.recoveryIssue || "Record sleep, stress, soreness, and energy before reviewing your training week." },
         { label: "Based on", value: dashboardHealthEvidence.latestCheckIn ? `Last recorded ${dashboardHealthEvidence.latestCheckIn.date}` : "No recent check-in", detail: "Only saved self-reports are used; a missing check-in does not mean poor recovery." },
-        { label: "Then", value: "Review your plan", detail: "Use the check-in alongside your own experience and any guidance from your coach." },
       ],
     },
     {
@@ -24441,7 +24423,6 @@ export default function DashboardExperience({
       rows: [
         { label: "Why", value: dashboardSummary.hasStats ? "Look for progress in comparable sessions" : "Start with a saved workout", detail: "Compare the same exercise, load unit, and rep scheme before drawing conclusions." },
         { label: "Based on", value: `${dashboardSummary.totalLoggedEntries} recorded exercise entries`, detail: dashboardSummary.hasStats ? `Most recent exercise: ${dashboardSummary.latestExercise}.` : "Your first logged workout creates a starting point for future comparisons." },
-        { label: "Then", value: "Follow the planned progression", detail: "Use your plan to decide the next training step, and review questions with your coach." },
       ],
     },
     {
@@ -24452,7 +24433,6 @@ export default function DashboardExperience({
       rows: [
         { label: "Why", value: "Make recommendations more relevant", detail: signalNeedsGoals ? "Choose a training focus and how often you intend to train." : signalNeedsProfile ? "Your equipment, experience, availability, and limitations help shape appropriate plan choices." : "Review your plan when your goals or availability change." },
         { label: "Based on", value: dashboardFoundationProgress.goalFocus || "No training focus selected", detail: signalNeedsGoals ? "No weekly session target is saved yet." : `Saved weekly session target: ${dashboardGoalTargets.sessions}.` },
-        { label: "Then", value: "Choose your training plan", detail: "Profile describes you; Goals sets direction; the plan turns that direction into scheduled workouts." },
       ],
     },
     {
@@ -24462,7 +24442,6 @@ export default function DashboardExperience({
       rows: [
         { label: "Why", value: "Keep rewards tied to participation", detail: "Review your achievements and the Consistency card for weekly spin status." },
         { label: "Based on", value: dashboardRewardEvidence.canClaim ? "Account balances connected" : "Achievement evidence", detail: dashboardRewardEvidence.canClaim ? `${dashboardRewardEvidence.tokensLabel} coins · ${dashboardRewardEvidence.pointsLabel} bolts.` : "Your saved activity supports achievements. Open Consistency to check your weekly spins." },
-        { label: "Then", value: "Return to your planned activity", detail: "Follow your scheduled workouts and supporting activities to build your training record." },
       ],
     },
   ];
@@ -27068,7 +27047,7 @@ export default function DashboardExperience({
       {
         id: "achievements",
         meta: activeHeaderAchievement
-          ? `${activeHeaderAchievement.label} / ${activeHeaderAchievementEstimate.label}`
+          ? `${activeHeaderAchievement.label.replace(/\s*[·–-]\s*\d+\s*$/, "")}`
           : "Achievement estimate pending",
         progress: headerAchievementProgress,
         title: "Achievements",
@@ -27375,27 +27354,12 @@ export default function DashboardExperience({
     }
     return "back";
   };
-  const rotateDashboardHeaderMeterPanelSections = (
-    direction: DashboardOrbitDirection,
-  ) => {
-    setDashboardHeaderMeterPanelActiveIndex((currentIndex) => {
-      const nextIndex =
-        direction === "left"
-          ? (currentIndex - 1 + DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT) %
-            DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT
-          : (currentIndex + 1) % DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT;
-
-      if (dashboardHeaderMeterPanelHighlightTarget !== "ufo") {
-        setDashboardHeaderMeterPanelHighlightTarget(
-          getDashboardHeaderMeterPanelSectionTarget(
-            nextIndex,
-            dashboardHeaderMeterPanelHighlightedSectionOffset,
-          ),
-        );
-      }
-
-      return nextIndex;
-    });
+  const rotateDashboardHeaderMeterPanelSections = (direction: DashboardOrbitDirection) => {
+    const nextIndex = (normalizedDashboardHeaderMeterPanelActiveIndex + (direction === "left" ? -1 : 1) + DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT) % DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT;
+    setDashboardHeaderMeterPanelActiveIndex(nextIndex);
+    if (dashboardHeaderMeterPanelHighlightTarget !== "ufo") {
+      setDashboardHeaderMeterPanelHighlightTarget(getDashboardHeaderMeterPanelSectionTarget(nextIndex, dashboardHeaderMeterPanelHighlightedSectionOffset));
+    }
   };
   const handleDashboardHeaderMeterPanelKeyboardInput = (
     event: DashboardHeaderMeterPanelKeyboardEvent,
@@ -27539,29 +27503,6 @@ export default function DashboardExperience({
         : (currentIndex + 1) % dashboardHeaderPrCardCount,
     );
   };
-  useEffect(() => {
-    if (dashboardHeaderMotionPaused) return;
-    if (!dashboardHeaderMeterMenuOpen) return;
-    if (dashboardHeaderMeterPanelHighlightTarget !== "compound-pr") return;
-    if (dashboardHeaderPrCardCount < 2) return;
-
-    const intervalId = window.setInterval(() => {
-      if (document.hidden) return;
-
-      setDashboardHeaderPrActiveIndex(
-        (currentIndex) => (currentIndex + 1) % dashboardHeaderPrCardCount,
-      );
-    }, DASHBOARD_HEADER_COMPOUND_PR_AUTOSCROLL_MS);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [
-    dashboardHeaderPrCardCount,
-    dashboardHeaderMeterMenuOpen,
-    dashboardHeaderMeterPanelHighlightTarget,
-    dashboardHeaderMotionPaused,
-  ]);
   const dashboardHeaderCategoryLevelCount =
     dashboardHeaderCategoryLevels.length;
   const normalizedDashboardHeaderCategoryLevelActiveIndex =
@@ -27598,7 +27539,7 @@ export default function DashboardExperience({
         color: category.color,
         id: category.id,
         level: category.level,
-        levelNumber: null,
+        levelNumber: 1,
         recommendedLabel:
           categoryPatternRecommendation?.label ||
           "Not mapped",
@@ -27706,7 +27647,7 @@ export default function DashboardExperience({
     event.stopPropagation();
 
     const now = Date.now();
-    if (now - dashboardHeaderPrWheelLockRef.current < 260) return;
+    if (now - dashboardHeaderPrWheelLockRef.current < 120) return;
 
     dashboardHeaderPrWheelLockRef.current = now;
     rotateDashboardHeaderPrCards(primaryDelta > 0 ? "right" : "left");
@@ -27723,7 +27664,7 @@ export default function DashboardExperience({
     event.stopPropagation();
 
     const now = Date.now();
-    if (now - dashboardHeaderMeterPanelWheelLockRef.current < 260) return;
+    if (now - dashboardHeaderMeterPanelWheelLockRef.current < 120) return;
 
     dashboardHeaderMeterPanelWheelLockRef.current = now;
 
@@ -30011,7 +29952,13 @@ export default function DashboardExperience({
       : clampedDashboardOrbiterRow === 5 ? (["constellation", "fuel", "recovery", "consistency", "challenges", "achievements"] as const)[activeMySoundIndex] ?? "selector"
       : clampedDashboardOrbiterRow === 6 ? /goal/i.test(dashboardSystemCards[activeSystemCenterIndex]?.title ?? "") ? "challenges" : "settings" : "selector";
     const challengeGlyphColors: Record<string, string> = { strength: "#38bdf8", cardio: "#fb7185", mobility: "#a78bfa", recovery: "#34d399", consistency: "#fbbf24", nutrition: "#a3e635", performance: "#60a5fa", learning: "#fb923c" };
-    const cardGlyphColor = cardGlyph === "challenges" && clampedDashboardOrbiterRow === 0
+    const cardGlyphColor = clampedDashboardOrbiterRow === 2
+      ? activeWeeklyRecapIndex === 1 ? "#6ee7b7" : activeWeeklyRecapIndex === 2 ? "#fde68a" : "#67e8f9"
+      : clampedDashboardOrbiterRow === 0 && cardGlyph === "achievements"
+      ? "#fbbf24"
+      : clampedDashboardOrbiterRow === 0 && cardGlyph === "constellation" ? "#a78bfa"
+      : clampedDashboardOrbiterRow === 0 && cardGlyph === "consistency" ? "#34d399"
+      : cardGlyph === "challenges" && clampedDashboardOrbiterRow === 0
       ? challengeGlyphColors[activeDashboardChallengeCategoryId] ?? "#fbbf24"
       : ({ body: "#22d3ee", constellation: "#34d399", consistency: "#2dd4bf", achievements: "#fbbf24", favorites: "#38bdf8", news: "#67e8f9", fuel: "#6ee7b7", recovery: "#fbbf24", settings: "#a78bfa", calendar: "#5eead4", tools: "#fbbf24" } as Partial<Record<DashboardScrollButtonGlyph, string>>)[cardGlyph] ?? "#67e8f9";
     const canPageJoystickScrollUp = clampedDashboardOrbiterRow > 0;
@@ -30576,14 +30523,14 @@ export default function DashboardExperience({
           return (
             <article
               aria-label={
-                isActive ? `${card.title} selected` : `Select ${card.title}`
+                isActive ? `${dashboardSectionName(card.title)} selected` : `Select ${dashboardSectionName(card.title)}`
               }
               aria-pressed={isActive}
               data-dashboard-orbit-card-index={index}
               className={`dashboard-orbit-card dashboard-orbit-card--star group absolute left-1/2 top-1/2 w-[280px] overflow-visible rounded-[30px] border p-3 text-left outline-none sm:w-[360px] ${
                 isActive ? "dashboard-orbit-card--active" : ""
               }`}
-              key={card.title}
+              key={dashboardSectionName(card.title)}
               onClick={() => {
                 if (pointerMovedRef.current) {
                   pointerMovedRef.current = false;
@@ -30610,7 +30557,8 @@ export default function DashboardExperience({
                 // surface for the front card. Undefined drops it, and `none`
                 // still interpolates as blur(0) so the transition survives.
                 filter: slot.blur ? `blur(${slot.blur}px)` : undefined,
-                opacity: slot.opacity,
+                opacity: rowIndex === 3 && absDistance > 1 ? 0 : slot.opacity,
+                pointerEvents: rowIndex === 3 && absDistance > 1 ? "none" : undefined,
                 transform: `translate(-50%, -50%) translateX(${
                   direction * slot.x
                 }px) translateY(${slot.y}px) scale(${slot.scale}) rotateY(${
@@ -30620,7 +30568,9 @@ export default function DashboardExperience({
                   "transform 560ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 360ms ease, filter 360ms ease",
                 zIndex: slot.zIndex,
               }}
-              tabIndex={0}
+              tabIndex={rowIndex === 3 && absDistance > 1 ? -1 : 0}
+              inert={rowIndex === 3 && absDistance > 1}
+              aria-hidden={rowIndex === 3 && absDistance > 1 || undefined}
             >
               {/* The dashboard aura sits in the middle, with page planets on
                   a tilted orbit ring that spins on its own (active system
@@ -30630,12 +30580,7 @@ export default function DashboardExperience({
                 className="dashboard-star-system"
                 data-active={isActive ? "true" : "false"}
               >
-                <div
-                  aria-hidden={isActive ? undefined : "true"}
-                  className={`dashboard-star-system__scene ${
-                    isActive ? "" : "pointer-events-none"
-                  }`}
-                >
+                <MomentumPageOrbit active={isActive} onInteract={() => { pointerMovedRef.current = false; pointerStartRef.current = null; }}>
                   <div className="dashboard-star-system__ring">
                     <span
                       aria-hidden="true"
@@ -30647,7 +30592,7 @@ export default function DashboardExperience({
                       return (
                         <span
                           className="dashboard-star-system__planet-slot"
-                          key={`${card.title}-${step.label}-planet`}
+                          key={`${card.href}-${step.href}-planet`}
                           style={
                             {
                               // +90deg is the near side of the tilted ring,
@@ -30666,7 +30611,7 @@ export default function DashboardExperience({
                             }`}
                           >
                             <button
-                              aria-label={`${card.title}: select ${step.label} planet`}
+                              aria-label={`${dashboardSectionName(card.title)}: select ${step.label} planet`}
                               aria-pressed={isActiveJourneyStep}
                               className={`dashboard-star-system__planet-body border ${getDashboardJourneyStepIconTone(
                                 step,
@@ -30679,7 +30624,6 @@ export default function DashboardExperience({
                                 event.stopPropagation();
                                 selectDashboardOrbitPlanet(card, stepIndex);
                               }}
-                              onPointerDown={(event) => event.stopPropagation()}
                               tabIndex={isActive ? 0 : -1}
                               type="button"
                             >
@@ -30719,7 +30663,7 @@ export default function DashboardExperience({
                               ? "relative z-10 h-11 w-11"
                               : "relative z-10 h-9 w-9"
                           }
-                          label={card.title}
+                          label={dashboardSectionName(card.title)}
                           name={card.icon}
                         />
                       </span>
@@ -30730,13 +30674,13 @@ export default function DashboardExperience({
                       />
                     </span>
                   </span>
-                </div>
-                {/* System options have no child planets, so their active
-                    title stays visible beneath the aura. */}
-                {rowIndex === 6 && isActive && !activeJourneyStep ? (
+                </MomentumPageOrbit>
+                {/* Every active card needs a title, including dashboards
+                    without child planets. */}
+                {isActive && !activeJourneyStep ? (
                   <div className="relative z-10 mx-auto -mt-1 w-full max-w-[21rem] text-center" aria-live="polite" aria-atomic="true">
-                    <h3 className="dashboard-star-system__page-title">
-                      {card.title}
+                    <h3 style={dashboardStarToneStyles[card.tone]} className="dashboard-star-system__page-title">
+                      {dashboardSectionName(card.title)}
                     </h3>
                   </div>
                 ) : null}
@@ -30753,7 +30697,7 @@ export default function DashboardExperience({
                     </div>
                     {journeySteps.length > 1 ? (
                       <button
-                        aria-label={`Previous ${card.title} planet`}
+                        aria-label={`Previous ${dashboardSectionName(card.title)} planet`}
                         className="dashboard-star-system__arrow grid h-10 w-10 shrink-0 place-items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/60"
                         onClick={(event) => {
                           event.preventDefault();
@@ -30779,7 +30723,7 @@ export default function DashboardExperience({
                     </Link>
                     {journeySteps.length > 1 ? (
                       <button
-                        aria-label={`Next ${card.title} planet`}
+                        aria-label={`Next ${dashboardSectionName(card.title)} planet`}
                         className="dashboard-star-system__arrow col-start-3 grid h-10 w-10 shrink-0 place-items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/60"
                         onClick={(event) => {
                           event.preventDefault();
@@ -30792,10 +30736,15 @@ export default function DashboardExperience({
                     ) : null}
                   </div>
                 ) : null}
+                {isActive && card.description ? (
+                  <p className="relative z-10 mx-auto mt-2 w-full max-w-[21rem] whitespace-normal break-words text-center text-xs font-medium leading-5 text-slate-200 sm:text-sm">
+                    {card.description}
+                  </p>
+                ) : null}
                 {!isActive ? (
                   <div className="relative z-10 -mt-2 text-center">
-                    <h3 className="text-base font-black tracking-tight text-white/85 [text-shadow:0_0_18px_rgba(2,6,23,0.9)]">
-                      {card.title}
+                    <h3 style={dashboardStarToneStyles[card.tone]} className="dashboard-star-system__page-title">
+                      {dashboardSectionName(card.title)}
                     </h3>
                   </div>
                 ) : null}
@@ -30868,21 +30817,28 @@ export default function DashboardExperience({
                     </span>
                   </div>
                 )}
-                {clampedDashboardOrbiterRow === 0 ||
+                {isDashboardCommandSnapshot || isDashboardSystemSnapshot ? (
+                  <h2 className={`min-h-8 pl-[76px] text-lg font-black uppercase leading-tight tracking-[0.08em] ${dashboardFloatingSnapshotRowTone.text} sm:text-xl`}>
+                    {isDashboardSystemSnapshot ? "System" : <span className="dashboard-section-heading" style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: "4px 9px" }}><span className="dashboard-section-heading__label" style={{ fontSize: "0.64em", color: "#cbd5e1", letterSpacing: "0.14em", textShadow: "0 1px 0 #334155, 0 2px 0 #020617, 0 3px 8px #020617" }}>Dashboards:</span><span className="dashboard-section-heading__name" style={{ letterSpacing: "0.055em", textShadow: "0 -1px 0 #ffffff70, 0 1px 0 #665728, 0 2px 0 #3c341e, 0 3px 0 #171b27, 0 5px 10px #020617b3" }}>{dashboardSectionName(activeCommandCenter.title)}</span></span>}
+                  </h2>
+                ) : null}
+                {clampedDashboardOrbiterRow === 0 || isDashboardCommandSnapshot || isDashboardSystemSnapshot ||
                 dashboardFloatingSnapshotTitleRepeatsEyebrow ? null : (
-                  <h2 className="mt-0.5 truncate text-lg font-black uppercase tracking-[0.08em] text-white sm:text-xl">
+                  <h2 data-dashboard-floating-card-title className={`mt-0.5 min-h-8 pl-[76px] text-lg font-black uppercase leading-tight tracking-[0.08em] ${dashboardFloatingSnapshotRowTone.text} sm:text-xl`}>
                     {dashboardFloatingSnapshotTitle}
                   </h2>
                 )}
-                <p className="mt-0.5 line-clamp-1 text-[11px] font-semibold leading-4 text-slate-400">
-                  {dashboardFloatingSnapshotDescription}
-                </p>
+                {!isDashboardCommandSnapshot && !isDashboardSystemSnapshot ? (
+                  <p className="mt-0.5 whitespace-normal pl-[76px] text-[11px] font-semibold leading-4 text-slate-300">
+                    {dashboardFloatingSnapshotDescription}
+                  </p>
+                ) : null}
                 {dashboardFloatingSnapshotRowCards.length ? (
                   <AdaptiveColumnIndicators
                     label={`${isDashboardSystemSnapshot ? "System Row" : "Workout / Sessions"} column indicators`}
-                    flat={isDashboardSystemSnapshot}
-                    revolve={isDashboardSystemSnapshot}
-                    className={isDashboardSystemSnapshot ? "!mt-0 !h-16 !justify-[safe_center]" : isDashboardCommandSnapshot ? "!mt-0 !h-16 !justify-center" : "mt-1"}
+                    flat={isDashboardSystemSnapshot || isDashboardCommandSnapshot}
+                    revolve={false}
+                    className={isDashboardSystemSnapshot ? "!mt-0 !mx-auto !mt-1 !h-auto !min-h-0 !w-fit !max-w-full !flex-nowrap !justify-center !gap-0 !overflow-visible" : isDashboardCommandSnapshot ? "!mt-0 !h-16 !justify-center" : "mt-1"}
                     activeIndex={Math.max(0, dashboardFloatingSnapshotActiveCardIndex)}
                     onSelect={(index) => {
                       if (clampedDashboardOrbiterRow === 3) {
@@ -30907,7 +30863,7 @@ export default function DashboardExperience({
                             aria-label={`Show ${card.title}`}
                             aria-selected={isActiveCard}
                             role="tab"
-                            className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border p-0 transition-[border-color,background-color,color,box-shadow] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/60 ${
+                            className={`grid h-8 w-8 shrink-0 place-items-center ${isDashboardSystemSnapshot || isDashboardCommandSnapshot ? "relative !rounded-none !border-x-0 !border-t-0 !border-b-[3px] !border-b-transparent [&[aria-selected=true]]:!border-b-current [&[aria-selected=true]]:shadow-[0_4px_8px_-4px_currentColor]" : "rounded-full"} border p-0 transition-[border-color,background-color,color,box-shadow] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/60 ${
                               isActiveCard
                                 ? dashboardIconToneStyles[card.tone].active
                                 : `${dashboardIconToneStyles[card.tone].idle} opacity-75 hover:opacity-100`
@@ -32124,18 +32080,11 @@ export default function DashboardExperience({
           }
         >
           <span className="dashboard-header-compound-pr-meter__header">
-            <span
-              aria-hidden="true"
-              className="dashboard-header-compound-pr-meter__badge"
-            >
-              LOAD
-            </span>
+
             <span className="dashboard-header-compound-pr-meter__heading-copy">
-              <span className="dashboard-header-compound-pr-meter__eyebrow">
-                Recorded Loads
-              </span>
+
               <span className="dashboard-header-compound-pr-meter__heading">
-                Compound Lifts
+                Best Lifts
               </span>
             </span>
           </span>
@@ -32150,9 +32099,7 @@ export default function DashboardExperience({
                       className={`dashboard-header-compound-pr-meter__item dashboard-header-compound-pr-meter__item--${highlight.tone} dashboard-header-compound-pr-meter__item--slot-${prCardSlot}`}
                       key={`dashboard-header-portal-compound-pr-${highlight.tone}`}
                     >
-                      <span className="dashboard-header-compound-pr-meter__rank">
-                        {highlight.rank}
-                      </span>
+
                       <span className="dashboard-header-compound-pr-meter__copy">
                         <span className="dashboard-header-compound-pr-meter__title">
                           {highlight.label}
@@ -32203,9 +32150,7 @@ export default function DashboardExperience({
                           </span>
                         </span>
                       </span>
-                      <span className="dashboard-header-compound-pr-meter__value">
-                        {highlight.value}
-                      </span>
+
                     </span>
                   );
                 },
@@ -32265,7 +32210,7 @@ export default function DashboardExperience({
                 <span
                   aria-hidden="true"
                   className="dashboard-header-achievement-meter__progress-item"
-                  key={`dashboard-header-portal-achievement-${activeHeaderAchievement.label}`}
+                  key={`dashboard-header-portal-achievement-${activeHeaderAchievement.label.replace(/\s*[·–-]\s*\d+\s*$/, "")}`}
                   style={
                     {
                       "--dashboard-header-achievement-item-progress": `${activeHeaderAchievementProgress}%`,
@@ -32277,14 +32222,14 @@ export default function DashboardExperience({
                   </span>
                   <span className="dashboard-header-achievement-meter__progress-copy">
                     <span className="dashboard-header-achievement-meter__progress-title">
-                      {activeHeaderAchievement.label}
+                      {activeHeaderAchievement.label.replace(/\s*[·–-]\s*\d+\s*$/, "")}
                     </span>
                     <span className="dashboard-header-achievement-meter__progress-meta">
                       <span>
                         {Math.round(activeHeaderAchievementProgress)}%{" "}
                         {activeHeaderAchievement.statusLabel}
                       </span>
-                      <span>{activeHeaderAchievementEstimate.label}</span>
+
                     </span>
                     <span className="dashboard-header-achievement-meter__progress-bar">
                       <span />
@@ -33256,7 +33201,7 @@ export default function DashboardExperience({
     return (
       <div className={`dashboard-hero-card dashboard-hero-card--favorite-workouts ${meterCardStyles.favoriteCard}`}>
         <div className={`${meterCardStyles.content} ${meterCardStyles.favoriteContent}`}>
-          <header className={meterCardStyles.heading}>
+          <header className={`${meterCardStyles.heading} ${meterCardStyles.centeredHeading}`}>
             <p>Your workout library</p>
             <h2 data-card-title-with-icon="true"><span>Favorite Workouts</span></h2>
           </header>
@@ -33769,7 +33714,7 @@ export default function DashboardExperience({
         {panelId === "needle" ? (
         <div className="dashboard-hero-card dashboard-hero-card--needle relative flex h-full min-h-[420px] min-w-0 items-center justify-center overflow-hidden rounded-[30px] border border-white/12 bg-[radial-gradient(ellipse_at_50%_6%,rgba(45,212,191,0.16),transparent_42%),radial-gradient(ellipse_at_50%_90%,rgba(250,204,21,0.08),transparent_38%),linear-gradient(180deg,rgba(15,23,42,0.66),rgba(2,6,23,0.72))] px-2 pb-5 pt-4 shadow-[0_18px_44px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.08)]">
           <div className={meterCardStyles.content}>
-            <header className={meterCardStyles.heading}>
+            <header className={`${meterCardStyles.heading} ${meterCardStyles.centeredHeading}`}>
               <p>Week of {dashboardClockLive ? <DashboardWeekDate date={addDashboardDays(dashboardWeeklySessionResetDate, -6)} /> : "…"}</p>
               <h2 data-card-title-with-icon="true"><span>Consistency</span></h2>
             </header>
@@ -33918,7 +33863,7 @@ export default function DashboardExperience({
             <h2 data-card-title-with-icon="true"><span>Achievements</span></h2>
           </header>
           <div className={meterCardStyles.achievementStage}>
-          <div className={meterCardStyles.cloudCategoryControls}>
+          <div className={meterCardStyles.cloudCategoryControls} style={{ "--cloud-arrow-color": `rgb(${dashboardHeroAchievementCloudTone.rgb})` } as CSSProperties}>
             <button type="button" aria-label="Previous achievement category" onClick={event => { event.stopPropagation(); rotateHeroAchievementCategory(-1); }}><ChevronLeft aria-hidden="true" /></button>
             <button type="button" aria-label="Next achievement category" onClick={event => { event.stopPropagation(); rotateHeroAchievementCategory(1); }}><ChevronRight aria-hidden="true" /></button>
           </div>
@@ -34054,7 +33999,9 @@ export default function DashboardExperience({
                 const resetDirection =
                   heroAchievementSlideDirection === "right" ? 1 : -1;
                 const isRestartingAcrossEdge =
-                  shouldRestartOffEdge && direction === resetDirection;
+                  heroAchievementCount > 2 &&
+                  absDistance === Math.floor(heroAchievementCount / 2) &&
+                  direction === resetDirection;
                 const achievementProgress = Math.min(
                   100,
                   Math.max(
@@ -34111,7 +34058,7 @@ export default function DashboardExperience({
                         direction * slot.rotateY
                       }deg)`,
                       transition: isRestartingAcrossEdge
-                        ? "opacity 180ms ease, filter 180ms ease"
+                        ? "none"
                         : "transform 520ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 320ms ease, filter 320ms ease",
                       zIndex: slot.zIndex,
                     }}
@@ -34127,7 +34074,7 @@ export default function DashboardExperience({
                         isActiveAchievement ? "scale-100" : "scale-95"
                       }`}
                     >
-                      <SoundLogoAchievementBadge compact item={achievement} />
+                      <SoundLogoAchievementBadge compact item={achievement} accentColor={`rgb(${dashboardHeroAchievementCloudTone.rgb})`} />
                     </div>
                     <h3
                       className={`relative z-10 mt-1 max-w-[130px] text-center font-black uppercase leading-tight tracking-[0.1em] ${
@@ -34136,23 +34083,16 @@ export default function DashboardExperience({
                           : "text-[9px] text-slate-300"
                       }`}
                     >
-                      {achievement.label}
+                      {achievement.pathName || achievement.label}
                     </h3>
                     {isActiveAchievement ? (
                       <div className="relative z-10 mt-0.5 w-full text-left">
                         {achievement.meta ? (
-                          <p className="truncate text-center text-[9px] font-bold leading-4 text-slate-300">
+                          <p className={`${meterCardStyles.achievementDescription} text-center font-bold text-slate-300`}>
                             {achievement.meta}
                           </p>
                         ) : null}
-                        <div className="mt-1 flex items-center justify-center gap-1.5">
-                          <span className="rounded-full border border-cyan-100/24 bg-cyan-300/12 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100">
-                            {achievement.category}
-                          </span>
-                          <span className="rounded-full border border-amber-100/24 bg-amber-300/12 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.12em] text-amber-100">
-                            {achievementProgressLabel}
-                          </span>
-                        </div>
+
                       </div>
                     ) : null}
                   </Link>
@@ -34386,8 +34326,7 @@ export default function DashboardExperience({
         (day) => day.dateKey === trainingConstellationTodayDateKey,
       );
     const trainingConstellationTodayPillActive =
-      trainingConstellationTodayIndex === activeTrainingConstellationDayIndex &&
-      trainingConstellationTodayIndex >= 0;
+      constellationTimelineDays[activeTrainingConstellationDayIndex]?.dateKey === trainingConstellationTodayDateKey;
     const trainingConstellationTodayLabel =
       dashboardToday.toLocaleDateString("en-US", {
         month: "short",
@@ -34498,6 +34437,14 @@ export default function DashboardExperience({
 
     const dashboardChallengeCategories = [
       {
+        id: "consistency",
+        label: "Consistency",
+        icon: CalendarCheck,
+        color: "rgb(251, 191, 36)",
+        soft: "rgba(251, 191, 36, 0.16)",
+
+      },
+      {
         id: "strength",
         label: "Strength",
         icon: Dumbbell,
@@ -34527,14 +34474,6 @@ export default function DashboardExperience({
         icon: HeartPulse,
         color: "rgb(52, 211, 153)",
         soft: "rgba(52, 211, 153, 0.16)",
-
-      },
-      {
-        id: "consistency",
-        label: "Consistency",
-        icon: CalendarCheck,
-        color: "rgb(251, 191, 36)",
-        soft: "rgba(251, 191, 36, 0.16)",
 
       },
       {
@@ -34576,7 +34515,7 @@ export default function DashboardExperience({
       ) ?? dashboardChallengeCategories[0];
     const ActiveDashboardChallengeCategoryIcon = activeDashboardChallengeCategory.icon;
 
-    const trainingWeekStart = calendarWeekStart(dashboardToday);
+    const trainingWeekStart = calendarAddDays(calendarWeekStart(dashboardToday), heroTrainingWeekOffset * 7);
     const trainingWeekEnd = calendarAddDays(trainingWeekStart, 6);
     const trainingWeekLabel = new Intl.DateTimeFormat("en-US", {
       month: "short", day: "numeric",
@@ -34618,16 +34557,17 @@ export default function DashboardExperience({
                 dashboardSummaryPane === "goal" ? "flex" : "hidden"
               }`}
               href={ROUTES.dashboard.goals}
+              data-hero-profile-tone="gold"
             >
               <span
                 aria-hidden="true"
-                className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-[9px] border border-amber-200/25 bg-amber-300/10 text-amber-200 shadow-[0_0_14px_rgba(251,191,36,0.14),inset_0_1px_0_rgba(255,255,255,0.08)]"
+                className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center text-amber-100 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]"
               >
-                <Target className="h-3.5 w-3.5" />
+                <Target className="h-5 w-5" />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="flex min-w-0 items-center justify-between gap-2">
-                  <span className="truncate text-[9px] font-black uppercase tracking-[0.15em] text-slate-500">
+                  <span className="truncate text-[9px] font-black uppercase tracking-[0.15em] text-slate-100">
                     Goal Focus
                   </span>
                   <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100">
@@ -34645,16 +34585,17 @@ export default function DashboardExperience({
                 dashboardSummaryPane === "position" ? "flex" : "hidden"
               }`}
               href={dashboardActiveProfileNextHref}
+              data-hero-profile-tone="blue"
             >
               <span
                 aria-hidden="true"
-                className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-[9px] border border-cyan-200/25 bg-cyan-300/10 text-cyan-200 shadow-[0_0_14px_rgba(34,211,238,0.14),inset_0_1px_0_rgba(255,255,255,0.08)]"
+                className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center text-cyan-100 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]"
               >
-                <MapPin className="h-3.5 w-3.5" />
+                <MapPin className="h-5 w-5" />
               </span>
               <span className="min-w-0 flex-1">
               <span className="flex min-w-0 items-center justify-between gap-1">
-                <span className="shrink-0 text-[8px] font-black uppercase tracking-[0.1em] text-slate-500 min-[520px]:text-[9px] min-[520px]:tracking-[0.15em]">
+                <span className="shrink-0 text-[8px] font-black uppercase tracking-[0.1em] text-slate-100 min-[520px]:text-[9px] min-[520px]:tracking-[0.15em]">
                   Position
                 </span>
                 <span className="min-w-0 truncate text-right text-[8px] font-black uppercase tracking-[0.08em] text-cyan-100 min-[520px]:text-[9px] min-[520px]:tracking-[0.12em]">
@@ -34671,16 +34612,24 @@ export default function DashboardExperience({
               <span className="mt-1 block truncate text-[12px] font-black text-white group-hover:text-cyan-100 min-[520px]:text-sm">
                 {masterJourneyCurrentFocus}
               </span>
-              <span className="mt-0.5 block truncate text-[10px] font-semibold text-slate-400">
+              <span className="mt-0.5 block truncate text-[10px] font-semibold text-slate-200">
                 {dashboardActiveProfilePlanDetail}
               </span>
               </span>
             </Link>
           </div>
-          <div className="flex min-h-6 min-w-0 items-center justify-center gap-2 border-t border-cyan-100/10 pt-1 text-[9px] font-black uppercase tracking-[0.08em] [text-shadow:0_1px_0_#376172,0_2px_0_#173445,0_3px_3px_#020617,0_0_8px_rgba(103,232,249,0.25)]">
+          <div className="dashboard-hero-training-week flex min-h-6 min-w-0 flex-col items-center justify-center gap-0.5 border-t border-cyan-100/10 pt-1 text-[9px] font-black uppercase tracking-[0.08em] [text-shadow:0_1px_0_#376172,0_2px_0_#173445,0_3px_3px_#020617,0_0_8px_rgba(103,232,249,0.25)]">
             <span className="inline-flex items-center gap-1.5 text-cyan-100/80">
+              <TrainingWeekDotPicker today={dashboardToday} selectedWeek={trainingWeekStart} onSelect={day => {
+                const selected = calendarWeekStart(day);
+                const current = calendarWeekStart(dashboardToday);
+                const offset = Math.round((Date.UTC(selected.getFullYear(), selected.getMonth(), selected.getDate()) - Date.UTC(current.getFullYear(), current.getMonth(), current.getDate())) / 604800000);
+                setHeroTrainingWeekOffset(Math.min(0, offset));
+              }} />
               Training week of
             </span>
+            <div className="flex items-center justify-center gap-3">
+            <button type="button" aria-label="Previous training week" onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); setHeroTrainingWeekOffset(value => value - 1); }} className="grid h-7 w-7 place-items-center text-cyan-100 hover:text-white"><ChevronLeft className="h-5 w-5" /></button>
             <span className="whitespace-nowrap text-cyan-100 tabular-nums">
               {trainingWeekLabel.map((part, index) => part.type === "month" ? (
                 <span key={index} className="relative isolate inline-block px-1" style={{ color: calendarMonthColor((part.source === "endRange" ? trainingWeekEnd : trainingWeekStart).getMonth()) }}>
@@ -34694,6 +34643,8 @@ export default function DashboardExperience({
                 })()}</sup></span>
               ) : <span key={index}>{part.value}</span>)}
             </span>
+            <button type="button" aria-label="Next training week" disabled={heroTrainingWeekOffset >= 0} onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); setHeroTrainingWeekOffset(value => Math.min(0, value + 1)); }} className="grid h-7 w-7 place-items-center text-cyan-100 hover:text-white disabled:opacity-25"><ChevronRight className="h-5 w-5" /></button>
+            </div>
           </div>
         </div>
       </div>
@@ -34704,6 +34655,7 @@ export default function DashboardExperience({
         active={!dashboardHeroNewsOpen && activeDashboardHeroCardIndex === 0 && clampedDashboardOrbiterRow === 0}
         bodyMapHref={ROUTES.dashboard.exerciseLibrary}
         commandCenterSlot={renderDashboardCommandCenterSummaryPanel()}
+        trainingWeekStart={calendarDateKey(trainingWeekStart)}
       />
     );
 
@@ -34968,7 +34920,7 @@ export default function DashboardExperience({
             <button
               aria-label={`Return training constellation to today, ${trainingConstellationTodayLabel}`}
               aria-pressed={trainingConstellationTodayPillActive}
-              className={`inline-flex min-h-7 max-w-full shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[7px] font-black uppercase tracking-[0.12em] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 ${
+              className={`inline-grid min-h-7 max-w-full shrink-0 grid-cols-[14px_auto] items-center gap-x-1.5 gap-y-0.5 rounded-full border px-2.5 py-1 text-[7px] font-black uppercase tracking-[0.12em] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 ${
                 trainingConstellationTodayPillActive
                   ? "border-orange-200/70 bg-orange-300/15 text-orange-100 shadow-[inset_0_1px_0_rgba(255,237,213,0.2)]"
                   : "border-orange-200/30 bg-orange-300/5 text-orange-200 hover:border-orange-100/65 hover:bg-orange-300/12"
@@ -34984,8 +34936,9 @@ export default function DashboardExperience({
               onPointerUp={(event) => event.stopPropagation()}
               type="button"
             >
-              <CalendarDays aria-hidden="true" className="h-3.5 w-3.5" />
-              <span>Today</span>
+              <CalendarDays aria-hidden="true" className="col-start-1 row-start-1 h-3.5 w-3.5" />
+              <span className="col-start-2 row-start-1 inline-flex min-h-3.5 items-center justify-center leading-tight">Today</span>
+              <span className="col-span-2 row-start-2 w-full text-center text-[8px] leading-tight tracking-normal normal-case text-white opacity-100">{dashboardToday.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
             </button>
           </div>
         ) : null}
@@ -35012,7 +34965,7 @@ export default function DashboardExperience({
         </div>
 
         <div
-          className="relative z-30 mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-0 sm:hidden"
+          className="dashboard-training-constellation-selectors relative z-30 mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-0 sm:hidden"
           data-dashboard-orbiter-local-scroll="true"
           onClick={(event) => event.stopPropagation()}
           onPointerDown={(event) => event.stopPropagation()}
@@ -35020,20 +34973,39 @@ export default function DashboardExperience({
           onPointerUp={(event) => event.stopPropagation()}
           onWheel={(event) => event.stopPropagation()}
         >
-          <div className="flex w-full items-center justify-center pb-1" aria-label="Training constellation week navigation">
-            <button aria-label="Previous constellation week" className="grid h-6 w-6 shrink-0 place-items-center bg-transparent text-cyan-200 transition hover:text-white focus-visible:outline-cyan-200" onClick={() => moveTrainingConstellationWeek(-1)} type="button">
+          <div className="flex w-full items-center justify-center pb-0" aria-label="Training constellation week navigation">
+            <button aria-label="Previous constellation week" className="grid h-5 w-6 shrink-0 place-items-center bg-transparent text-cyan-200 transition hover:text-white focus-visible:outline-cyan-200" onClick={() => moveTrainingConstellationWeek(-1)} type="button">
               <ChevronLeft aria-hidden="true" className="h-3.5 w-3.5" />
             </button>
             <span aria-live="polite" aria-atomic="true" className="min-w-0 text-center text-[8px] font-black uppercase leading-tight tracking-[0.08em] text-cyan-100/80">
               <DashboardWeekDate date={new Date(`${trainingConstellationWeek[0].dateKey}T12:00:00`)} /> – <DashboardWeekDate date={new Date(`${trainingConstellationWeek[6].dateKey}T12:00:00`)} />
             </span>
-            <button aria-label="Next constellation week" className="grid h-6 w-6 shrink-0 place-items-center bg-transparent text-cyan-200 transition hover:text-white focus-visible:outline-cyan-200" onClick={() => moveTrainingConstellationWeek(1)} type="button">
+            <button aria-label="Next constellation week" className="grid h-5 w-6 shrink-0 place-items-center bg-transparent text-cyan-200 transition hover:text-white focus-visible:outline-cyan-200" onClick={() => moveTrainingConstellationWeek(1)} type="button">
               <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
             </button>
           </div>
           <button
+            aria-label="Move up to the previous constellation day"
+            className="grid h-6 w-8 place-items-center border-0 bg-transparent p-0 text-emerald-100 drop-shadow-[0_0_8px_rgba(52,211,153,0.28)] transition hover:-translate-y-0.5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 disabled:cursor-not-allowed disabled:text-slate-600 disabled:drop-shadow-none"
+            disabled={activeTrainingConstellationDayIndex === 0}
+            onClick={(event) => {
+              event.stopPropagation();
+              moveTrainingConstellationTimeline(-1);
+            }}
+            type="button"
+          >
+            <ChevronUp aria-hidden="true" className="h-4 w-4" />
+          </button>
+
+          <div className="min-w-[8.5rem] text-center">
+            <div className="mt-0 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
+              {new Date(`${constellationTimelineDays[activeTrainingConstellationDayIndex].dateKey}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }).replace(",", "")}
+            </div>
+          </div>
+
+          <button
             aria-label="Move down to the next constellation day"
-            className="grid h-8 w-8 place-items-center border-0 bg-transparent p-0 text-cyan-100 drop-shadow-[0_0_8px_rgba(34,211,238,0.28)] transition hover:-translate-y-0.5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 disabled:cursor-not-allowed disabled:text-slate-600 disabled:drop-shadow-none"
+            className="grid h-6 w-8 place-items-center border-0 bg-transparent p-0 text-cyan-100 drop-shadow-[0_0_8px_rgba(34,211,238,0.28)] transition hover:-translate-y-0.5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 disabled:cursor-not-allowed disabled:text-slate-600 disabled:drop-shadow-none"
             disabled={
               activeTrainingConstellationDayIndex ===
               (typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches ? constellationTimelineDays.length : dashboardTrainingConstellationDays.length) - 1
@@ -35046,29 +35018,10 @@ export default function DashboardExperience({
           >
             <ChevronDown aria-hidden="true" className="h-4 w-4" />
           </button>
-
-          <div className="min-w-[8.5rem] text-center">
-            <div className="mt-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
-              {new Date(`${constellationTimelineDays[activeTrainingConstellationDayIndex].dateKey}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }).replace(",", "")}
-            </div>
-          </div>
-
-          <button
-            aria-label="Move up to the previous constellation day"
-            className="grid h-8 w-8 place-items-center border-0 bg-transparent p-0 text-emerald-100 drop-shadow-[0_0_8px_rgba(52,211,153,0.28)] transition hover:-translate-y-0.5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 disabled:cursor-not-allowed disabled:text-slate-600 disabled:drop-shadow-none"
-            disabled={activeTrainingConstellationDayIndex === 0}
-            onClick={(event) => {
-              event.stopPropagation();
-              moveTrainingConstellationTimeline(-1);
-            }}
-            type="button"
-          >
-            <ChevronUp aria-hidden="true" className="h-4 w-4" />
-          </button>
         </div>
 
         <div
-          className="relative z-30 mt-2 hidden flex-wrap items-center justify-center gap-x-2 gap-y-0 sm:flex"
+          className="dashboard-training-constellation-selectors relative z-30 mt-1 hidden flex-wrap items-center justify-center gap-x-2 gap-y-0 sm:flex"
           data-dashboard-orbiter-local-scroll="true"
           onClick={(event) => event.stopPropagation()}
           onPointerDown={(event) => event.stopPropagation()}
@@ -35077,19 +35030,19 @@ export default function DashboardExperience({
           onWheel={(event) => event.stopPropagation()}
         >
           <div className="flex w-full items-center justify-center pb-1" aria-label="Training constellation week navigation">
-            <button aria-label="Previous constellation week" className="grid h-6 w-6 shrink-0 place-items-center bg-transparent text-cyan-200 transition hover:text-white focus-visible:outline-cyan-200" onClick={() => moveTrainingConstellationWeek(-1)} type="button">
+            <button aria-label="Previous constellation week" className="grid h-5 w-6 shrink-0 place-items-center bg-transparent text-cyan-200 transition hover:text-white focus-visible:outline-cyan-200" onClick={() => moveTrainingConstellationWeek(-1)} type="button">
               <ChevronLeft aria-hidden="true" className="h-3.5 w-3.5" />
             </button>
             <span aria-live="polite" aria-atomic="true" className="min-w-0 text-center text-[8px] font-black uppercase leading-tight tracking-[0.08em] text-cyan-100/80">
               <DashboardWeekDate date={new Date(`${trainingConstellationWeek[0].dateKey}T12:00:00`)} /> – <DashboardWeekDate date={new Date(`${trainingConstellationWeek[6].dateKey}T12:00:00`)} />
             </span>
-            <button aria-label="Next constellation week" className="grid h-6 w-6 shrink-0 place-items-center bg-transparent text-cyan-200 transition hover:text-white focus-visible:outline-cyan-200" onClick={() => moveTrainingConstellationWeek(1)} type="button">
+            <button aria-label="Next constellation week" className="grid h-5 w-6 shrink-0 place-items-center bg-transparent text-cyan-200 transition hover:text-white focus-visible:outline-cyan-200" onClick={() => moveTrainingConstellationWeek(1)} type="button">
               <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
             </button>
           </div>
           <button
             aria-label="Show previous constellation day"
-            className="grid h-8 w-8 place-items-center rounded-full border border-emerald-200/24 bg-emerald-300/8 text-emerald-100 shadow-[0_0_16px_rgba(52,211,153,0.08)] transition hover:border-emerald-200/55 hover:bg-emerald-300/16 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-slate-950/30 disabled:text-slate-600 disabled:shadow-none"
+            className="grid h-6 w-8 place-items-center rounded-full border border-emerald-200/24 bg-emerald-300/8 text-emerald-100 shadow-[0_0_16px_rgba(52,211,153,0.08)] transition hover:border-emerald-200/55 hover:bg-emerald-300/16 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-slate-950/30 disabled:text-slate-600 disabled:shadow-none"
             disabled={activeTrainingConstellationDayIndex === 0}
             onClick={(event) => {
               event.stopPropagation();
@@ -35104,14 +35057,14 @@ export default function DashboardExperience({
             <div className="text-[7px] font-black uppercase tracking-[0.18em] text-slate-500">
               Timeline Focus
             </div>
-            <div className="mt-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
+            <div className="mt-0 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
               {new Date(`${constellationTimelineDays[activeTrainingConstellationDayIndex].dateKey}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }).replace(",", "")}
             </div>
           </div>
 
           <button
             aria-label="Show next constellation day"
-            className="grid h-8 w-8 place-items-center rounded-full border border-cyan-200/24 bg-cyan-300/8 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.08)] transition hover:border-cyan-200/55 hover:bg-cyan-300/16 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-slate-950/30 disabled:text-slate-600 disabled:shadow-none"
+            className="grid h-6 w-8 place-items-center rounded-full border border-cyan-200/24 bg-cyan-300/8 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.08)] transition hover:border-cyan-200/55 hover:bg-cyan-300/16 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-slate-950/30 disabled:text-slate-600 disabled:shadow-none"
             disabled={
               activeTrainingConstellationDayIndex ===
               (typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches ? constellationTimelineDays.length : dashboardTrainingConstellationDays.length) - 1
@@ -35153,23 +35106,6 @@ export default function DashboardExperience({
               if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(event.key)) trainingConstellationUserScrollRef.current = true;
             }}
             ref={dashboardTrainingConstellationScrollRef}
-            onScroll={(event) => {
-              const scroller = event.currentTarget;
-              const todayRow = Array.from(scroller.querySelectorAll<HTMLElement>('[data-training-constellation-today="true"]'))
-                .find((element) => element.getClientRects().length > 0);
-              if (!todayRow) {
-                setConstellationScrolledAwayFromToday(false);
-                return;
-              }
-              const viewport = scroller.getBoundingClientRect();
-              const row = todayRow.getBoundingClientRect();
-              const header = scroller.querySelector<HTMLElement>("[data-training-constellation-track-header]");
-              const headerHeight = header?.getClientRects().length ? header.offsetHeight : 0;
-              setConstellationScrolledAwayFromToday(
-                row.bottom <= viewport.top + headerHeight + 1 || row.top >= viewport.bottom - 1 ||
-                row.right <= viewport.left + 1 || row.left >= viewport.right - 1,
-              );
-            }}
             onScrollEnd={(event) => {
               if (!trainingConstellationUserScrollRef.current) return;
               trainingConstellationUserScrollRef.current = false;
@@ -35248,7 +35184,7 @@ export default function DashboardExperience({
                     <div key={`timeline-${day.dateKey}`} className="snap-start snap-always" data-training-constellation-day-index={dayIndex} data-training-constellation-today={isToday ? "true" : undefined}>
                     {dayIndex % 7 === 0 && <div className="relative z-10 border-y px-3 py-0.5 text-[9px] font-black uppercase leading-tight tracking-wider" style={{ color: monthColor, borderColor: `${monthColor}88`, background: `linear-gradient(90deg, ${monthColor}30, #020617dd)` }}>Week of <DashboardWeekDate date={new Date(`${day.dateKey}T12:00:00`)} /></div>}
                     <div
-                      className={`relative grid min-h-[64px] items-stretch border-b border-white/20 py-1 transition-colors last:border-b-0 ${
+                      className={`relative grid min-h-[54px] items-stretch border-b border-white/20 py-0.5 transition-colors last:border-b-0 ${
                         isActiveDay && isToday
                           ? "bg-orange-300/[0.06] shadow-[inset_2px_0_0_rgba(253,186,116,0.75)]"
                           : isActiveDay
@@ -35653,7 +35589,7 @@ export default function DashboardExperience({
         style={{ "--hero-card-color": activeDashboardChallengeCategory.color } as CSSProperties}
       >
         <div className={`${meterCardStyles.content} ${meterCardStyles.challengeContent}`}>
-          <header className={meterCardStyles.heading}>
+          <header className={`${meterCardStyles.heading} ${meterCardStyles.centeredHeading}`}>
             <p>Your next milestones</p>
             <h2 data-card-title-with-icon="true"><span>Challenges</span></h2>
           </header>
@@ -35838,7 +35774,7 @@ export default function DashboardExperience({
               ) : null}
             </span>
             <span className="min-w-0 leading-tight">
-              <span className="block whitespace-normal break-words text-[10px] font-black uppercase leading-tight text-cyan-50/90">
+              <span className={`block whitespace-normal break-words ${dashboardHeroNewsNextEvent ? "text-[10px]" : "text-[8px]"} font-black uppercase leading-tight text-cyan-50/90`}>
                 {dashboardHeroNewsNextEvent?.title ??
                   "No upcoming events scheduled"}
               </span>
@@ -36091,19 +36027,7 @@ export default function DashboardExperience({
                         ) : null}
                       </div>
                       {newsIndex === 0 && featuredNews.length > 1 ? (
-                        <div className={meterCardStyles.newsFeatureControls} data-news-feature-controls="true" aria-label="Featured articles" onWheel={event => {
-                          event.stopPropagation();
-                          const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-                          const now = Date.now();
-                          if (Math.abs(delta) < 8 || now - featuredNewsWheelAt.current < 240) return;
-                          featuredNewsWheelAt.current = now;
-                          setFeaturedNewsIndex((activeFeatureIndex + (delta > 0 ? 1 : -1) + featuredNews.length) % featuredNews.length);
-                        }} onKeyDown={event => {
-                          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-                          event.preventDefault();
-                          event.stopPropagation();
-                          setFeaturedNewsIndex((activeFeatureIndex + (event.key === "ArrowRight" ? 1 : -1) + featuredNews.length) % featuredNews.length);
-                        }}>
+                        <div className={meterCardStyles.newsFeatureControls} data-news-feature-controls="true" aria-label="Featured articles" onWheel={event => { event.preventDefault(); event.stopPropagation(); }}>
                           <button type="button" aria-label="Previous featured article" onClick={() => setFeaturedNewsIndex((activeFeatureIndex - 1 + featuredNews.length) % featuredNews.length)}><ChevronLeft aria-hidden="true" /></button>
                           <div className={meterCardStyles.newsFeatureBlips} role="group" aria-label="Choose featured article">
                             {featuredNews.map((feature, index) => <button key={feature.id} type="button" aria-label={`Show featured article: ${feature.title}`} aria-pressed={index === activeFeatureIndex} aria-controls="news-featured-article" title={feature.title} onClick={() => setFeaturedNewsIndex(index)}><span /></button>)}
@@ -36128,6 +36052,7 @@ export default function DashboardExperience({
       <div
         aria-label="Dashboard hero horizontal orbit"
         data-dashboard-orbiter-row="0"
+        data-news-active={dashboardHeroNewsOpen}
         className="dashboard-hero-horizontal-orbit relative z-10 mx-auto flex h-full min-h-0 w-full max-w-[1180px] flex-col overflow-visible"
       >
         <div className="sr-only">
@@ -36150,7 +36075,7 @@ export default function DashboardExperience({
           ) : null}
           {dashboardHeroNewsOpen ? <button type="button" className={`${meterCardStyles.newsNextEventCompact} relative ml-auto hidden min-h-11 min-w-0 rounded-xl border border-cyan-200/15 bg-slate-950/60 text-left`} disabled={!dashboardHeroNewsNextEvent} aria-label={dashboardHeroNewsNextEvent ? `Open next event details: ${dashboardHeroNewsNextEvent.title}` : "No upcoming events scheduled"} aria-haspopup={dashboardHeroNewsNextEvent ? "dialog" : undefined} aria-expanded={dashboardHeroNewsNextEvent ? dashboardNewsEventPopupOpen : undefined} aria-controls={dashboardHeroNewsNextEvent ? "dashboard-hero-news-next-event-popup" : undefined} onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); if (dashboardHeroNewsNextEvent) setDashboardNewsEventPopupOpen(true); }}>
             <span className="flex items-center gap-1.5 text-[10px] font-black uppercase text-cyan-200"><span aria-hidden="true" className={meterCardStyles.newsEventStatus} data-upcoming={Boolean(dashboardHeroNewsNextEvent)} />Next event</span>
-            <span className="block w-full whitespace-normal break-words text-xs font-bold leading-tight text-slate-100">{dashboardHeroNewsNextEvent?.title ?? "No upcoming events scheduled"}</span>
+            <span className={`block w-full whitespace-normal break-words ${dashboardHeroNewsNextEvent ? "text-xs" : "text-[10px]"} font-bold leading-tight text-slate-100`}>{dashboardHeroNewsNextEvent?.title ?? "No upcoming events scheduled"}</span>
           </button> : null}
         <div
           aria-label="Choose dashboard hero card"
@@ -37015,6 +36940,7 @@ export default function DashboardExperience({
       >
         {title}
       </h2>
+      {description ? (
       <p
         className={`mt-1 max-w-[32rem] text-xs font-semibold leading-5 text-slate-300 ${
           isStackedOnNarrow ? "max-sm:line-clamp-2" : ""
@@ -37022,6 +36948,7 @@ export default function DashboardExperience({
       >
         {description}
       </p>
+      ) : null}
       {rowHorizontalIndicatorItems.length && rowIndex !== 1 ? (
         <div
           aria-label={`${title} card position indicator`}
@@ -41096,8 +41023,7 @@ export default function DashboardExperience({
         {renderDashboardRowTitle({
           accentClassName:
             "bg-cyan-300 shadow-[0_0_14px_rgba(34,211,238,0.65)]",
-          description:
-            "Swipe sideways or use the arrows to page through every tool.",
+          description: "",
           kicker: "Daily command row",
           hidePills: true,
           stack: true,
@@ -44120,6 +44046,12 @@ export default function DashboardExperience({
     dashboardSummary={dashboardSummary}
     setDashboardMasterPlanScrollerNode={setDashboardMasterPlanScrollerNode}
     dashboardMasterPlanTimeline={dashboardMasterPlanTimeline}
+    activeTimelinePlanTitle={activeTimelinePlanTitle}
+    onNextTimelinePlan={() => {
+      if (!sharedProgramProgress.activePlans.length) { window.location.assign(ROUTES.dashboard.myPlan); return; }
+      setTimelinePlanIndex(index => (index + 1) % sharedProgramProgress.activePlans.length);
+      setActiveMasterPlanStepIndex(0);
+    }}
     activeMasterPlanStepIndex={activeMasterPlanStepIndex}
     setActiveMasterPlanStepIndex={setActiveMasterPlanStepIndex}
   />;
@@ -44236,9 +44168,11 @@ export default function DashboardExperience({
             </div>
             {!isAdminPreview && renderDashboardFloatingSnapshotHeader()}
             {!isAdminPreview && !isCoachWorkspace && renderDashboardPageLevelMeter()}
-            <DashboardRowMenu open={dashboardNavigationIndicatorsOpen || dashboardScrollIndicatorAxis === "vertical"} onOpenChange={changeDashboardNavigationIndicators} renderTrigger={(toggle) => <>
+            <DashboardRowMenu open={dashboardNavigationIndicatorsOpen || (!dashboardHeroNewsOpen && dashboardScrollIndicatorAxis === "vertical")} onOpenChange={changeDashboardNavigationIndicators} renderTrigger={(toggle) => <>
               {renderDashboardPageAnalog(toggle)}
               {(["up", "right", "down", "left"] as const).map((direction) => {
+                if (direction === "down" && dashboardHeroNewsOpen && clampedDashboardOrbiterRow === 0) return null;
+                if (!isAdminPreview && clampedDashboardOrbiterRow === 7 && (direction === "left" || direction === "right")) return null;
                 const Arrow = direction === "up" ? ChevronUp : direction === "right" ? ChevronRight : direction === "down" ? ChevronDown : ChevronLeft;
                 return <button key={direction} type="button" data-card-joystick-arrow={direction} aria-label={`Navigate cards ${direction}`} disabled={direction === "up" ? clampedDashboardOrbiterRow === 0
                     : direction === "down" ? clampedDashboardOrbiterRow === dashboardOrbiterRows.length - 1

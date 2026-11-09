@@ -34,7 +34,7 @@ test('saves are account guarded, retry safe, and preserve damaged records', () =
 });
 test('meter evidence uses actual daily records, keeps zero sets, and excludes future records', () => {
   const health = { latestCheckIn: null, nutritionIssue: '', checkInDays: [{ date: '2026-11-03', sleep: 8, core: 0 }, { date: '2026-11-04', sleep: 2 }] };
-  const evidence = load('lib/planning/bodyCommandEvidence.ts', { './dashboardHealthEvidence': { readDashboardHealthEvidence: () => health }, './store': { planningSnapshot: () => ({}) }, './dates': dates, './supportSignalValidation': schema });
+  const evidence = load('lib/planning/bodyCommandEvidence.ts', { './mealValidation': load('lib/planning/mealValidation.ts', { './dates': dates }), './nutritionSummary': { nutritionDay: () => ({ mealCount: 0, nutrients: {calories: {value:null}, protein: {value:null}, carbs: {value:null}, fat: {value:null}} }) }, './dashboardHealthEvidence': { readDashboardHealthEvidence: () => health }, './store': { planningKeys: { meals: 'meals', profile: 'profile' }, planningSnapshot: () => ({}) }, './dates': dates, './supportSignalValidation': schema });
   const base = { date: '2026-11-03', notes: '', recordedAt: '2026-11-03T12:00:00Z' };
   const rows = [{ ...base, id: 'sleep', kind: 'sleep', value: 8 }, { ...base, id: 'core', kind: 'core', value: 0 }, { ...base, id: 'later', date: '2026-11-04', kind: 'sleep', value: 2 }];
   const actual = evidence.readBodyCommandEvidence(new Date('2026-11-03T20:00:00Z'), { [schema.SUPPORT_RECORDS_KEY]: rows });

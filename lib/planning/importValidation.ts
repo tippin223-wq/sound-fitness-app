@@ -43,6 +43,7 @@ export function validatePlanningImport(values: Record<string, unknown>): string 
       const items = Array.isArray(value) ? value : record(value) ? value.items : null;
       valid = objects(items) && uniqueIds(items) && items.every(item => text(item.id) && text(item.title));
     }
+    else if (key === "soundFitnessDashboardSupportSignals") valid = Array.isArray(value) && value.length <= 14 && new Set(value).size === value.length && value.every(item => oneOf(item, ["sleep", "stress", "fatigue", "soreness", "recovery", "core", "fuel", "hydration", "weight", "photos", "protein", "carbs", "fat", "meals"]));
     else if (key === SUPPORT_RECORDS_KEY) valid = validSupportHistory(value);
     else if (key === "soundFitnessMealDraft") valid = validMealDraft(value);
     else if (key === "soundFitnessMealTemplates") valid = objects(value) && value.length <= 100 && uniqueIds(value) && value.every(validMealTemplate);

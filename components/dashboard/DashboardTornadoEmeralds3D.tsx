@@ -55,10 +55,10 @@ const EMERALD_ORBIT_SECONDS = 82;
 const EMERALD_SPIN_RADIANS_PER_SECOND = 0.09;
 const EMERALD_START_Y = -0.78;
 const EMERALD_RISE_Y = 2.3;
-const TORNADO_MIST_PARTICLE_COUNT = 260;
-const TORNADO_SPARK_PARTICLE_COUNT = 64;
+const TORNADO_MIST_PARTICLE_COUNT = 180;
+const TORNADO_SPARK_PARTICLE_COUNT = 44;
 const TORNADO_STREAM_COUNT = 4;
-const TORNADO_STREAM_SEGMENTS = 92;
+const TORNADO_STREAM_SEGMENTS = 64;
 const TORNADO_WEBGL_MOTION_RATE = 0.27;
 const WEBGL_CONTEXT_RESTART_DELAY_MS = 220;
 
@@ -361,14 +361,18 @@ const createRoundedPanelGeometry = (
 
 export default function DashboardTornadoEmeralds3D({
   dimmed = false,
+  closing = false,
   paused = false,
   tone = "green",
 }: {
   /** Subdue the whole scene (the UFO-highlight state); glides ~320ms. */
   dimmed?: boolean;
+  closing?: boolean;
   paused?: boolean;
   tone?: DashboardTornadoGemTone;
 }) {
+  const closingRef = useRef(closing);
+  closingRef.current = closing;
   const pausedRef = useRef(paused);
   const toneRef = useRef(tone);
   const dimmedRef = useRef(dimmed);
@@ -791,8 +795,18 @@ export default function DashboardTornadoEmeralds3D({
       // real darkening.
       let glowLevel = dimmedRef.current ? 0.35 : 0.9;
 
+      let closeFade = 1;
+      const fadeMaterials = new Map<import("three").Material, number>();
       const update = (_elapsedSeconds: number, deltaSeconds: number) => {
-        if (!pausedRef.current) {
+        // Restore the last frame before applying this frame's authored opacities.
+        fadeMaterials.forEach((opacity, material) => { material.opacity = opacity; });
+        fadeMaterials.clear();
+        const previousFade = closeFade;
+        closeFade = closingRef.current
+          ? Math.max(0, closeFade - Math.max(0, deltaSeconds) / 0.16)
+          : 1;
+        scene.visible = closeFade > 0;
+        if (!pausedRef.current && !closingRef.current) {
           throttleSkip = !throttleSkip;
           if (throttleSkip) {
             // No other mutations on skip calls — the tone check runs
@@ -834,6 +848,7 @@ export default function DashboardTornadoEmeralds3D({
         lastAppliedElapsedSeconds = elapsedSeconds;
         const seconds = elapsedSeconds;
         const tornadoSeconds = seconds * TORNADO_WEBGL_MOTION_RATE;
+        const particleSeconds = tornadoSeconds * 0.5;
 
         tornadoGroup.rotation.z = Math.sin(tornadoSeconds * 0.72) * 0.018;
         funnel.rotation.y = tornadoSeconds * 0.95;
@@ -853,8 +868,8 @@ export default function DashboardTornadoEmeralds3D({
         sparkMaterial.opacity = 0.9 * Math.min(1, glowLevel);
         streamGroup.rotation.y = tornadoSeconds * 1.15;
         streamGroup.position.x = Math.sin(tornadoSeconds * 0.9) * 0.035;
-        mistParticles.rotation.y = tornadoSeconds * 0.56;
-        sparkParticles.rotation.y = tornadoSeconds * 0.82;
+        mistParticles.rotation.y = particleSeconds * 0.56;
+        sparkParticles.rotation.y = particleSeconds * 0.82;
 
         spiralStreams.forEach(({ material, phase, speed, stream }) => {
           stream.rotation.y = tornadoSeconds * speed + phase * 0.22;
@@ -875,14 +890,14 @@ export default function DashboardTornadoEmeralds3D({
         updateParticlePositions(
           mistPositions,
           mistSpecs,
-          tornadoSeconds,
+          particleSeconds,
           mistPositionAttribute,
           0.16,
         );
         updateParticlePositions(
           sparkPositions,
           sparkSpecs,
-          tornadoSeconds * 1.08,
+          particleSeconds * 1.08,
           sparkPositionAttribute,
           0.22,
         );
@@ -919,7 +934,17 @@ export default function DashboardTornadoEmeralds3D({
           });
         });
 
-        return stillMoving;
+        scene.traverse((object) => {
+          const material = (object as MaterialObject).material;
+          if (!material) return;
+          for (const item of Array.isArray(material) ? material : [material]) {
+            if (fadeMaterials.has(item)) continue;
+            fadeMaterials.set(item, item.opacity);
+            item.transparent = true;
+            item.opacity *= closeFade;
+          }
+        });
+        return stillMoving || closeFade !== previousFade;
       };
 
       const dispose = () => {
@@ -939,12 +964,12 @@ export default function DashboardTornadoEmeralds3D({
       className="dashboard-header-meter-tornado__emeralds-3d"
       style={{
         bottom: "auto",
-        height: "112%",
-        left: "-6%",
+        height: "100%",
+        left: "0",
         position: "absolute",
         right: "auto",
-        top: "-6%",
-        width: "112%",
+        top: "0",
+        width: "100%",
         zIndex: 5,
       }}
     />

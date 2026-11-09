@@ -19,7 +19,7 @@ export default function DashboardRowMenu({ children, label = "dashboard row menu
     let timeout: ReturnType<typeof setTimeout>;
     const resetTimeout = () => {
       clearTimeout(timeout);
-      timeout = setTimeout(() => setVisible(false), 5000);
+      timeout = setTimeout(() => setVisible(false), 3000);
     };
     const handleActivity = (event: Event) => {
       if (event.target instanceof Element && event.target.closest("[data-dashboard-row-menu], [data-dashboard-hero-toolbar]")) resetTimeout();
