@@ -253,3 +253,17 @@
 @media (prefers-reduced-motion: reduce) {
   .panel :global(.dashboard-page-orbit-node[aria-current="true"]::before) { animation: none; }
 }
+
+/* Keep the left direction comfortably inside the screen, with larger touch targets. */
+.joystickTab { left: 10px; width: 84px; height: 84px; }
+.joystickTab :global([data-dashboard-page-analog]) {
+  top: 22px; left: 22px; width: 40px !important; height: 40px !important;
+}
+.joystickTab :global([data-card-joystick-arrow]) { width: 32px; height: 32px; }
+.joystickTab :global([data-card-joystick-arrow="up"]) { top: 0; left: 26px; }
+.joystickTab :global([data-card-joystick-arrow="down"]) { bottom: 0; left: 26px; }
+.joystickTab :global([data-card-joystick-arrow="left"]) { top: 26px; left: 0; }
+.joystickTab :global([data-card-joystick-arrow="right"]) { top: 26px; right: 0; }
+.root:has(.joystickTab) .panel :global(.dashboard-page-orbit-shell) {
+  top: calc(var(--dashboard-row-menu-top, 9rem) + 90px);
+}

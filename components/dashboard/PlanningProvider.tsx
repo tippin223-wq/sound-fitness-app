@@ -1,12 +1,12 @@
 "use client";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import loadingStyles from "./DashboardLoading.module.css";
 import { syncPreloaderAura } from "./preloaderAura";
 import { useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { publishWeeklyRewards } from "@/lib/planning/weeklyRewardBalances";
-import { initializePlanning, subscribePlanning, planningStatus, legacyAvailable, importLegacyPlanning, dismissLegacy, syncPlanning, resolvePlanningConflict, refreshPlanningFromStorage, planningAccountGeneration, exportPlanningBackup } from "@/lib/planning/store";
+import { initializePlanning, subscribePlanning, planningStatus, legacyAvailable, importLegacyPlanning, dismissLegacy, syncPlanning, resolvePlanningConflict, refreshPlanningFromStorage, planningAccountGeneration, exportPlanningBackup, planningOnlineSaveState } from "@/lib/planning/store";
 import { readWorkoutBuilderTemplates } from "@/lib/localData/workoutBuilderData";
 import { readPlanningLogs, planningLogUploadConfirmed } from "@/lib/planning/logs";
 import { syncPendingPlanningWorkouts, syncPendingWorkoutTemplates } from "@/lib/data/workoutPersistence";
@@ -16,6 +16,7 @@ import WorkoutTemplateConflicts from "./WorkoutTemplateConflicts";
 
 export default function PlanningProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [ready, setReady] = useState(false);
   const [status, setStatus] = useState(planningStatus);
   const [legacy, setLegacy] = useState(false);
@@ -70,6 +71,11 @@ export default function PlanningProvider({ children }: { children: ReactNode }) 
       current = id;
       const request = ++sequence;
       setReady(false);
+      if (!id) {
+        setStartupError("Sign in to load your saved account.");
+        router.replace("/login");
+        return;
+      }
       resetCloudWorkoutHistory();
       try { await initializePlanning(id); if (live && request === sequence) { void syncPendingPlanningWorkouts(); void syncPendingWorkoutTemplates(); void refreshBookedSessions(); void refreshCloudWorkoutHistory(); } }
       finally { if (live && request === sequence) { setAccount(id || "local-preview"); setAccountGeneration(planningAccountGeneration()); setReady(true); } }
@@ -88,6 +94,14 @@ export default function PlanningProvider({ children }: { children: ReactNode }) 
     window.addEventListener("focus", focus);
     window.addEventListener("storage", refreshPlanningFromStorage);
     return () => { live = false; unsubscribe(); auth.subscription.unsubscribe(); window.removeEventListener("online", online); window.removeEventListener("focus", focus); window.removeEventListener("storage", refreshPlanningFromStorage); };
+  }, [router]);
+  useEffect(() => {
+    const protectPendingProfile = (event: BeforeUnloadEvent) => {
+      const state = planningOnlineSaveState();
+      if (state.deviceCacheFull && state.pending) { event.preventDefault(); event.returnValue = ""; }
+    };
+    window.addEventListener("beforeunload", protectPendingProfile);
+    return () => window.removeEventListener("beforeunload", protectPendingProfile);
   }, []);
   if (!ready) return <div ref={syncPreloaderAura} className={loadingStyles.page}>
     <Image src="/sound-crest-avatar.png" alt="Sound Fitness" width={160} height={160} priority unoptimized className={loadingStyles.crest} />
@@ -96,6 +110,11 @@ export default function PlanningProvider({ children }: { children: ReactNode }) 
   </div>;
   return <>
     <div key={account}>{children}</div>
+    {pathname !== "/dashboard/profile" && planningOnlineSaveState().deviceCacheFull && planningOnlineSaveState().pending && <div role="alert" className="fixed inset-x-3 bottom-3 z-[9999] rounded-xl bg-slate-950 p-3 text-sm text-amber-100">
+      {status}. Keep this page open until saved online.
+      <button type="button" className="ml-3 underline" onClick={() => void syncPlanning()}>Retry save</button>
+      <button type="button" className="ml-3 underline" onClick={downloadPlanning}>Download backup</button>
+    </div>}
     {pathname === "/dashboard/settings" && <details key={`planning-tools:${account}`} className="bg-slate-950 px-4 py-2 text-xs text-slate-300">
       <summary className="cursor-pointer">Data &amp; backups</summary>
       <div className="mt-3 flex flex-wrap items-center gap-3" role="status">

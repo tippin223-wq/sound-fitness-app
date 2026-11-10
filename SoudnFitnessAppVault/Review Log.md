@@ -4505,3 +4505,225 @@ Active website workspace: `C:\Users\josep\01_Business\Sound Fitness\Website\Soun
 - Replaced the expanded calendar's absolutely positioned week/month controls and fixed title padding with an in-flow responsive grid. Narrow calendar containers give the title, range navigation, and week/month/collapse controls their own rows; wide calendars retain side-by-side view controls.
 - At calendar widths up to 520px, moved both time and day arrow groups into a separate footer below the week grid, with 44px touch targets. Existing date/time navigation and month/week behavior remain.
 - Browser checked 320px and 375px phone viewports, both week and month views; all four navigation arrows remain inside the card and below the time grid. At 1280px desktop, title and tabs have separate bounds. Temporary viewport overrides reset. TypeScript passes; ESLint has no errors and reports two pre-existing calendar warnings (unused todayEvents, scrollWeekDays effect dependency). No deployment.
+
+## 2026-11-09 — phone constellation controls
+- Inset and enlarged the shared card joystick, retaining the stationary base and bare arrows; adjusted title clearance in Dashboard, Sessions, and Profile.
+- Sized constellation week/day arrow rows around their text to prevent edge overlap.
+- Placed the plan attendance caption immediately below its ring. Verified at 412x854 and 900x800; screenshots saved in test-results. Local changes only.
+
+## 2026-11-09 — online profile and website identity sync
+- Authenticated profile changes can reach the revision-checked cloud save when browser storage is full; pending in-memory edits retain unload protection, retry, and backup options. Generic workout/draft quota guards remain strict.
+- Added explicit server-confirmed profile save status and online avatar URL storage through the website's existing owner-bound uploader. Large embedded avatar migration occurs on the next profile save.
+- Website session display fields now refresh from shared auth metadata while keeping roles, identity and expiry unchanged; newer website avatar timestamps are respected by the app.
+- App and website use the same configured Supabase project. Local code only: both repositories require deployment. Tests and release details: docs/profile-online-sync.md.
+
+## 2026-11-09 — profile questions always open
+- Selected profile question cards now display their questions immediately, with no collapse control or collapsible inner panel. Explicit joystick and row/card navigation stay available.
+- Verified Vital Statistics opens directly to its Gender question at phone width. Screenshot: test-results/profile-questions-always-open.jpg. Local only.
+
+## 2026-11-09 — profile and support signal ownership
+- Removed localhost member-auth bypasses; missing sessions redirect to sign-in and PlanningProvider no longer initializes a local-preview member account.
+- Shared the existing profile forms with dashboard support popups: Weight contains the full vertically scrollable My Body content, Measurements and Benchmarks are optional, Photos retains its shared measurements/photo forms, and Benchmarks browses exercises horizontally.
+- Added paired Blood Pressure records and a default Readiness signal that combines recorded daily inputs without filling missing values. Existing readiness context remains available below the daily summary.
+- Removed moved cards from Overview; merged Occupation into Lifestyle and removed scheduling controls from that section while preserving their saved fields.
+- Popup navigation waits for queued form edits; normal revision-checked online profile saving is reused. Seven focused record/identity tests and TypeScript checks pass. Browser confirmed unauthenticated redirect; signed-in popup visual verification needs the user session. Local changes only.
+- Signed-in browser verification completed: Weight popup shows all body content with Saved online, optional/default signal groups verified, Overview now has Vital Statistics, Lifestyle + Occupation, Contact Info, and both merged Lifestyle questions retain their fields. No health values edited. Screenshot: test-results/weight-support-questions.jpg.
+
+## 2026-11-09 — individual Overview questions
+- Overview now has 16 individual question cards, each represented in the top indicator row. Removed its nested section pager; swipe, lateral wheel, keyboard arrows and navigation arrows move between individual questions.
+- Incomplete indicators are gray; completed answers are teal, with a separate white outline for selection and no completion animation. Indicators wrap on narrow screens.
+- Reused existing controlled forms and save behavior. Verified individual Work Schedule, Occupation, Height and contact fields, completion colors, and phone layout. TypeScript passed. Screenshot: test-results/overview-individual-question-indicators.jpg. Local only.
+
+## 2026-11-09 — Profile indicator cleanup and time windows
+- Profile disables the shared joystick horizontal pop-up strip; persistent row title question indicators remain. Other pages retain their existing behavior.
+- Work Schedule and Sleep Window now use start/end native time inputs, matching the website repeat-booking picker, with minute precision and overnight support. Existing free-text entries remain visible and are preserved as notes when replaced; ambiguous bare-hour prose is not guessed.
+- Removed Commute / Travel from the Overview UI while retaining saved data. Overview now contains 15 questions.
+- Verified both controls and absence of the duplicate strip in the signed-in browser. Parser tests and TypeScript pass. Local only.
+
+## 2026-11-09 — Profile question panels
+- Moved expanded-card navigation above the active question card.
+- Flattened all Overview question wrappers, including Sleep Window and Occupation, by removing their redundant inner border, background, shadow and padding. Answer inputs retain their controls and styling.
+- Verified the signed-in Profile page hot reload, navigation order and single-panel Sleep Window layout. TypeScript passed. Local only.
+
+## 2026-11-09 — compact Profile question header
+- Centered question titles by removing the old asymmetric joystick clearance from question headers. Kept simple row labels such as Overview, removed Profile Questions and the percentage pill, and moved wrapped indicators into normal flow with a 6px title gap.
+- Brought navigation arrows beside the question label, removed their circular containers, and added layered SVG depth plus per-button press feedback. Prevented the shell drag handler from swallowing arrow clicks.
+- Verified exact horizontal centering and forward navigation on mobile. Screenshot: test-results/profile-compact-centered-heading-3d-arrows.jpg. Local only.
+
+## 2026-11-09 — contextual save feedback
+- Removed the persistent Saved online line and its reserved height from Profile and embedded support question forms.
+- After an actual edit, keep save-in-progress feedback until cloud acknowledgement and identity sync complete, then show a Changes saved toast for three seconds. Errors and Retry remain visible; no success toast on initial page load. Ignore initial form loading when tracking edits.
+- Verified the signed-in page opens without the status line. TypeScript passed. Local only.
+
+## 2026-11-09 — website availability sheet for profile schedules
+- Corrected the earlier native-time-input interpretation: ported the website shared member/admin AvailabilityGrid and its styling into Profile, with tap/drag rectangle selection, keyboard controls, colored time bands, and weekday columns.
+- Extended axes from the website's 5 AM–8 PM range to a complete 24-hour day for sleep and overnight work. Both schedule questions now save recurring weekly slot arrays in lifestyleConstraints.workHours / sleepHours through the existing profile cloud queue; legacy strings remain visible and are not guessed into weekdays.
+- Grid scroll stays local to the question, headers stay visible, and controls stay below the bounded sheet. Removed the empty birthday age prompt and the decorative line crossing above the birthday title.
+- TypeScript and three focused tests pass, including 168 weekday/hour cells and overnight rendering. Browser verified both grid axes and birthday cleanup without editing account data. Local only.
+
+## 2026-11-09 — Profile dropdown overlays
+- Moved every custom Profile listbox (birthday month/day/year, searchable State, Occupation, Weight Trend) into a shared fixed portal layer outside clipping cards and orbit transforms. Native selects continue using their browser overlay.
+- Menus align with their triggers, flip upward when necessary, stay inside the visual viewport and scroll internally. Placement refreshes on scrolling, resize and mobile visual-viewport changes. Pointer events inside the portal no longer trigger outside-dismiss handlers or card dragging.
+- Verified all three birthday menus, Occupation and State at 412x854, plus a 320x568 phone bound check. Escape, search autofocus and current-option selection work; no answer values changed. TypeScript passed. Local only.
+
+## 2026-11-09 — compact schedule controls and profile measurements
+- Removed Height's decorative top line. Imperial height now displays feet and inches with raw inches in parentheses, while adjustments remain one inch; metric behavior is unchanged.
+- Made the age badge content-width and removed birthday Clear. Saved birthday remains editable through its dropdowns.
+- Moved the existing schedule arrows and check into the sticky top-left grid corner, removed Time and the footer Clear, and gave the sheet more vertical room. Controls are small and containerless; changes are scoped to Profile.
+- TypeScript and three schedule tests passed. Verified mobile corner controls, cursor movement without saving schedule data, height formatting, a 66px age badge, and absence of Clear. Screenshots: test-results/profile-compact-corner-picker.jpg and profile-height-feet-inches.jpg. Local only.
+
+## 2026-11-09 — full-screen Work Schedule editor
+- Work Schedule now shows Click to update your work schedule instead of an inline sheet. It opens the existing picker in a native modal dialog portaled outside the orbit, covering the header and full viewport.
+- The grid fills available height below a compact title and Done control, retains corner navigation and current autosave behavior, and respects phone safe areas. Sleep Window remains inline.
+- TypeScript passed. Verified at 412x854: modal bounds exactly match the screen, grid reaches the bottom inset, Done closes back to the trigger. Existing schedule data was not edited. Screenshot: test-results/profile-fullscreen-work-schedule.jpg. Local only.
+
+## 2026-11-09 — reliable schedule action and saved-hours summary
+- Exempted expanded-question form controls and modal controls from the orbiter's stale post-drag click suppression while preserving suppression on draggable preview cards.
+- Added a live saved-hours summary inside the Work Schedule action, grouping identical daily hours and preserving split shifts; empty schedules show a clear prompt and legacy entries remain visible.
+- Four tests pass, including grouping/split-shift/midnight coverage. Browser verified opening and closing the full-screen dialog and the current saved summary without editing hours. Screenshot: test-results/profile-work-schedule-summary.jpg. Local only.
+
+## 2026-11-09 — styled work schedule summary
+- Restyled the schedule action with a layered blue surface, cyan bottom accent, calendar watermark, pencil affordance, and a quieter Update work schedule link within the single button.
+- Day labels and shift times now have distinct hierarchy and wrap naturally for multiple shifts. No new continuous animation.
+- TypeScript passed. Verified mobile appearance and popup open/close without changing saved hours. Screenshot: test-results/profile-styled-work-schedule.jpg. Local only.
+
+## 2026-11-09 — consolidated personal-profile questions
+- Overview now has ten question cards. Gender options float without a shared tray; Work + Occupation shares one outer card with occupation above the saved work summary. Sleep Window now opens the same full-screen weekly-hours modal.
+- Added Children + Family icon choices plus retained editable notes in the existing childcareConstraints field, preserving prior prose. Grouped City + State into Location and emergency name + phone into Emergency Contact.
+- Moved Reminder Style from Overview into Settings > Notification Preferences, reusing profile autosave and the existing saved value. This is a saved preference, not active notification delivery.
+- Removed the standalone Hours Worked / Week question from Profile and reused its slider in the homepage Fatigue support popup as context alongside the daily rating. Existing field and saved data remain intact.
+- React review caught duplicate keys when combining extracted controls; keyed fragments fixed them. TypeScript and all four schedule tests pass. Browser verified work/sleep dialogs, occupation staying outside the modal, family options, both combined contact cards, Settings selector and Fatigue slider without editing saved values.
+- Screenshot: test-results/profile-combined-work-occupation.jpg. Local only; not deployed.
+
+## 2026-11-09 — family schedule summaries and full-screen pickers
+- Replaced family constraint toggle cards with compact Childcare, School, and Family Caregiving schedule summaries. Each opens the shared full-screen weekly time picker above the header, with its own icon and independent saved slot array.
+- Added optional childcareHours / schoolHours / caregivingHours to existing lifestyle data and reused the profile cloud-save path. Existing family notes remain editable and are not converted into guessed times.
+- Generalized the shared schedule component's labels, icons and instructions; dialog headings use unique IDs so multiple summaries can coexist.
+- TypeScript and four schedule tests pass. Browser verified all three modal open/close paths at mobile size without modifying saved schedules. Screenshot: test-results/profile-family-schedule-summaries.jpg. Local only.
+
+## 2026-11-09 — childcare-only summary and number of children
+- Latest direction supersedes the three-way family schedule selector: only Childcare remains visible, with no cycling arrow and no outer question frame. Existing historical school/caregiving values are preserved but not shown as options.
+- Added an optional Number of children whole-number field above the childcare schedule, saved with existing lifestyle profile data. Blank stays unknown; zero is allowed. Family notes remain editable.
+- TypeScript passed; browser verified field placement, absence of cycle controls, and Childcare full-screen popup open/close without changing user data. Screenshot: test-results/profile-childcare-count.jpg. Local only.
+
+## 2026-11-09 — childcare summary only
+- Removed Number of children and Family details from the Children + Family card per latest request. The card now contains only the Childcare times summary and its full-screen picker. Historical values remain stored; completion now reflects childcare hours only.
+- TypeScript passed. Local only; not deployed.
+
+## 2026-11-09 — remove daily activity question
+- Removed Daily Activity Level from Overview and the occupation controls. Overview now has nine question cards; stored sedentaryLevel remains intact for existing consumers.
+- TypeScript passed. Local only; not deployed.
+
+## 2026-11-09 — simplify profile hero summary tabs
+- Removed Sound Points and Training Age from the profile hero bottom summary rail. Membership and Member Since remain; balances and training-age data are unchanged.
+- TypeScript passed. Local only; not deployed.
+
+## 2026-11-09 — content-height hero and overflow-only summary motion
+- Profile hero identity card now uses its content height rather than stretching to fill the row; Membership and Member Since stay beneath it.
+- Removed the unconditional 8px overflow allowance from both summary measurements. Chyron motion runs only when text exceeds the available width by more than 1px, so fully visible Membership stays still.
+- Local only; not deployed.
+
+## 2026-11-09 — individual Training Readiness question indicators
+- Replaced four grouped readiness section cards with nineteen individual questions: experience, familiarity, five confidence ratings, coaching history, schedule inputs, locations/equipment/notes, preferred days, style and circumstances. Reused existing controlled inputs and profile saves.
+- Each question is directly accessible from the row's wrapped indicators, with completed/incomplete colors matching Overview. Removed the inner section pager for readiness and enabled one-question arrow, keyboard and swipe navigation. Hero summary now counts answered readiness questions.
+- Browser verified all nineteen indicators render their controls and next-arrow navigation advances Days Available to Session Length without changing answers. TypeScript passed. Screenshot: test-results/profile-readiness-question-indicators.jpg. Local only; not deployed.
+
+## 2026-11-09 — fitted experience answers and horizontal familiarity cards
+- Overall Experience Level and Consistency History now wrap their existing five answer cards into a responsive grid instead of a horizontal scroller. Answers and selections are unchanged.
+- Familiarity Areas now uses a single horizontal row of compact 100px icon cards, with 42px icons and no inner icon container. Labels wrap and local pointer/wheel handling keeps browsing inside the answer row.
+- Verified no horizontal overflow at 412px and 320px for fitted answers. Familiarity has one row, no vertical overflow, and the last option is reachable. TypeScript passed. Screenshots: test-results/profile-consistency-fit.jpg and profile-familiarity-horizontal.jpg. Local only.
+
+## 2026-11-09 — simplify Training Readiness questions
+- Removed the five individual exercise-confidence questions, Days Available, Session Length and Best Time of Day from the readiness indicators. Eleven questions remain; saved values and downstream consumers are preserved.
+- Familiarity's scrollbar now explicitly hides when its measured content fits, with ResizeObserver refreshing the check on layout changes; scrolling remains available when needed.
+- TypeScript passed. Local only; not deployed.
+
+## 2026-11-09 — readiness order, named locations and fitting icon cards
+- Removed Travel / Home / Gym Notes from readiness. Training Style is question four, Previous Coaching five, Training Locations six, Schedule Consistency seven. Existing notes and answers remain stored.
+- Training Locations now shows an editable name for every selected type. Home conditionally adds a Home Equipment question using the existing equipment selections; non-home locations are explicitly labeled as a well-stocked-gym planning assumption, recorded separately from reported equipment on profile save.
+- All readiness selection cards now wrap into fitting grids, with larger icons and no inner icon box. Familiarity no longer scrolls horizontally. Preferred days use icon cards; special-circumstance selection cards are compact, with redundant Add badges and the empty details message removed from this view. Selected circumstance details remain available.
+- Browser verified order, selected Gym name field, Home Equipment hidden when Home is not selected, and no horizontal/vertical overflow for the familiarity, style and circumstance option grids at 412x854. No personal answers were changed. TypeScript passed. Screenshot: test-results/profile-training-location-names.jpg. Local only; not deployed.
+
+## 2026-11-09 — training location choice and selected rows
+- Replaced the location grid and inline name fields with a single horizontal choice row and a separate selected-location row below. Adding a type keeps it selected without toggling it off from the choice row.
+- Selected cards open an accessible native-modal detail editor for the location name; Home equipment is inside Home's editor rather than a duplicate readiness question. Non-home planning assumptions remain explicit. Removal is available inside the editor and saved names/equipment are preserved.
+- TypeScript passed. Browser verified one-row horizontal overflow, existing selected cards, modal name field, viewport bounds and Done closing without changing personal data. Local only; not deployed.
+
+## 2026-11-09 — optional caffeine support signal
+- Added Caffeine to Available to add, with a coffee-cup glyph; it is excluded from default selections.
+- Intake entries use milligrams, sum today's recorded entries, and preserve individual history through the existing account-guarded support record save path. Missing intake stays unknown; an explicit zero remains 0 mg.
+- TypeScript passed and all five support-record tests passed, including caffeine validation and daily aggregation. Browser verified Add Caffeine in the optional list without changing selections or writing health data. Local only; not deployed.
+
+## 2026-11-09 — unclipped profile questions and anchored navigation
+- Restored inner spacing on floating question content so rounded scroll bounds no longer clip the Gender heading or answer edges.
+- Expanded question rows now reserve a stable navigation row with fixed arrow columns, independent of answer height and label width. Answer content remains centered in its remaining space.
+- Browser verified unchanged arrow coordinates between Gender and Birthday/Age and checked the Gender view at 412x854. Screenshot: test-results/profile-gender-fixed-navigation.jpg. Local only; not deployed.
+
+## 2026-11-09 — occupation and readiness cleanup
+- Renamed Desk Worker display text to Desk Work, removed Trainer / Coach from offered occupations, and removed the Dropdown badge. Existing saved values remain intact.
+- Removed Schedule Consistency and Preferred Training Days from readiness; seven question indicators remain.
+- Location choices have an explicit horizontal scrollbar and bounded card width. Fixed grid intrinsic-width expansion and selected-location icon sizing so content stays inside mobile cards. Special Circumstances now scrolls as one horizontal row.
+- TypeScript passed. Verified mobile location rail width 331px with 668px scrollable content and circumstances width 331px with 1580px content, no vertical rail overflow. No personal answers changed. Local only; not deployed.
+
+## 2026-11-09 — profile recovery removal and dietary restrictions
+- Removed the entire Pain / Recovery Profile row from profile navigation, hero summaries and orbital rows. Existing stored recovery information remains intact.
+- Replaced Nutrition Direction planning questions with Dietary Restrictions: horizontal icon choices and a restriction-details field. Removed calorie/protein targets, meal planning and eating schedule inputs from this profile view; their saved values remain preserved.
+- Restrictions reuse the existing synced nutrition preference and food-restriction fields. No Restrictions is mutually exclusive with offered restriction choices. Browser confirmed the removed row, restrictions-only inputs and horizontal mobile rail (341px viewport, 980px content). TypeScript passed. Local only; not deployed.
+
+## 2026-11-09 — single-question nutrition and individual Coach + App indicators
+- Removed dietary Restriction Details input, preserving stored text. Single-question rows hide both question arrows and display Question 1 of 1.
+- Coach + App now exposes each coaching input, note and app preference as its own indicator and answer view; duplicate Coaching Tone was consolidated. Existing AI notes and Journey Map remain accessible. Horizontal gestures and keyboard navigation use the individual questions.
+- TypeScript passed. Browser verified 21 Coach + App indicators, individual Intensity Preference answer, and Dietary Restrictions with no details field or question arrows. No answers changed. Local only; not deployed.
+
+## 2026-11-09 — trim Coach + App and compact split choices
+- Removed Video Review Interest, Robo-Coach Guidance, Mobility Preference, User/Coach/AI Notes, Default Dashboard Focus, Anatomy Background, heatmap/skill-point/recovery-warning toggles and Journey Map from the active profile row. Stored values are preserved. Nine questions remain.
+- Renamed Cardio Preference to Preferred Cardio Methods. Preferred Split now uses compact 100px icon cards in one horizontally scrollable row, bare larger icons, readable labels and a clearer upper/lower body glyph.
+- TypeScript passed for the question cleanup. Browser verified nine indicators and the mobile split rail (331px visible, 752px total width; no vertical overflow). Local only; not deployed.
+
+## 2026-11-09 — Coach + App dropdowns become icon selections
+- Replaced all four retained dropdown questions (Coaching Tone, Exercise Variety, Strict vs Flexible, Preferred Unit System) with fitting, styled icon-card selections using the same controlled values and save callbacks.
+- Distinct choice icons, unboxed icon styling and selected check/highlight are shared with existing selection cards. Existing sliders and split/cardio selectors remain intact.
+- TypeScript passed. Browser verified all four questions at 412px with no horizontal overflow and the existing Coaching Tone answer selected; no answers changed. Screenshot: test-results/profile-coaching-tone-icon-cards.jpg. Local only; not deployed.
+
+## 2026-11-10 — compact cardio method cards
+- Preferred Cardio Methods uses short 76px cards, bare 28px icons and a responsive fitting grid. Removed its Multi badge; preserved all eight methods and saved selections.
+- Verified at 412x854: all eight cards visible in two rows, question content height equals scroll height (248px) and width equals scroll width (363px). No scrolling needed. Screenshot: test-results/profile-cardio-methods-fit.jpg. Local only; not deployed.
+
+## 2026-11-10 — Goals shared header and complete scroll shell
+- Replaced the legacy Goals header with DashboardExperience headerOnly/headerOnlyViewport, matching the current member dashboard header.
+- Moved every former below-shell form into eight viewport rows: Goals Overview, Direction + Stage, Choose Your Direction, Goal Priorities, Body + Daily Targets, Timeline + Milestones, Goal-to-Plan Guidance, Training Journey. Existing inputs, save validation/conflict recovery and journey content remain intact. Direction selection starts open.
+- Added the shared SessionsCardNavigation top-left joystick. Click/drag/arrows and axis-specific temporary indicators reuse its existing rules; the Direction + Stage row keeps the original 3D card orbit. Existing Open-card actions now navigate to the corresponding new row.
+- Rows reserve a title lane beside the joystick; longer content scrolls inside its row and shorter content centers. Save action remains reachable in each row. No external content remains below the shell.
+- TypeScript passed. Browser verified 412x854 with eight rows, no page overflow (page height 854), vertical joystick navigation, horizontal orbit control, and Open Goal Stage navigating to Timeline + Milestones. No goals or personal data were changed. Screenshot: test-results/goals-shared-header-orbit-mobile.jpg. Local only; not deployed.
+
+## 2026-11-10 — full available-screen Goals hero
+- Made the Goals overview frame fill the row beneath the shared header, with its title and Save action inside the same continuous card. Removed the smaller nested hero border/background.
+- Long hero content scrolls inside the full-height card while navigation stays available. At 412x854 the card spans x8–404 and y78–814, leaving the existing save-status strip below it.
+- Browser verified mobile bounds and screenshot: test-results/goals-full-height-hero-mobile.jpg. No saved data changed. Local only; not deployed.
+
+## 2026-11-10 — remove external Goals row headers
+- Removed repeated per-row title + Save goals header bars and their reserved height. Content now uses that space, with joystick clearance inside the original card headings.
+- Kept the original Save Goals action in direction setup. Browser verified no duplicated Goals Overview/Goal Priorities headings and only the original save action remains. Screenshot: test-results/goals-no-repeated-row-headers.jpg. Local only; not deployed.
+
+## 2026-11-10 — Goals hero horizontal highlights and summaries
+- Tightened the hero heading into the top area beside the joystick. Converted all highlight pills into a single horizontal rail with bare 3D arrows below.
+- Removed the Recommended Next Goal Step box and all nested summary boxes. Recommendation remains plain text; Timeline, Goal Progress, Milestones, Member, Weight Target, Weekly Momentum and Favorites now use a second horizontal rail with matching bare arrows.
+- Hero fits its full-height frame without vertical scrolling. Arrow disabled states reflect actual scroll edges and resizing; reduced-motion preferences are respected.
+- TypeScript passed. Browser verified both arrow sets move their rails and no hero vertical overflow at 412x854 (734px) and 320x568 (448px). No data changed. Screenshots: test-results/goals-hero-horizontal-summaries.jpg and goals-hero-horizontal-summaries-short.jpg. Local only; not deployed.
+
+## 2026-11-10 — personalized profile-style Goals hero
+- Removed the leftover draft-form explanation ending in including suggestions from the clipped bottom status area. Existing actionable save/conflict status remains.
+- Added the shared profile identity photo and name beside Goals, linking to Profile. Reads existing ProfileProvider state with an initials fallback; does not copy identity data into goal records or add requests.
+- Matched Profile's glass gradient, cyan rim and warm gold highlights while retaining horizontal rails and no nested boxes.
+- TypeScript passed. Browser verified loaded account photo/name, removed explanation, and no vertical overflow at 412x854 and 320x568. Screenshot: test-results/goals-profile-style-identity.jpg. Local only; not deployed.
+
+## 2026-11-10 — clearer Goals page and member hierarchy
+- Removed Desired Outcomes. Goals is now a standalone page heading; photo/name occupy a separate Member profile row below, so the page title cannot be mistaken for the member name.
+- Reorganized hero into a compact top sequence (title, identity, intro, highlight rail), a prominent centered next-step area, and a bottom summary rail with a subtle divider. Refined gold/cyan typography and squared glass pills without restoring nested boxes.
+- Browser verified no vertical overflow at 412x854 and 320x568, and header/member separation on the short viewport. No saved data changed. Screenshot: test-results/goals-clear-page-member-hierarchy.jpg. Local only; not deployed.
+
+## 2026-11-10 — gold Goals theme and content-height hero
+- Removed the persistent gold footer text. Save results and conflict recovery remain available when triggered; idle rows reclaim the footer height.
+- Applied a warm gold theme to Goals card surfaces, pill accents, identity trim, summary text and bare arrows. Shared navigation gained an optional accentColor; only Goals opts into gold, preserving all other consumers.
+- Goals is centered across the card and appears above the centered member photo/name. Removed space-distribution layout and tightened the sequence from highlights to recommendation and summaries. The hero now uses its content height, superseding the earlier full-height request.
+- TypeScript passed for the shared accent change. Browser verified title center at x206 on 412px screen, member below title, and no vertical overflow at 412x854 (577px card content) and 320x568 (443px). No saved data changed. Screenshot: test-results/goals-content-height-title-first.jpg. Local only; not deployed.

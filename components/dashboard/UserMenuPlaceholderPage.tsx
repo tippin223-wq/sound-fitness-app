@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 type PlaceholderSection = {
+  content?: ReactNode;
   description: string;
   items: string[];
   title: string;
@@ -65,6 +66,7 @@ export default function UserMenuPlaceholderPage({
               <p className="mt-2 text-sm leading-6 text-slate-400">
                 {section.description}
               </p>
+              {section.content}
               <div className="mt-5 space-y-2">
                 {section.items.map((item) => (
                   <div

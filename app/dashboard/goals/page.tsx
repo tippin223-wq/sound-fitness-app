@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   type CSSProperties,
+  type ReactNode,
   type KeyboardEvent as ReactKeyboardEvent,
   type WheelEvent as ReactWheelEvent,
   useEffect,
@@ -12,6 +13,10 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import DashboardExperience from "@/components/dashboard/DashboardExperience";
+import { useProfile } from "@/components/profile/ProfileProvider";
+import SessionsCardNavigation from "@/components/dashboard/SessionsCardNavigation";
+import styles from "./goals.module.css";
 import DashboardTabIcon from "@/components/dashboard/DashboardTabIcon";
 import { sessionRewardSummary, sessionRewardLabel } from "@/lib/planning/sessionRewards";
 import { readPlanning, planningKeys, planningOwner, planningAccountGeneration, planningRecordVersion, planningSnapshot, subscribePlanning } from "@/lib/planning/store";
@@ -802,7 +807,38 @@ function GoalOrbiterIcon({
   }
 }
 
+function GoalsHeroRail({ label, children, pills = false }: { label: string; children: ReactNode; pills?: boolean }) {
+  const railRef = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ start: true, end: false });
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const update = () => {
+      const start = rail.scrollLeft <= 2;
+      const end = rail.scrollLeft + rail.clientWidth >= rail.scrollWidth - 2;
+      setEdges(current => current.start === start && current.end === end ? current : { start, end });
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(rail);
+    for (const child of rail.children) observer.observe(child);
+    rail.addEventListener("scroll", update, { passive: true });
+    return () => { observer.disconnect(); rail.removeEventListener("scroll", update); };
+  }, [children]);
+  const move = (direction: number) => {
+    const rail = railRef.current;
+    rail?.scrollBy({ left: direction * Math.max(160, rail.clientWidth * 0.8), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+  };
+  return <div className={styles.heroRailBlock}>
+    <div ref={railRef} role="region" aria-label={label} tabIndex={0} className={`${styles.heroRail} ${pills ? styles.heroPills : styles.heroSummaries}`} onWheel={event => { if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) event.stopPropagation(); }} onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()}>{children}</div>
+    <nav className={styles.heroRailArrows} aria-label={`${label} controls`}>
+      {([-1, 1] as const).map(direction => <button key={direction} type="button" aria-label={`${direction < 0 ? "Previous" : "Next"} ${label.toLowerCase()}`} disabled={direction < 0 ? edges.start : edges.end} onClick={() => move(direction)}><svg aria-hidden="true" viewBox="0 0 32 32" style={direction > 0 ? { transform: "scaleX(-1)" } : undefined}><path d="M18 5 6 16l12 11v-7h9v-8h-9Z" transform="translate(0 3)" fill="#075985"/><path d="M18 5 6 16l12 11v-7h9v-8h-9Z" fill="currentColor" stroke="#e0f2fe" strokeWidth=".7"/></svg></button>)}
+    </nav>
+  </div>;
+}
+
 export default function GoalsPage() {
+  const { profile: memberIdentity } = useProfile();
   usePlanningDay();
   useSyncExternalStore(subscribePlanning, planningSnapshot, planningSnapshot);
   useSyncExternalStore(subscribePlanning, cloudHistorySnapshot, serverCloudHistory);
@@ -816,8 +852,9 @@ export default function GoalsPage() {
   const [goalsHeaderSlideDirection, setGoalsHeaderSlideDirection] =
     useState<"left" | "right">("right");
   const [activeGoalsOrbiterRow, setActiveGoalsOrbiterRow] = useState(0);
+  const goalsViewportRef = useRef<HTMLDivElement>(null);
   const [activeGoalOrbiterIndex, setActiveGoalOrbiterIndex] = useState(0);
-  const [planDirectionOpen, setPlanDirectionOpen] = useState(false);
+  const [planDirectionOpen, setPlanDirectionOpen] = useState(true);
   const [planDirectionMessage, setPlanDirectionMessage] = useState("");
   const [planDirectionScrolling, setPlanDirectionScrolling] = useState(false);
   const [masterJourneyExpanded, setMasterJourneyExpanded] = useState(false);
@@ -950,6 +987,8 @@ export default function GoalsPage() {
       ? [goals.goalPriorityRanking, ...goalPriorityOptions]
       : [...goalPriorityOptions];
   const displayName = profile.displayName.trim() || "Member";
+  const memberName = getString(memberIdentity, ["displayName", "fullName", "name"], displayName);
+  const memberPhoto = getString(memberIdentity, ["profileImage", "avatarUrl"], "");
   const firstName = displayName.split(/\s+/)[0] || "Member";
   const goalRewards = sessionRewardSummary(readPlanning(planningKeys.profile, {}), []);
   const soundPoints = goalRewards.soundPoints;
@@ -1035,35 +1074,13 @@ export default function GoalsPage() {
         : (currentIndex + 1) % goalsHeaderLinks.length,
     );
   };
-  const goalsOrbiterRows = [
-    {
-      completion: goalSetupCompletion,
-      helper: "Hero command surface and current goal summary.",
-      label: "Hero",
-    },
-    {
-      completion: Math.max(goalSetupCompletion, completion),
-      helper: "3D direction cards for goal planning.",
-      label: "Direction + Stage",
-    },
-  ] as const;
+  const goalsOrbiterRows = ["Goals Overview","Direction + Stage","Choose Your Direction","Goal Priorities","Body + Daily Targets","Timeline + Milestones","Goal-to-Plan Guidance","Training Journey"].map(label=>({label}));
   const activeGoalsOrbiterRowIndex = Math.max(
     0,
     Math.min(activeGoalsOrbiterRow, goalsOrbiterRows.length - 1),
   );
-  const setGoalsOrbiterRow = (rowIndex: number) => {
-    setActiveGoalsOrbiterRow(
-      Math.max(0, Math.min(rowIndex, goalsOrbiterRows.length - 1)),
-    );
-  };
-  const moveGoalsOrbiterRow = (direction: -1 | 1) => {
-    setActiveGoalsOrbiterRow((currentIndex) =>
-      Math.max(
-        0,
-        Math.min(currentIndex + direction, goalsOrbiterRows.length - 1),
-      ),
-    );
-  };
+  const setGoalsOrbiterRow=(rowIndex:number)=>{const next=Math.max(0,Math.min(rowIndex,goalsOrbiterRows.length-1));setActiveGoalsOrbiterRow(next);const el=goalsViewportRef.current;if(el)el.scrollTo({top:next*el.clientHeight,behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches?"instant":"smooth"});};
+  const moveGoalsOrbiterRow=(direction:-1|1)=>setGoalsOrbiterRow(activeGoalsOrbiterRowIndex+direction);
   const handleGoalsOrbiterWheel = (event: ReactWheelEvent<HTMLElement>) => {
     if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
     if (Math.abs(event.deltaY) < 18) return;
@@ -1270,73 +1287,36 @@ export default function GoalsPage() {
   );
 
   const renderGoalsHeroRow = () => (
-    <section
-      aria-label="Goals hero row"
-      data-goals-orbiter-row="0"
-      className="relative mx-auto w-full max-w-[1180px] overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.20),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.94),rgba(2,6,23,0.98))] p-5 shadow-[0_30px_120px_rgba(0,0,0,0.62)] backdrop-blur-xl sm:p-6 lg:p-8"
-    >
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-8 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-100/60 to-amber-100/45"
-      />
-      <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr] xl:items-stretch">
-        <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.3em] text-cyan-200">
-            Desired Outcomes
-          </p>
-          <h1 className="mt-4 text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
-            Goals
-          </h1>
-          <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-300 sm:text-base">
-            Choose the outcomes your training system should build toward.
-          </p>
-          <div className="mt-5 flex flex-wrap gap-2">
-            <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-black text-cyan-100">
-              Primary: {activeDirection}
-            </span>
-            {secondaryDirection ? (
-              <span className="rounded-full border border-fuchsia-300/20 bg-fuchsia-300/10 px-3 py-1 text-xs font-black text-fuchsia-100">
-                Secondary: {secondaryDirection}
-              </span>
-            ) : null}
-            <span className="rounded-full border border-violet-300/20 bg-violet-300/10 px-3 py-1 text-xs font-black text-violet-100">
-              Plan directions {selectedDirections.length}/2
-            </span>
-            <span className="rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1 text-xs font-black text-amber-100">
-              Mode: {goals.goalMode}
-            </span>
-            <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-xs font-black text-emerald-100">
-              {goals.targetWeeklySessions || 0} sessions / wk
-            </span>
-            <span className="rounded-full border border-sky-300/20 bg-sky-300/10 px-3 py-1 text-xs font-black text-sky-100">
-              Timeline: {goalDeadlineLabel}
-            </span>
-            <span className="rounded-full border border-fuchsia-300/20 bg-fuchsia-300/10 px-3 py-1 text-xs font-black text-fuchsia-100">
-              Goal setup {goalSetupCompletion}%
-            </span>
-          </div>
-        </div>
-        <div
-          id="recommended-goal-step"
-          className="rounded-[30px] border border-cyan-300/15 bg-slate-950/58 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] scroll-mt-28"
-        >
-          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-200">
-            Recommended Next Goal Step
-          </p>
-          <p className="mt-3 text-xl font-black leading-tight text-white">
-            {recommendedNextStep}
-          </p>
-          <div className="mt-5 grid gap-2 sm:grid-cols-2">
-            <TranslationCard label="Timeline" value={goalDeadlineLabel} />
-            <TranslationCard label="Goal Progress" value={`${goalSetupCompletion}% complete`} />
-            <TranslationCard label="Milestones" value={milestoneCount ? `${milestoneCount} milestone${milestoneCount === 1 ? "" : "s"} noted` : "Add milestones"} />
-            <TranslationCard label="Member" value={`${displayName} / ${profile.trainingAge}`} />
-            <TranslationCard label="Weight Target" value={weightDelta ? `${weightDelta > 0 ? "Gain" : "Lose"} ${Math.abs(weightDelta).toLocaleString()} lb` : "Add body metrics"} />
-            <TranslationCard label="Weekly Momentum" value={`${weeklySets} / ${weeklyTarget} sets / ${completion}%`} />
-            <TranslationCard label="Favorites" value={`${favoriteCount} saved exercise targets`} />
-          </div>
-        </div>
-      </div>
+    <section aria-label="Goals hero row" data-goals-orbiter-row="0" className={styles.hero}>
+      <div className={styles.heroPageTitle}><h1>Goals</h1></div>
+      <header className={styles.heroIdentityHeader}>
+      <Link href={ROUTES.dashboard.profile} className={styles.heroIdentity} aria-label={`Open ${memberName}'s profile`}>
+          <span className={styles.heroPhoto}><span aria-hidden="true">{memberName.charAt(0).toUpperCase()}</span>{memberPhoto && <img src={memberPhoto} alt="" onError={event => { event.currentTarget.style.visibility = "hidden"; }} />}</span>
+          <span className={styles.heroIdentityText}><span className={styles.heroAccountLabel}>Member profile</span><span className={styles.heroMemberName}>{memberName}</span></span>
+      </Link>
+      </header>
+      <p className={styles.heroIntro}>Choose the outcomes your training system should build toward.</p>
+      <GoalsHeroRail label="Goal highlights" pills>
+        <span className="border-cyan-300/25 bg-cyan-300/10 text-cyan-100">Primary: {activeDirection}</span>
+        {secondaryDirection && <span className="border-fuchsia-300/25 bg-fuchsia-300/10 text-fuchsia-100">Secondary: {secondaryDirection}</span>}
+        <span className="border-violet-300/25 bg-violet-300/10 text-violet-100">Plan directions {selectedDirections.length}/2</span>
+        <span className="border-amber-300/25 bg-amber-300/10 text-amber-100">Mode: {goals.goalMode}</span>
+        <span className="border-emerald-300/25 bg-emerald-300/10 text-emerald-100">{goals.targetWeeklySessions || 0} sessions / wk</span>
+        <span className="border-sky-300/25 bg-sky-300/10 text-sky-100">Timeline: {goalDeadlineLabel}</span>
+        <span className="border-fuchsia-300/25 bg-fuchsia-300/10 text-fuchsia-100">Goal setup {goalSetupCompletion}%</span>
+      </GoalsHeroRail>
+      <div id="recommended-goal-step" className={styles.heroNextStep}><p>Recommended Next Goal Step</p><strong>{recommendedNextStep}</strong></div>
+      <GoalsHeroRail label="Goal summaries">
+        {[
+          ["Timeline", goalDeadlineLabel],
+          ["Goal Progress", `${goalSetupCompletion}% complete`],
+          ["Milestones", milestoneCount ? `${milestoneCount} milestone${milestoneCount === 1 ? "" : "s"} noted` : "Add milestones"],
+          ["Member", `${displayName} / ${profile.trainingAge}`],
+          ["Weight Target", weightDelta ? `${weightDelta > 0 ? "Gain" : "Lose"} ${Math.abs(weightDelta).toLocaleString()} lb` : "Add body metrics"],
+          ["Weekly Momentum", `${weeklySets} / ${weeklyTarget} sets / ${completion}%`],
+          ["Favorites", `${favoriteCount} saved exercise targets`],
+        ].map(([label,value]) => <div key={label}><p>{label}</p><strong>{value}</strong></div>)}
+      </GoalsHeroRail>
     </section>
   );
 
@@ -1478,18 +1458,7 @@ export default function GoalsPage() {
           goalOrbiterCards.length,
       );
     };
-    const openGoalOrbiterTarget = (targetId: string) => {
-      if (targetId === "goal-direction") {
-        setPlanDirectionOpen(true);
-      }
-
-      window.setTimeout(() => {
-        document.getElementById(targetId)?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      }, targetId === "goal-direction" ? 80 : 0);
-    };
+    const openGoalOrbiterTarget=(targetId:string)=>{const rows:Record<string,number>={"goal-direction":2,"goal-stack":3,"goal-targets":4,"weekly-targets":4,"goal-stage":5,"goal-signals":6};if(targetId==="goal-direction")setPlanDirectionOpen(true);setGoalsOrbiterRow(rows[targetId]??0);};
 
     return (
       <section className="relative mx-auto w-full max-w-[1180px] overflow-hidden rounded-[34px] border border-cyan-100/16 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_86%_10%,rgba(251,191,36,0.14),transparent_32%),rgba(2,6,23,0.72)] p-4 shadow-[0_26px_90px_rgba(0,0,0,0.48),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl sm:p-5">
@@ -2126,101 +2095,7 @@ export default function GoalsPage() {
     );
   };
 
-  return (
-    <main className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_10%,rgba(251,191,36,0.15),transparent_32%),linear-gradient(180deg,#020617_0%,#0f172a_48%,#020617_100%)] text-white">
-      <section className="mx-auto w-full max-w-[1440px] space-y-5 px-3 pb-5 pt-0 sm:px-5 lg:px-8">
-        <section
-          aria-label="Goals orbital command center"
-          className="relative left-1/2 w-screen -translate-x-1/2 overflow-visible border-b border-cyan-100/12 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_86%_8%,rgba(251,191,36,0.13),transparent_30%),linear-gradient(180deg,rgba(2,6,23,0.98),rgba(15,23,42,0.88)_48%,rgba(2,6,23,0.98))] px-0 pb-6 pt-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] outline-none"
-          onKeyDown={handleGoalsOrbiterKeyDown}
-          onWheel={handleGoalsOrbiterWheel}
-          tabIndex={0}
-        >
-          {renderGoalsOrbiterTopMenu()}
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 top-[84px] h-px bg-gradient-to-r from-transparent via-cyan-100/20 to-transparent"
-          />
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute left-1/2 top-[54%] h-[min(56vh,540px)] w-[min(96vw,1420px)] -translate-x-1/2 -translate-y-1/2 rounded-[999px] border border-cyan-100/8 bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.12),rgba(251,191,36,0.06)_46%,transparent_74%)] blur-sm"
-          />
-          <div className="absolute right-2 top-1/2 z-50 flex -translate-y-1/2 flex-col items-center gap-2 rounded-[28px] border border-cyan-100/14 bg-slate-950/42 p-1.5 shadow-[0_22px_70px_rgba(0,0,0,0.38)] backdrop-blur-xl sm:right-5">
-            <button
-              aria-label="Show previous goals row"
-              className="grid h-10 w-10 place-items-center rounded-2xl border border-cyan-200/14 bg-slate-900/64 text-xs font-black text-cyan-100/80 transition hover:border-cyan-100/36 hover:bg-cyan-300/12 disabled:cursor-not-allowed disabled:opacity-35"
-              disabled={activeGoalsOrbiterRowIndex === 0}
-              onClick={() => moveGoalsOrbiterRow(-1)}
-              type="button"
-            >
-              ^
-            </button>
-            {goalsOrbiterRows.map((row, index) => {
-              const isActive = activeGoalsOrbiterRowIndex === index;
-
-              return (
-                <button
-                  aria-label={`Show ${row.label} goals row`}
-                  aria-pressed={isActive}
-                  className={`group grid h-9 w-9 place-items-center rounded-2xl border transition ${
-                    isActive
-                      ? "border-amber-200/42 bg-amber-300/14 shadow-[0_0_20px_rgba(251,191,36,0.18)]"
-                      : "border-cyan-100/10 bg-slate-900/42 hover:border-cyan-100/26 hover:bg-cyan-300/10"
-                  }`}
-                  key={row.label}
-                  onClick={() => setGoalsOrbiterRow(index)}
-                  type="button"
-                >
-                  <span
-                    className={`h-2.5 w-2.5 rounded-full transition ${
-                      isActive
-                        ? "bg-amber-200 shadow-[0_0_16px_rgba(251,191,36,0.52)]"
-                        : "bg-cyan-200/38 group-hover:bg-cyan-100/76"
-                    }`}
-                  />
-                </button>
-              );
-            })}
-            <button
-              aria-label="Show next goals row"
-              className="grid h-10 w-10 place-items-center rounded-2xl border border-amber-200/14 bg-slate-900/64 text-xs font-black text-amber-100/80 transition hover:border-amber-100/36 hover:bg-amber-300/12 disabled:cursor-not-allowed disabled:opacity-35"
-              disabled={activeGoalsOrbiterRowIndex === goalsOrbiterRows.length - 1}
-              onClick={() => moveGoalsOrbiterRow(1)}
-              type="button"
-            >
-              v
-            </button>
-          </div>
-          <div className="relative z-10 mx-auto h-[min(78vh,760px)] min-h-[650px] w-full max-w-[1540px] overflow-hidden px-3 pt-5 sm:px-5 sm:pt-6 lg:px-8 lg:pt-7">
-            <div
-              className="grid h-[200%] grid-rows-2 transition-transform duration-700 ease-[cubic-bezier(0.2,0.85,0.25,1)]"
-              style={{
-                transform: `translateY(-${activeGoalsOrbiterRowIndex * 50}%)`,
-              }}
-            >
-              <div
-                className={`flex min-h-0 items-center justify-center px-3 py-6 transition duration-700 ${
-                  activeGoalsOrbiterRowIndex === 0
-                    ? "opacity-100"
-                    : "scale-[0.96] opacity-55 blur-[1px]"
-                }`}
-              >
-                {renderGoalsHeroRow()}
-              </div>
-              <div
-                className={`flex min-h-0 items-center justify-center px-3 py-6 transition duration-700 ${
-                  activeGoalsOrbiterRowIndex === 1
-                    ? "opacity-100"
-                    : "scale-[0.96] opacity-55 blur-[1px]"
-                }`}
-              >
-                {renderGoalOrbiterRow()}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section
+  const directionContent=(<section
           id="goal-direction"
           className="scroll-mt-28 overflow-hidden rounded-[30px] border border-white/10 bg-slate-950/58 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-xl"
         >
@@ -2414,25 +2289,8 @@ export default function GoalsPage() {
               </div>
             </div>
           ) : null}
-        </section>
-
-        <p role="status" className="text-sm text-amber-200">{unsavedGoalChanges ? "Unsaved goal changes" : savedGoalIssue || "Showing saved goals"}</p>
-        {savedGoalIssue && <p className="text-sm text-slate-300">Prefilled values are draft suggestions for review. They become confirmed targets after you choose a direction and save valid goals. Setup percentages describe the current form, including suggestions.</p>}
-        {savedMessage ? (
-          <p className="rounded-2xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm font-bold text-emerald-100">
-            {savedMessage}
-          </p>
-        ) : null}
-
-        {(savedMessage.includes("Goals changed") || savedMessage.includes("account changed")) && <button type="button" className="rounded-xl border border-white/20 px-4 py-2 text-sm" onClick={() => {
-          const record = { ...buildGoalsFromProfile(getProfileSnapshot()), ...normalizeGoals(readPlanning(planningKeys.goals, {})) } as GoalState;
-          goalsVersionRef.current = planningRecordVersion(planningKeys.goals);
-      accountRef.current = planningOwner(); generationRef.current = planningAccountGeneration();
-          goalsRef.current = record; savedRef.current = JSON.stringify(record);
-          setGoals(record); setSavedSnapshot(JSON.stringify(record)); setProfile(getProfileSnapshot()); setSavedMessage("Saved goals reloaded.");
-        }}>Reload saved goals and discard these edits</button>}
-        <section className="grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
-          <section
+        </section>);
+const priorityContent=(<section
             id="goal-stack"
             className="scroll-mt-28 rounded-[30px] border border-white/10 bg-slate-950/58 p-5 shadow-2xl"
           >
@@ -2455,9 +2313,8 @@ export default function GoalsPage() {
               <SelectField label="Goal Mode" value={goals.goalMode} options={goalOptions} onChange={(value) => updateGoal("goalMode", value)} />
               <SelectField label="Goal Priorities" value={goals.goalPriorityRanking} options={goalPrioritySelectOptions} onChange={(value) => updateGoal("goalPriorityRanking", value)} />
             </div>
-          </section>
-
-          <section
+          </section>);
+const targetContent=(<section
             id="goal-targets"
             className="scroll-mt-28 rounded-[30px] border border-white/10 bg-slate-950/58 p-5 shadow-2xl"
           >
@@ -2533,10 +2390,8 @@ export default function GoalsPage() {
                 />
               </label>
             </div>
-          </section>
-        </section>
-
-        <section
+          </section>);
+const milestoneContent=(<section
           id="goal-stage"
           className="scroll-mt-28 rounded-[30px] border border-white/10 bg-slate-950/58 p-5 shadow-2xl"
         >
@@ -2576,9 +2431,8 @@ export default function GoalsPage() {
               </div>
             </div>
           </div>
-        </section>
-
-        <section
+        </section>);
+const guidanceContent=(<section
           id="goal-signals"
           className="scroll-mt-28 rounded-[30px] border border-white/10 bg-slate-950/58 p-5 shadow-2xl"
         >
@@ -2593,14 +2447,24 @@ export default function GoalsPage() {
             <TranslationCard label="Recovery Warnings" value={activeDirection === "Recovery" ? "Lower heat threshold and mobility-first substitutions." : "Warn when volume exceeds the weekly target."} />
             <TranslationCard label="Nutrition Direction" value={goals.goalMode === "Cut" || activeDirection === "Lose Fat" ? "Protein consistency, steps, and moderate deficit support." : "Fuel performance and recovery around training."} />
           </div>
-        </section>
-
-        {renderMasterTrainingJourney()}
-
-        <p className="text-xs text-slate-600">
-          Local data read safely from {storageKeys.join(", ")}.
-        </p>
-      </section>
-    </main>
-  );
+        </section>);
+const journeyContent=(renderMasterTrainingJourney());
+const shellContent=[renderGoalsHeroRow(),renderGoalOrbiterRow(),directionContent,priorityContent,targetContent,milestoneContent,guidanceContent,journeyContent];
+return <DashboardExperience headerOnly headerOnlyViewport><section className={styles.shell} data-save-message={savedMessage ? "true" : undefined} aria-label="Goals orbital command center">
+<SessionsCardNavigation accentColor="#fbbf24" labelPrefix="goals" showTitle={false} rows={goalsOrbiterRows.map((row,index)=>({title:row.label,cards:index===1?["Goal Direction","Goal Stage","Body Target","Weekly Targets","Progress Signals"].map(title=>({title,icon:"goals"})):[{title:row.label,icon:"goals"}]}))} row={activeGoalsOrbiterRowIndex} card={activeGoalsOrbiterRowIndex===1?activeGoalOrbiterIndex:0} onRow={setGoalsOrbiterRow} onCard={setActiveGoalOrbiterIndex} onNavigate={direction=>{if(direction==="up"||direction==="down")moveGoalsOrbiterRow(direction==="up"?-1:1);else if(activeGoalsOrbiterRowIndex===1)setActiveGoalOrbiterIndex(current=>(current+(direction==="left"?-1:1)+5)%5);}} />
+<div ref={goalsViewportRef} className={styles.viewport} aria-label="Goals rows" tabIndex={0} onKeyDown={handleGoalsOrbiterKeyDown} onScroll={event=>{const el=event.currentTarget;setActiveGoalsOrbiterRow(Math.max(0,Math.min(goalsOrbiterRows.length-1,Math.round(el.scrollTop/el.clientHeight))));}}>
+{shellContent.map((content,index)=><section key={goalsOrbiterRows[index].label} data-goals-shell-row={index} aria-label={goalsOrbiterRows[index].label} className={styles.row}><div className={index===0?styles.heroFrame:styles.rowFrame}><div className={styles.content} data-goals-row-scroll="true"><div className={styles.contentInner}>{content}</div></div></div></section>)}
+</div><div className={styles.status} aria-live="polite">
+{savedMessage ? (
+          <p className="rounded-2xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm font-bold text-emerald-100">
+            {savedMessage}
+          </p>
+        ) : null}
+{(savedMessage.includes("Goals changed") || savedMessage.includes("account changed")) && <button type="button" className="rounded-xl border border-white/20 px-4 py-2 text-sm" onClick={() => {
+          const record = { ...buildGoalsFromProfile(getProfileSnapshot()), ...normalizeGoals(readPlanning(planningKeys.goals, {})) } as GoalState;
+          goalsVersionRef.current = planningRecordVersion(planningKeys.goals);
+      accountRef.current = planningOwner(); generationRef.current = planningAccountGeneration();
+          goalsRef.current = record; savedRef.current = JSON.stringify(record);
+          setGoals(record); setSavedSnapshot(JSON.stringify(record)); setProfile(getProfileSnapshot()); setSavedMessage("Saved goals reloaded.");
+        }}>Reload saved goals and discard these edits</button>}</div></section></DashboardExperience>;
 }

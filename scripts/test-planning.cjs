@@ -8706,7 +8706,7 @@ test('actual coach messaging refresh and send callbacks ignore old same-account 
 
 
 function profileSessionSource() {
-  const source=fs.readFileSync(path.join(root,'app/dashboard/profile/page.tsx'),'utf8'),ast=ts.createSourceFile('profile.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),nodes={};function visit(n){if(ts.isVariableDeclaration(n)&&['saveIdentity','handleProfileImageChange','handleProgressPhotoUpload','handleBodyScanCsvUpload'].includes(n.name.getText(ast)))nodes[n.name.getText(ast)]=n.initializer;if(ts.isFunctionDeclaration(n)&&n.name?.text==='loadProfile')nodes.loadProfile=n;if(ts.isCallExpression(n)&&n.expression.getText(ast)==='useEffect'&&n.arguments[0]?.getText(ast).includes('saveProfile({ announce: false })'))nodes.autosave=n.arguments[0];if(ts.isArrowFunction(n)&&n.getText(ast).length<1200&&n.getText(ast).includes('const saved = mergeProfile(readSoundFitnessProfile()'))nodes.reload=n;ts.forEachChild(n,visit);}visit(ast);return {ast,nodes};
+  const source=fs.readFileSync(path.join(root,'components/profile/ProfileExperience.tsx'),'utf8'),ast=ts.createSourceFile('profile.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),nodes={};function visit(n){if(ts.isVariableDeclaration(n)&&['saveIdentity','handleProfileImageChange','handleProgressPhotoUpload','handleBodyScanCsvUpload'].includes(n.name.getText(ast)))nodes[n.name.getText(ast)]=n.initializer;if(ts.isFunctionDeclaration(n)&&n.name?.text==='loadProfile')nodes.loadProfile=n;if(ts.isCallExpression(n)&&n.expression.getText(ast)==='useEffect'&&n.arguments[0]?.getText(ast).includes('saveProfile({ announce: false })'))nodes.autosave=n.arguments[0];if(ts.isArrowFunction(n)&&n.getText(ast).length<1200&&n.getText(ast).includes('const saved = mergeProfile(readSoundFitnessProfile()'))nodes.reload=n;ts.forEachChild(n,visit);}visit(ast);return {ast,nodes};
 }
 function profileSessionCallback(node,ast,env,decl=false) {
   assert.ok(node);const source=decl?node.getText(ast)+';exports.callback=loadProfile;':'exports.callback='+node.getText(ast)+';';const code=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;new Function(...Object.keys(env),code)(...Object.values(env));return env.exports.callback;
@@ -8725,7 +8725,7 @@ test('actual profile loading refuses late authentication from an older session w
 });
 
 test('actual profile autosave timers expire after a session change or explicit saved-profile reload', async () => {
-  authUser={id:'member'};await store.initializePlanning('member');const {ast,nodes}=profileSessionSource(),timers=[],state={saves:0},env={exports:{},loading:false,isEditingIdentity:false,hasUnsavedChanges:true,profileGenerationRef:{current:store.planningAccountGeneration()},profileReviewRef:{current:0},planningAccountGeneration:store.planningAccountGeneration,saveProfile:()=>state.saves++,window:{setTimeout:callback=>{timers.push(callback);return timers.length;},clearTimeout:()=>{}}};profileSessionCallback(nodes.autosave,ast,env)();await cycleSamePlanningAccount();timers[0]();assert.equal(state.saves,0);env.profileGenerationRef.current=store.planningAccountGeneration();profileSessionCallback(nodes.autosave,ast,env)();env.profileReviewRef.current++;timers[1]();assert.equal(state.saves,0);profileSessionCallback(nodes.autosave,ast,env)();timers[2]();assert.equal(state.saves,1);
+  authUser={id:'member'};await store.initializePlanning('member');const {ast,nodes}=profileSessionSource(),timers=[],state={saves:0},env={exports:{},loading:false,isEditingIdentity:false,isSavingProfile:false,saveError:"",hasUnsavedChanges:true,profileGenerationRef:{current:store.planningAccountGeneration()},profileReviewRef:{current:0},planningAccountGeneration:store.planningAccountGeneration,saveProfile:()=>state.saves++,window:{setTimeout:callback=>{timers.push(callback);return timers.length;},clearTimeout:()=>{}}};profileSessionCallback(nodes.autosave,ast,env)();await cycleSamePlanningAccount();timers[0]();assert.equal(state.saves,0);env.profileGenerationRef.current=store.planningAccountGeneration();profileSessionCallback(nodes.autosave,ast,env)();env.profileReviewRef.current++;timers[1]();assert.equal(state.saves,0);profileSessionCallback(nodes.autosave,ast,env)();timers[2]();assert.equal(state.saves,1);
 });
 
 test('actual profile photo and CSV readers ignore old-session and superseded-review completions', async () => {
@@ -10642,4 +10642,55 @@ test('achievement paths reveal exactly one sequential milestone per distinct pat
   const complete = helper.nextAchievementPaths(helper.lifetimeAchievementMilestones({...input, workouts: 300}));
   assert.equal(complete.find(item => item.pathId === 'workouts').status, 'completed');
   assert.equal(complete.find(item => item.pathId === 'workouts').target, 250);
+});
+
+
+test('online profile save survives full device storage and retains the acknowledged cloud revision', async () => {
+  await store.initializePlanning('online-profile-member');
+  const original = storage.get('soundFitnessPlanning:v1:online-profile-member');
+  const profile = { displayName: 'Online Member', profileImage: '' };
+  failure = true;
+  try {
+    store.writePlanning(store.planningKeys.profile, profile);
+    assert.equal(store.planningOnlineSaveState().pending, true);
+    assert.match(store.planningStatus, /Saving online/);
+    assert.equal(storage.get('soundFitnessPlanning:v1:online-profile-member'), original);
+    let sent;
+    save = async (_name, payload) => { sent = payload; return { data: 1, error: null }; };
+    await store.syncPlanning();
+    assert.deepEqual(sent.document_payload[store.planningKeys.profile], profile);
+    assert.equal(store.planningOnlineSaveState().pending, false);
+    assert.equal(store.planningStatus, 'Synced');
+    assert.deepEqual(store.readPlanning(store.planningKeys.profile, {}), profile);
+    store.writePlanning(store.planningKeys.profile, { ...profile, displayName: 'Next edit' });
+    save = async (_name, payload) => { assert.equal(payload.expected_revision, 1); return { data: 2, error: null }; };
+    await store.syncPlanning();
+    assert.equal(store.planningStatus, 'Synced');
+  } finally { failure = false; }
+});
+
+test('full-device online profile failure preserves edits and never claims they are saved locally', async () => {
+  await store.initializePlanning('online-failed-member');
+  failure = true;
+  try {
+    store.writePlanning(store.planningKeys.profile, { displayName: 'Keep this edit' });
+    save = async () => ({ data: null, error: { message: 'Offline' } });
+    await store.syncPlanning();
+    assert.equal(store.planningOnlineSaveState().pending, true);
+    assert.match(store.planningStatus, /Not saved online.*keep this page open/);
+    assert.equal(store.readPlanning(store.planningKeys.profile, {}).displayName, 'Keep this edit');
+    await store.initializePlanning('online-failed-member');
+    assert.equal(store.readPlanning(store.planningKeys.profile, {}).displayName, 'Keep this edit');
+  } finally { failure = false; }
+});
+
+test('full-device profile fallback still rejects stale tabs and local preview writes', async () => {
+  await store.initializePlanning('online-conflict-member');
+  failure = true;
+  try {
+    storage.set('soundFitnessPlanning:v1:online-conflict-member', JSON.stringify({ values: {}, revision: 2, dirty: false }));
+    assert.throws(() => store.writePlanning(store.planningKeys.profile, { displayName: 'Stale' }), /changed in another tab/);
+    await store.initializePlanning(null);
+    assert.throws(() => store.writePlanning(store.planningKeys.profile, { displayName: 'Preview' }), /Quota/);
+  } finally { failure = false; }
 });

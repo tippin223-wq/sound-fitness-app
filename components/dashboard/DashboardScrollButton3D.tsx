@@ -126,15 +126,7 @@ const createArrowShape = (THREE: typeof import("three")) => {
  * (the ball's icon is a flat mark, not geometry) and re-drawn only when the
  * glyph or tone changes.
  */
-const drawJoystickGlyph = (
-  canvas: HTMLCanvasElement,
-  glyph: DashboardScrollButtonGlyph,
-  accent: string,
-  foreground = "#f0fdff",
-) => {
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-  const cardPaths: Partial<Record<DashboardScrollButtonGlyph, string>> = {
+const cardPaths: Partial<Record<DashboardScrollButtonGlyph, string>> = {
     body: "M12 8V4H8 M6 8h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2 M9 13v2 M15 13v2 M1 12v4 M23 12v4",
     constellation: "m6.5 6.5 11 11 M3 8l5-5 2 2-5 5z M14 19l5-5 2 2-5 5z M2 6l4-4 M18 22l4-4",
     consistency: "M3 17a9 9 0 1 1 18 0 M12 14l5-5 M4 20h16",
@@ -148,6 +140,16 @@ const drawJoystickGlyph = (
     recovery: "M20 4C10 0 2 9 4 20c10 2 20-6 16-16z M4 20 16 8",
     settings: "M12 3v3 M12 18v3 M3 12h3 M18 12h3 M5.6 5.6l2 2 M16.4 16.4l2 2 M5.6 18.4l2-2 M16.4 7.6l2-2 M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8",
   };
+
+const drawJoystickGlyph = (
+  canvas: HTMLCanvasElement,
+  glyph: DashboardScrollButtonGlyph,
+  accent: string,
+  foreground = "#f0fdff",
+) => {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
   const cardPath = cardPaths[glyph];
   if (cardPath) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -732,5 +734,17 @@ export default function DashboardScrollButton3D({
   // own frame and glow carry the warm-up instead, and the joystick appears
   // inside it. Removing the span also lets the button's ::before field come
   // back — globals.css suppressed it only because the bubble was covering it.
+  if (knobOnly) {
+    return <span className={`${className ?? ""} dashboard-card-joystick-visual`} aria-hidden="true">
+      <DashboardWebGlWidget build={build} className="dashboard-card-joystick-renderer" />
+      <span className="dashboard-card-joystick-fallback" style={{ color: glyphColor }}>
+        <span className="dashboard-card-joystick-fallback__knob">
+          <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d={glyph && cardPaths[glyph] ? cardPaths[glyph] : "M12 3v18M3 12h18"} transform="translate(2 2)" />
+          </svg>
+        </span>
+      </span>
+    </span>;
+  }
   return <DashboardWebGlWidget build={build} className={className} />;
 }

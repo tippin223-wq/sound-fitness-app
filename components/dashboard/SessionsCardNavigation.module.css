@@ -1,11 +1,11 @@
 .root { position:absolute;inset:0;z-index:75;pointer-events:none;--dashboard-row-menu-top:6px; }
-.title { position:absolute;top:29px;left:84px;right:12px;font-size:clamp(14px,2.8vw,22px);line-height:1.2;font-weight:900;text-transform:uppercase;letter-spacing:.06em;text-shadow:0 1px #164e63,0 2px #082f49,0 4px 9px #020617; }
+.title { position:absolute;top:29px;left:102px;right:12px;font-size:clamp(14px,2.8vw,22px);line-height:1.2;font-weight:900;text-transform:uppercase;letter-spacing:.06em;text-shadow:0 1px #164e63,0 2px #082f49,0 4px 9px #020617; }
 .vertical { position:absolute;left:5px;top:96px;display:flex;flex-direction:column;gap:12px;pointer-events:auto; padding:10px 8px; background:linear-gradient(90deg,#020713e6,#02071370,transparent); }
 .vertical button { display:grid;justify-items:center;gap:4px;width:48px;min-height:50px;color:#64748b;font-size:8px;font-weight:800;text-transform:uppercase;position:relative; }
 .vertical svg { width:24px;height:24px; }
 .vertical button[aria-current=true] { color:#a5f3fc;filter:drop-shadow(0 0 7px #22d3ee80); }
 .vertical button[aria-current=true]::before { content:"";position:absolute;inset:-5px;border-radius:50%;background:radial-gradient(circle,#22d3ee30,transparent 70%);pointer-events:none; }
-.horizontal { position:absolute;top:70px;left:80px;right:12px;display:flex;align-items:center;justify-content:center;gap:8px;overflow-x:auto;scrollbar-width:none;pointer-events:auto;padding:10px 12px;background:radial-gradient(ellipse at center,#020713ed 35%,#020713bb 65%,transparent 85%); }
+.horizontal { position:absolute;top:70px;left:102px;right:12px;display:flex;align-items:center;justify-content:center;gap:8px;overflow-x:auto;scrollbar-width:none;pointer-events:auto;padding:10px 12px;background:radial-gradient(ellipse at center,#020713ed 35%,#020713bb 65%,transparent 85%); }
 .horizontal button { display:grid;justify-items:center;gap:4px;min-width:40px;max-width:88px;padding:4px;color:#64748b;font-size:8px;font-weight:800;line-height:1.2;flex-shrink:0; }
 .horizontal svg { height:22px;width:22px; }
 .horizontal button[aria-pressed=true] { color:#a5f3fc;filter:drop-shadow(0 0 6px #22d3ee88);border-bottom:2px solid #67e8f9; }

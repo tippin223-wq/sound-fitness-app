@@ -135,3 +135,5 @@ These notes are meant to reduce repeated misunderstandings. New user instruction
 - Keep the app admin focused on app accounts, digital subscriptions/sales, app products, app calendar, app messaging, app content, announcements, and app settings. The website owns the lead journey, business accounting, in-home service catalog, and general marketing.
 - App products follow member areas: Training; Sound Kitchen Menu (Nutrition; Kitchen Table was discussed as a possible name); Steady (Recovery); Run Tracker (Performance); Graduate (Education); Sound World Arcade; and Angles across Training/Performance without requiring another member header circle.
 - Display real integration/access/billing status. Do not imply a product is connected, paid access is fulfilled, or publishing/support administration exists merely because its catalog entry or member workspace exists.
+
+- Place expanded Profile card navigation above the question card. Overview questions, including Sleep Window and Occupation, use the main card as their only panel; remove the inner question wrapper border, background, shadow, and padding while preserving answer controls.

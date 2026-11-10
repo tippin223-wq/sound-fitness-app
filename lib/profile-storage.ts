@@ -200,7 +200,7 @@ export function writeSoundFitnessProfile<T>(profile: T, expectedOwner: string | 
   if (!expectedOwner) throw new Error("Profile data is still loading. Try again.");
   if (planningOwner() !== expectedOwner || planningAccountGeneration() !== expectedGeneration) throw new Error("Your account changed. Reload your profile before saving.");
   if (expectedVersion !== undefined && planningRecordVersion(planningKeys.profile) !== expectedVersion) throw new Error("Profile changed since you opened it. Your edits are still here. Copy them before reloading the saved profile.");
-  // Storage must succeed before announcing the new profile to any UI.
+  // Queue the account profile for cloud sync; full device storage must not block an online save.
   writePlanning(planningKeys.profile, profile);
   notifyProfileSubscribers(profile);
   return profile;

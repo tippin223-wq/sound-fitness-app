@@ -37597,3 +37597,42 @@ h2 .dashboard-section-heading > .dashboard-section-heading__name {
   pointer-events: none;
   max-width: none;
 }
+
+/* Titles reserve the inset, enlarged card joystick's footprint. */
+[data-card-navigation-open] [data-dashboard-orbiter-row] header:has(> h2),
+[data-card-navigation-open] [data-dashboard-orbiter-row] header:has(> div > h2),
+[data-card-navigation-open] [data-dashboard-row-title="stacked"] {
+  padding-inline-start: 94px;
+}
+[data-card-navigation-open] [data-dashboard-row-title="overlay"],
+[data-card-navigation-open] [data-dashboard-hero-toolbar][data-news-toolbar="true"] h2 {
+  left: 102px;
+  max-width: calc(100% - 114px);
+}
+#dashboard-header-meter-panel .dashboard-header-meter-panel__section--daily .dashboard-header-plan-attendance .dashboard-header-meter-deadline--streak {
+  top: calc(50% + 36px);
+  bottom: auto;
+  margin-top: 0;
+}
+
+[data-card-navigation-open] .dashboard-hero-horizontal-orbit h3[data-card-joystick-title] {
+  padding-inline-start: 94px;
+}
+
+/* The card control remains usable while WebGL warms up or recovers. The
+   fallback occupies the same existing base/knob footprint, never a second rim. */
+.dashboard-card-joystick-visual { display: block; width: 100%; height: 100%; }
+.dashboard-card-joystick-renderer { position: absolute; inset: 0; }
+.dashboard-card-joystick-fallback {
+  position: absolute; inset: 2px; display: grid; place-items: center;
+  border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle at 40% 24%, #b4c4cb, #60717d 58%, #273a48 72%);
+  box-shadow: inset 0 1px 2px #ffffff70, 0 2px 3px #0009;
+}
+.dashboard-card-joystick-fallback__knob {
+  display: grid; place-items: center; width: 80%; height: 80%; border-radius: 50%;
+  background: radial-gradient(circle at 36% 24%, #7bcee5, #227794 52%, #10445e 80%);
+  box-shadow: inset 0 1px 2px #c7f5ff99, 0 2px 3px #001827aa;
+}
+.dashboard-card-joystick-fallback svg { width: 88%; height: 88%; filter: drop-shadow(0 0 2px currentColor); }
+.dashboard-card-joystick-visual:has(> [data-webgl-ready="true"]:not([data-webgl-culled="true"])) > .dashboard-card-joystick-fallback { visibility: hidden; }

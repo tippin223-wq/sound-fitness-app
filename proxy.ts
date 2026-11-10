@@ -176,23 +176,7 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  // Local iteration only: SF_LOCAL_AUTH_BYPASS=1 in .env.local lets the member
-  // surfaces render without a session, so the in-app preview pane (which
-  // drops its cookies whenever it reopens) doesn't need a sign-in every time.
-  // Three independent guards keep this off anywhere that matters: the flag
-  // itself lives in a gitignored env file, it is ignored on Vercel, and it
-  // only honours localhost hosts. Admin and coach routes never bypass.
-  if (
-    process.env.SF_LOCAL_AUTH_BYPASS === "1" &&
-    !process.env.VERCEL &&
-    (request.nextUrl.hostname === "localhost" ||
-      request.nextUrl.hostname === "127.0.0.1") &&
-    !pathname.startsWith("/admin") &&
-    !pathname.startsWith("/coach")
-  ) {
-    return response;
-  }
-
+  // All member pages require a verified session, including localhost.
   // Expiry is only a refresh hint. The cookie must still pass signature verification.
   const accessTokenExp = readAccessTokenExp(request);
 

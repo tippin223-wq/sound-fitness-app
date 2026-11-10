@@ -15,7 +15,7 @@ export function saveSupportRecord(input: Omit<SupportRecord, "recordedAt">, acco
   if (!validSupportHistory([row]) || row.date > localDate(now)) throw Error("Enter a valid amount and a date through today.");
   const existing = history.rows.find(item => item.id === row.id);
   if (existing) {
-    if (["kind", "date", "value", "notes"].every(key => existing[key as keyof SupportRecord] === row[key as keyof SupportRecord])) return existing;
+    if (["kind", "date", "value", "diastolic", "notes"].every(key => existing[key as keyof SupportRecord] === row[key as keyof SupportRecord])) return existing;
     throw Error("This record changed. Reopen the meter before saving another entry.");
   }
   writePlanning(SUPPORT_RECORDS_KEY, [...history.rows, row]);

@@ -8,8 +8,9 @@ import styles from "./SessionsCardNavigation.module.css";
 
 type Direction = "up" | "down" | "left" | "right";
 type Row = { title: string; cards: { title: string; icon: string }[] };
-export default function SessionsCardNavigation({ rows, row, card, onNavigate, onRow, onCard, labelPrefix = "session", showTitle = true, disabled = false }: {
-  labelPrefix?: string; showTitle?: boolean; disabled?: boolean;
+export default function SessionsCardNavigation({ rows, row, card, onNavigate, onRow, onCard, labelPrefix = "session", showTitle = true, showHorizontalIndicators = true, disabled = false, accentColor }: {
+  labelPrefix?: string; showTitle?: boolean; showHorizontalIndicators?: boolean; disabled?: boolean;
+  accentColor?: string;
   rows: Row[]; row: number; card: number; onNavigate: (direction: Direction) => void;
   onRow: (row: number) => void; onCard: (card: number) => void;
 }) {
@@ -22,10 +23,11 @@ export default function SessionsCardNavigation({ rows, row, card, onNavigate, on
   const wheelTime = useRef(0);
   const previous = useRef({row,card});
   const reveal = useCallback((axis: "both" | "vertical" | "horizontal") => {
+    if (!showHorizontalIndicators && axis === "horizontal") return;
     setMode(axis);
     if(timer.current)clearTimeout(timer.current);
     timer.current=setTimeout(()=>setMode(null),axis==='horizontal'?5000:3000);
-  },[]);
+  },[showHorizontalIndicators]);
   const hide = useCallback(()=>{setMode(null);if(timer.current)clearTimeout(timer.current);},[]);
   useEffect(()=>()=>{if(timer.current)clearTimeout(timer.current);},[]);
   useEffect(()=>{
@@ -37,7 +39,7 @@ export default function SessionsCardNavigation({ rows, row, card, onNavigate, on
   const navigate = (direction:Direction)=>{reveal(direction==='up'||direction==='down'?'vertical':'horizontal');if(available(direction))onNavigate(direction);};
   const title = rows[row].cards[card]?.title || rows[row].title;
   const glyph: DashboardScrollButtonGlyph = /plan/i.test(title)?'calendar':/builder/i.test(title)?'tools':/achieve/i.test(title)?'achievements':/profile|goal/i.test(title)?'challenges':/library/i.test(title)?'favorites':/history|stats/i.test(title)?'constellation':'body';
-  const color = row===2?'#fbbf24':/plan/i.test(title)?'#6ee7b7':'#67e8f9';
+  const color = accentColor || (row===2?'#fbbf24':/plan/i.test(title)?'#6ee7b7':'#67e8f9');
   const vertical = mode==='both'||mode==='vertical';
   const horizontal = mode==='both'||mode==='horizontal';
   return <div className={styles.root} onPointerDown={event=>event.stopPropagation()} onPointerMove={event=>event.stopPropagation()} onPointerUp={event=>event.stopPropagation()}>
@@ -59,7 +61,7 @@ export default function SessionsCardNavigation({ rows, row, card, onNavigate, on
       <nav className={styles.vertical} aria-label={`${labelPrefix} rows`}>{rows.map((item,index)=><button type="button" key={item.title} aria-current={index===row?'true':undefined} onClick={()=>{onRow(index);reveal('vertical');}}><DashboardTabIcon name={index===0?'Workout':index===1?'Plan':'Settings'} label={item.title}/><span>{item.title}</span></button>)}</nav>
     </DashboardRowMenu>
     {showTitle && <div className={styles.title} style={{color}}>{title}</div>}
-    {horizontal&&<nav className={styles.horizontal} aria-label={`${labelPrefix} card indicators`} onPointerMove={()=>reveal(mode==='both'?'both':'horizontal')} onFocus={()=>reveal(mode==='both'?'both':'horizontal')}>
+    {horizontal&&showHorizontalIndicators&&<nav className={styles.horizontal} aria-label={`${labelPrefix} card indicators`} onPointerMove={()=>reveal(mode==='both'?'both':'horizontal')} onFocus={()=>reveal(mode==='both'?'both':'horizontal')}>
       {rows[row].cards.map((item,index)=><button type="button" key={item.title} aria-label={`Show ${item.title}`} aria-pressed={index===card} onClick={()=>{onCard(index);reveal(mode==='both'?'both':'horizontal');}}><DashboardTabIcon name={item.icon} label={item.title}/><span>{item.title}</span></button>)}
     </nav>}
   </div>;

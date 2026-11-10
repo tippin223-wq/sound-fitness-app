@@ -32,6 +32,11 @@ import {
  * their detail.
  */
 export type BodyCommandGlyphName =
+  | "readiness"
+  | "measurements"
+  | "bloodPressure"
+  | "caffeine"
+  | "benchmarks"
   | "protein"
   | "carbs"
   | "fat"
@@ -92,6 +97,11 @@ const STRETCH_ARMS = "M12 8.8L7.2 4.8M12 8.8L16.8 4.8";
 const STRETCH_LEGS = "M12 14.2L9.4 20.4M12 14.2L14.6 20.4";
 
 const glyphArt: Record<BodyCommandGlyphName, ReactNode> = {
+  readiness: <><path d="M12 2 21 6v6c0 5-9 10-9 10S3 17 3 12V6Z" fill="#34d399" stroke="#065f46"/><path d="m5 12 4 0 2-5 3 10 2-5h3" fill="none" stroke="#ecfdf5" strokeWidth="1.7"/></>,
+  measurements: <><path d="m3 16 13-13 5 5L8 21Z" fill="#5eead4" stroke="#0f766e"/><path d="m7 12 3 3m1-7 3 3m1-7 3 3" stroke="#134e4a" strokeWidth="1.5"/></>,
+  caffeine: <><path d="M4 8h12v8a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4Z" fill="#d6a772" stroke="#fef3c7" strokeWidth="1.2"/><path d="M16 9h2a3 3 0 0 1 0 6h-2" fill="none" stroke="#fde68a" strokeWidth="2"/><path d="M7 5c-2-2 2-2 0-4m5 4c-2-2 2-2 0-4" fill="none" stroke="#fef3c7" strokeWidth="1.2" strokeLinecap="round"/></>,
+  bloodPressure: <><rect x="3" y="5" width="16" height="14" rx="3" fill="#fda4af" stroke="#9f1239"/><path d="M5 12h3l2-4 3 8 2-4h2" fill="none" stroke="#fff1f2" strokeWidth="1.5"/><path d="M19 10h2v9h-5" fill="none" stroke="#fb7185" strokeWidth="2"/></>,
+  benchmarks: <><path d="M7 3h10v7c0 6-10 6-10 0Z" fill="#fcd34d" stroke="#a16207"/><path d="M7 5H3v4c0 3 4 4 5 4m9-8h4v4c0 3-4 4-5 4M12 15v5m-5 1h10" fill="none" stroke="#fbbf24" strokeWidth="2"/></>,
   protein: <><path d="M5 6c5-5 15 0 13 6-1 4-7 7-11 5S1 10 5 6Z" fill="#fb7185" stroke="#9f1239"/><path d="M7 8c3-2 8 0 7 3s-5 4-7 2 0-5 0-5Z" fill="#fda4af"/><path d="m16 16 4 4m-2 0 2-2" stroke="#ffe4e6" strokeWidth="3"/></>,
   carbs: <><path d="M6 20 17 3M10 14l-5-1 2-4 5 1m1-3-1-4 5-1m-2 11 5-2-1-4m-8 11 6-1 2-4" fill="none" stroke="#fbbf24" strokeWidth="3" strokeLinecap="round"/></>,
   fat: <><path d="M12 3c4 5 7 9 7 12a7 7 0 0 1-14 0c0-3 3-7 7-12Z" fill="#c084fc" stroke="#7e22ce"/><path d="M8 15c0 3 2 4 4 4" stroke="#f3e8ff" fill="none" strokeWidth="2"/></>,

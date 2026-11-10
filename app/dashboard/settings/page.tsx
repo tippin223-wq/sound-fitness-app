@@ -1,3 +1,4 @@
+import ProfileExperience from "@/components/profile/ProfileExperience";
 import UserMenuPlaceholderPage from "@/components/dashboard/UserMenuPlaceholderPage";
 
 export default function SettingsPage() {
@@ -14,7 +15,8 @@ export default function SettingsPage() {
         },
         {
           title: "Notification Preferences",
-          description: "Future reminders for sessions, meals, recovery, and plan reviews.",
+          content: <div className="mt-4"><ProfileExperience supportSection="notifications" /></div>,
+          description: "Choose your saved reminder style. Notification delivery is not enabled yet.",
           items: ["Workout reminders", "Nutrition nudges", "Recovery prompts"],
         },
         {

@@ -1,7 +1,9 @@
 import { supabase } from "@/lib/supabaseClient";
 import { validatePlanningImport } from "./importValidation";
 import { backendSyncIssue } from "./backendSyncIssue";
-const backendFailureStatus = (cause: unknown) => backendSyncIssue(cause, "planning")?.message || "Saved locally · cloud unavailable; Retry sync";
+const backendFailureStatus = (cause: unknown) => deviceCacheFull
+  ? "Not saved online · device storage full; keep this page open and Retry sync"
+  : backendSyncIssue(cause, "planning")?.message || "Saved locally · cloud unavailable; Retry sync";
 
 export const PLANNING_UPDATED = "soundFitnessPlanningUpdated";
 export const planningKeys = {
@@ -35,6 +37,10 @@ let timer: ReturnType<typeof setTimeout> | undefined;
 let cacheNeedsRecovery = false;
 let dataIssue: string | null = null;
 let persistedText: string | null = null;
+let deviceCacheFull = false;
+export const planningOnlineSaveState = () => ({ status: planningStatus, pending: cache.dirty, deviceCacheFull });
+const isQuotaError = (cause: unknown) => cause instanceof Error &&
+  (cause.name === "QuotaExceededError" || cause.name === "NS_ERROR_DOM_QUOTA_REACHED" || /quota/i.test(cause.message));
 export let planningStatus = "Loading planning data…";
 export let legacyAvailable = false;
 const cacheKey = () => `soundFitnessPlanning:v1:${owner}`;
@@ -57,11 +63,19 @@ export function assertPlanningDeviceCurrent() {
     throw cause;
   }
 }
-const persist = () => {
+const persist = (allowOnlineOnly = false) => {
   assertDeviceCurrent();
   const text = JSON.stringify(cache);
-  window.localStorage.setItem(cacheKey(), text);
-  persistedText = text;
+  try {
+    window.localStorage.setItem(cacheKey(), text);
+    persistedText = text;
+    deviceCacheFull = false;
+  } catch (cause) {
+    if (!allowOnlineOnly || !owner || owner === "local-preview" || !isQuotaError(cause)) throw cause;
+    // Keep the last durable bytes and cross-tab guard intact. Only the cloud
+    // acknowledgement can mark this in-memory revision as saved.
+    deviceCacheFull = true;
+  }
 };
 const storedValue = (key: string) => { try { return window.localStorage.getItem(key); } catch { return null; } };
 const object = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === "object" && !Array.isArray(value));
@@ -112,13 +126,13 @@ export function writePlanningValues(values: Record<string, unknown>) {
   if (cacheNeedsRecovery) throw new Error("Device planning data needs recovery. Retry sync before saving; the original is preserved.");
   const previous = cache;
   cache = { ...cache, values: { ...cache.values, ...values }, dirty: true };
-  try { persist(); } catch (error) {
+  try { persist(Object.keys(values).length === 1 && Object.prototype.hasOwnProperty.call(values, planningKeys.profile)); } catch (error) {
     cache = previous;
     if (error instanceof DevicePlanningConflict) { planningStatus = deviceConflictStatus; clearTimeout(timer); announce(); }
     throw error;
   }
   if (dataIssue) planningStatus = dataIssue;
-  else if (!planningStatus.startsWith("Sync conflict")) planningStatus = owner === "local-preview" ? "Saved locally · local preview" : "Saved locally · waiting to sync";
+  else if (!planningStatus.startsWith("Sync conflict")) planningStatus = deviceCacheFull ? "Saving online · device storage full; keep this page open" : owner === "local-preview" ? "Saved locally · local preview" : "Saved locally · waiting to sync";
   announce();
   clearTimeout(timer);
   timer = setTimeout(() => { void syncPlanning(); }, 300);
@@ -128,12 +142,15 @@ export function subscribePlanning(callback: () => void) {
   return () => window.removeEventListener(PLANNING_UPDATED, callback);
 }
 export async function initializePlanning(userId: string | null) {
+  // Never replace a profile which exists only in this tab while it is uploading.
+  if (userId && owner === userId && deviceCacheFull && cache.dirty) { await syncPlanning(); return; }
   const previousOwner = owner;
   const token = ++generation;
   clearTimeout(timer);
   owner = userId || "local-preview";
   cache = { values: {}, revision: 0, dirty: false };
   cacheNeedsRecovery = false;
+  deviceCacheFull = false;
   dataIssue = null;
   const raw = storedValue(cacheKey());
   persistedText = raw;
@@ -166,7 +183,7 @@ export async function initializePlanning(userId: string | null) {
       const previous = { cache, cacheNeedsRecovery, dataIssue };
       if (cloudCache) cache = cloudCache;
       cacheNeedsRecovery = false; dataIssue = null;
-      try { persist(); }
+      try { persist(true); }
       catch (cause) { cache = previous.cache; cacheNeedsRecovery = previous.cacheNeedsRecovery; dataIssue = previous.dataIssue; throw cause; }
       planningStatus = "Synced";
       if (Object.keys(cache.values).length) legacyAvailable = false;
@@ -196,8 +213,8 @@ export async function syncPlanning() {
     else {
       const previous = cache;
       cache = { ...cache, revision: Number(data), dirty: cache !== snapshot };
-      try { persist(); } catch (cause) { cache = previous; throw cause; }
-      planningStatus = cache.dirty ? "Saved locally · waiting to sync" : "Synced";
+      try { persist(true); } catch (cause) { cache = previous; throw cause; }
+      planningStatus = cache.dirty ? deviceCacheFull ? "Saving online · device storage full; keep this page open" : "Saved locally · waiting to sync" : "Synced";
       if (cache.dirty) timer = setTimeout(() => { void syncPlanning(); }, 300);
     }
   } catch (cause) { if (token === generation) planningStatus = cause instanceof DevicePlanningConflict ? deviceConflictStatus : backendFailureStatus(cause); }

@@ -329,6 +329,11 @@ const avatarMotionOptions: Array<{
 // so the visual fill reads as "current value / total" instead of old check-in
 // completion data.
 const bodyCommandSupportDefinitions: Array<{ glyph: keyof BodyCommandEvidence; label: string; tone: BodyStatTone }> = [
+  { glyph: "readiness", label: "Readiness", tone: "emerald" },
+  { glyph: "measurements", label: "Body Measurements", tone: "teal" },
+  { glyph: "bloodPressure", label: "Blood Pressure", tone: "rose" },
+  { glyph: "caffeine", label: "Caffeine", tone: "gold" },
+  { glyph: "benchmarks", label: "Benchmarks", tone: "gold" },
   { glyph: "sleep", label: "Sleep", tone: "blue" }, { glyph: "stress", label: "Stress", tone: "purple" },
   { glyph: "fatigue", label: "Fatigue", tone: "gold" }, { glyph: "soreness", label: "Soreness", tone: "rose" },
   { glyph: "recovery", label: "Recovery Sessions", tone: "emerald" }, { glyph: "core", label: "Core", tone: "cyan" },
@@ -1412,14 +1417,23 @@ function DetailInlineScrollSection({
 }
 
 function SupportSignalDetailDialog({
-  onClose,
-  onNavigate,
+  onClose: requestClose,
+  onNavigate: requestNavigate,
   stat,
 }: {
   onClose: () => void;
   onNavigate: (direction: -1 | 1) => void;
   stat: BodyStatCardDefinition;
 }) {
+  const pendingEdits = useRef(false);
+  const onPendingChange = useCallback((pending: boolean) => { pendingEdits.current = pending; }, []);
+  const onClose = useCallback(() => { if (!pendingEdits.current) requestClose(); }, [requestClose]);
+  const onNavigate = (direction: -1 | 1) => { if (!pendingEdits.current) requestNavigate(direction); };
+  useEffect(() => {
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    window.addEventListener("keydown", escape);
+    return () => window.removeEventListener("keydown", escape);
+  }, [onClose]);
   const titleId = useId();
   const summaryId = useId();
   const tone = statToneClasses[stat.tone];
@@ -1509,8 +1523,8 @@ function SupportSignalDetailDialog({
           className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 [scrollbar-color:rgba(34,211,238,0.38)_rgba(15,23,42,0.32)] [scrollbar-width:thin]"
           data-dashboard-orbiter-local-scroll="true"
         >
-          <SupportSignalLog kind={stat.glyph} />
-          {stat.glyph !== "weight" && stat.glyph !== "photos" && <SupportSignalLastSevenDays
+          <SupportSignalLog kind={stat.glyph} onPendingChange={onPendingChange} />
+          {!["weight", "photos", "measurements", "readiness", "benchmarks", "bloodPressure"].includes(stat.glyph) && <SupportSignalLastSevenDays
             stat={stat}
             statusTheme={statusTheme}
           />}
@@ -1559,11 +1573,6 @@ export function DailyCheckInPopup({ onClose }: { onClose: () => void }) {
   const snapshot = useSyncExternalStore(subscribeDashboardPlanEvidence, bodyCommandEvidenceSnapshot, serverBodyCommandEvidence);
   const stats = useMemo(() => createBodyCommandSupportStats(JSON.parse(snapshot) as BodyCommandEvidence), [snapshot]);
   const [index, setIndex] = useState(0);
-  useEffect(() => {
-    const close = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
-    window.addEventListener("keydown", close);
-    return () => window.removeEventListener("keydown", close);
-  }, [onClose]);
   return stats[index] ? <SupportSignalDetailDialog stat={stats[index]} onClose={onClose} onNavigate={direction => setIndex(value => (value + direction + stats.length) % stats.length)} /> : null;
 }
 
@@ -1574,7 +1583,7 @@ function BodyStatStack(props: SupportStackProps) {
   const owner = useSyncExternalStore(subscribePlanning, planningOwner, () => null);
   const selected: string[] = useMemo(() => {
     const saved = JSON.parse(preference);
-    return Array.isArray(saved) ? saved.filter((id: unknown): id is string => typeof id === "string") : props.stats.filter(stat => !["core", "protein", "carbs", "fat", "meals"].includes(stat.glyph)).map(stat => stat.glyph);
+    return Array.isArray(saved) ? saved.filter((id: unknown): id is string => typeof id === "string") : props.stats.filter(stat => !["core", "protein", "carbs", "fat", "meals", "measurements", "bloodPressure", "benchmarks", "caffeine"].includes(stat.glyph)).map(stat => stat.glyph);
   }, [preference, props.stats]);
   const visibleStats = props.stats.filter(stat => selected.includes(stat.glyph));
   const [editing, setEditing] = useState(false);
@@ -1708,15 +1717,6 @@ function SupportSignalStack({
       return nextIndex;
     });
   };
-
-  useEffect(() => {
-    if (detailIndex === null) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setDetailIndex(null);
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [detailIndex]);
 
   const rail = (
     <div

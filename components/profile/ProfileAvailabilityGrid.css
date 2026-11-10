@@ -1,0 +1,826 @@
+/* THE WEEK-OF-HOURS GRID.
+ *
+ * Moved here from assessment-claim-flow.css when the grid became a component
+ * two pages share - the free assessment and the admin availability page. The
+ * rules were already portable: not one of them is scoped to an ancestor that
+ * only exists inside the assessment form, and none reads a custom property
+ * defined outside this block. Only the import had to move.
+ *
+ * Seven fixed columns at every width, scrolled horizontally with the time
+ * column stuck to the left edge. Deliberately no breakpoints: a week is seven
+ * days on a phone too, and reflowing it into a list loses the shape that makes
+ * a block of hours readable at a glance.
+ */
+
+/* THE CONTROLS SIT UNDER THE TABLE, WHICH IS WHERE THEY STARTED.
+ *
+ * Joey, having tried them beside it: "this picker needs to be wide so lets
+ * make it a popup actually so we can just put the controls below how they
+ * were for max width."
+ *
+ * Beside the grid they cost it width, and width is the one thing a seven-day
+ * table cannot spare. The fix was never the controls - it was the page. The
+ * grid opens in a dialog now and has the whole window to itself, so the pad
+ * goes back under the table where a pad belongs. */
+.sf-availability-grid-wrap {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.sf-availability-grid {
+  position: relative;
+  width: min(100%, 36.3rem);
+  min-width: 0;
+  max-width: 100%;
+  margin-inline: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  border: 1px solid rgba(111, 199, 255, 0.18);
+  border-radius: 0.9rem;
+  background:
+    radial-gradient(
+      circle at 18% 0%,
+      rgba(142, 216, 248, 0.12),
+      transparent 32%
+    ),
+    linear-gradient(135deg, rgba(4, 17, 38, 0.82), rgba(2, 7, 19, 0.68));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 -1px 0 rgba(111, 199, 255, 0.06),
+    0 18px 42px rgba(0, 0, 0, 0.22);
+  scroll-behavior: smooth;
+  scroll-padding-left: 4.45rem;
+  scroll-snap-type: none;
+  scrollbar-color: rgba(142, 216, 248, 0.46) rgba(2, 7, 19, 0.36);
+  scrollbar-width: thin;
+}
+
+.sf-availability-grid__inner {
+  display: grid;
+  grid-template-columns: 4.45rem repeat(7, 4.55rem);
+  width: max-content;
+  min-width: 0;
+}
+
+/* SPEND THE WINDOW. In a dialog the grid is not squeezed into a column any
+   more, and 36.3rem of table centred in 70rem of popup is the same small
+   thing in a bigger empty box - the exact complaint that put the controls
+   under the table in the first place.
+   The seven day columns stretch; the hour column does not, because it holds
+   one fixed string. 4.55rem stays the floor, so a narrow window still scrolls
+   sideways rather than crushing Wednesday. */
+/* NO BOX ROUND IT IN THE DIALOG. Joey: "remove the container around the
+   availability selector, the blue outer container, so it has more room."
+
+   The border, the gradient and the drop shadow are what make this read as an
+   object sitting on a page - which is what it is on the assessment, inside a
+   form full of other fields. In a dialog opened for nothing else it is a
+   second frame drawn just inside the first one, and the two of them together
+   cost the week about three centimetres of the width the popup existed to
+   give it. The cells keep their own edges, so the table is still a table. */
+.sf-availability-grid-wrap[data-wide="true"] .sf-availability-grid {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.sf-availability-grid-wrap[data-wide="true"] .sf-availability-grid__inner {
+  width: 100%;
+  min-width: max-content;
+  grid-template-columns: 4.45rem repeat(7, minmax(4.55rem, 1fr));
+}
+
+/* NO VERTICAL SCROLLBAR IF IT CAN BE HELPED. Joey: "if it fits, remove the
+   horizontal and vertical scrollbar; if they do not all fit, bring back
+   whichever is needed - ideally we do not need the vertical one on mobile
+   or a good wide res."
+
+   Sixteen hours at 2.15rem is 34.4rem of rows before the header, the pad
+   and the save row, which is more than a 768px laptop has under a dialog
+   and about what a phone has. So in the popup a row is a slice of the
+   window instead of a fixed height: 3.6vh, held between 1.7rem (a cell
+   still has room for its tick and a thumb) and the 2.15rem it is
+   everywhere else. On a tall monitor nothing changes; on a laptop or a
+   phone the week shortens by a few pixels a row and the whole thing lands
+   inside the viewport, and the panel's vertical bar - which is still there
+   as a safety net - has nothing to do. The sideways bar is the grid's own
+   and appears only where the week is wider than the screen. */
+.sf-availability-grid-wrap[data-wide="true"] .sf-availability-grid__corner,
+.sf-availability-grid-wrap[data-wide="true"] .sf-availability-grid__day,
+.sf-availability-grid-wrap[data-wide="true"] .sf-availability-grid__time,
+.sf-availability-grid-wrap[data-wide="true"] .sf-availability-slot {
+  min-height: clamp(1.7rem, 3.6vh, 2.15rem);
+}
+
+.sf-availability-grid__corner,
+.sf-availability-grid__day,
+.sf-availability-grid__time {
+  min-height: 2.15rem;
+  display: flex;
+  align-items: center;
+  border-color: rgba(111, 199, 255, 0.1);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.sf-availability-grid__corner,
+.sf-availability-grid__day {
+  justify-content: center;
+  border-bottom: 1px solid rgba(111, 199, 255, 0.16);
+  background:
+    radial-gradient(
+      circle at 50% 0%,
+      rgba(242, 143, 69, 0.12),
+      transparent 48%
+    ),
+    rgba(2, 7, 19, 0.34);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sf-availability-grid__corner {
+  position: sticky;
+  left: 0;
+  z-index: 6;
+  color: #ffd4b0;
+  background:
+    radial-gradient(
+      circle at 50% 0%,
+      rgba(242, 143, 69, 0.18),
+      transparent 48%
+    ),
+    linear-gradient(135deg, rgba(4, 17, 38, 0.98), rgba(2, 7, 19, 0.96));
+  box-shadow:
+    1px 0 0 rgba(111, 199, 255, 0.16),
+    10px 0 22px rgba(2, 7, 19, 0.32);
+}
+
+.sf-availability-grid__day {
+  position: relative;
+  z-index: 2;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.sf-availability-grid__time {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  border-top: 1px solid rgba(111, 199, 255, 0.08);
+  border-right: 1px solid rgba(111, 199, 255, 0.12);
+  /* Tighter than it was (0.75rem): the column is 4.45rem and "10:00 AM"
+     has to fit on one line inside it - see __hour. */
+  padding-inline: 0.5rem;
+  background:
+    radial-gradient(
+      circle at 0% 50%,
+      rgba(142, 216, 248, 0.08),
+      transparent 58%
+    ),
+    linear-gradient(135deg, rgba(4, 17, 38, 0.98), rgba(2, 7, 19, 0.96));
+  box-shadow:
+    1px 0 0 rgba(111, 199, 255, 0.12),
+    10px 0 22px rgba(2, 7, 19, 0.28);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  /* Every hour the same width as every other, so the column reads as a
+     ruler rather than a ragged list. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* THE CLOCK AND ITS MERIDIEM, ONE LINE. The "AM" is set small and a little
+   faded: the number is what somebody scans for, the half of the day is
+   already said by the band colour, and a small meridiem is also what lets
+   the whole thing fit the column without wrapping. */
+.sf-availability-grid__hour {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.18rem;
+  white-space: nowrap;
+  line-height: 1.1;
+  font-size: 0.74rem;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.sf-availability-grid__hour small {
+  font-size: 0.5rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.sf-availability-grid__band-label {
+  margin-top: 0.14rem;
+  color: rgb(var(--sf-time-band-accent, 142 216 248));
+  font-size: 0.45rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sf-availability-slot {
+  position: relative;
+  min-height: 2.15rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-top: 1px solid rgba(111, 199, 255, 0.08);
+  border-left: 1px solid rgba(111, 199, 255, 0.08);
+  color: #02040a;
+  background:
+    radial-gradient(
+      circle at 50% 18%,
+      rgba(142, 216, 248, 0.08),
+      transparent 38%
+    ),
+    rgba(4, 17, 38, 0.3);
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  touch-action: none;
+  user-select: none;
+  transition:
+    background 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.sf-availability-grid__time[data-time-band="pre-dawn"],
+.sf-availability-slot[data-time-band="pre-dawn"] {
+  --sf-time-band-accent: 132 160 255;
+  background:
+    radial-gradient(
+      circle at 74% 24%,
+      rgba(218, 230, 255, 0.34) 0 0.13rem,
+      transparent 0.16rem
+    ),
+    radial-gradient(
+      circle at 30% 68%,
+      rgba(196, 215, 255, 0.24) 0 0.07rem,
+      transparent 0.1rem
+    ),
+    linear-gradient(145deg, rgba(5, 13, 42, 0.96), rgba(20, 39, 86, 0.88));
+}
+
+.sf-availability-grid__time[data-time-band="morning"],
+.sf-availability-slot[data-time-band="morning"] {
+  --sf-time-band-accent: 255 189 116;
+  background:
+    radial-gradient(
+      circle at 50% 52%,
+      rgba(255, 220, 160, 0.26),
+      transparent 38%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(49, 68, 103, 0.94),
+      rgba(133, 88, 83, 0.72) 58%,
+      rgba(32, 73, 106, 0.82)
+    );
+}
+
+.sf-availability-grid__time[data-time-band="afternoon"],
+.sf-availability-slot[data-time-band="afternoon"] {
+  --sf-time-band-accent: 142 216 248;
+  background:
+    radial-gradient(
+      circle at 50% 50%,
+      rgba(235, 251, 255, 0.24),
+      transparent 40%
+    ),
+    linear-gradient(145deg, rgba(13, 69, 108, 0.9), rgba(24, 100, 137, 0.72));
+}
+
+.sf-availability-grid__time[data-time-band="evening"],
+.sf-availability-slot[data-time-band="evening"] {
+  --sf-time-band-accent: 247 168 196;
+  background:
+    radial-gradient(
+      ellipse at 86% 112%,
+      rgba(255, 157, 104, 0.62) 0 14%,
+      transparent 48%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(98, 57, 94, 0.9),
+      rgba(52, 49, 92, 0.86) 60%,
+      rgba(21, 38, 75, 0.92)
+    );
+}
+
+.sf-availability-grid__time[data-time-band="night"],
+.sf-availability-slot[data-time-band="night"] {
+  --sf-time-band-accent: 197 163 255;
+  background:
+    radial-gradient(
+      circle at 76% 28%,
+      rgba(225, 234, 255, 0.42) 0 0.22rem,
+      transparent 0.25rem
+    ),
+    radial-gradient(
+      circle at 26% 70%,
+      rgba(205, 218, 255, 0.25) 0 0.07rem,
+      transparent 0.1rem
+    ),
+    radial-gradient(
+      circle at 48% 34%,
+      rgba(205, 218, 255, 0.2) 0 0.05rem,
+      transparent 0.08rem
+    ),
+    linear-gradient(145deg, rgba(5, 13, 40, 0.98), rgba(25, 30, 76, 0.94));
+}
+
+.sf-availability-grid__time[data-band-start="true"],
+.sf-availability-slot[data-band-start="true"] {
+  border-top-color: rgb(var(--sf-time-band-accent, 142 216 248) / 0.5);
+  box-shadow: inset 0 1px 0 rgb(var(--sf-time-band-accent, 142 216 248) / 0.24);
+}
+
+.sf-availability-grid__time[data-time-band] {
+  background-attachment: local;
+}
+
+/* NOTHING DRAWN ON A CELL BUT ITS COLOUR AND ITS TICK.
+
+   Two things used to be. A sunburst - a conic gradient with a drop shadow -
+   sat in every morning and afternoon cell, a hundred and twelve of them
+   repainting through a 160ms transition each time the cursor moved, which
+   is the "glitches during movement" Joey saw. And a white pill floated over
+   any cell that was hovered, chosen or under the cursor, which on a chosen
+   cell read as an opaque oval sitting on top of the highlight instead of
+   the highlight itself.
+
+   Joey: "the sun is ugly and glitches during movement, and lets remove the
+   opaque oval on top of the highlighted - just brightness is good for
+   highlight, and check for selection."
+
+   So: a cell is its band's colour; hovering or holding the cursor on it
+   makes it brighter; choosing it makes it brightest and puts a tick in it.
+   The band, the brightness and the tick are the whole vocabulary. */
+
+.sf-availability-slot:hover,
+.sf-availability-slot:focus-visible {
+  z-index: 2;
+  background:
+    radial-gradient(
+      circle at 50% 38%,
+      rgba(255, 255, 255, 0.24),
+      transparent 38%
+    ),
+    linear-gradient(
+      145deg,
+      rgb(var(--sf-time-band-accent) / 0.56),
+      rgba(3, 13, 31, 0.86)
+    );
+  box-shadow:
+    inset 0 0 0 1px rgb(var(--sf-time-band-accent) / 0.64),
+    0 0 18px rgb(var(--sf-time-band-accent) / 0.2);
+}
+
+.sf-availability-slot[aria-pressed="true"] {
+  z-index: 3;
+  color: #02040a;
+  background:
+    radial-gradient(
+      circle at 50% 45%,
+      rgba(255, 255, 255, 0.7),
+      transparent 42%
+    ),
+    linear-gradient(
+      135deg,
+      rgb(var(--sf-time-band-accent) / 0.98),
+      rgb(var(--sf-time-band-accent) / 0.68)
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 0 0 1px rgb(var(--sf-time-band-accent) / 0.72),
+    0 0 20px rgb(var(--sf-time-band-accent) / 0.42);
+}
+
+.sf-availability-slot[data-joystick-active="true"] {
+  z-index: 4;
+  outline: 2px solid rgb(var(--sf-time-band-accent, 142 216 248) / 0.96);
+  outline-offset: -0.22rem;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.78),
+    inset 0 0 1.1rem rgb(var(--sf-time-band-accent, 142 216 248) / 0.34),
+    0 0 0 0.16rem rgba(2, 7, 19, 0.78),
+    0 0 1.2rem rgb(var(--sf-time-band-accent, 142 216 248) / 0.56);
+}
+
+.sf-availability-slot > span {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ONE ROW UNDER THE TABLE: whatever the caller put on the left, the pad,
+   whatever it put on the right. Three columns with the outer two equal so
+   the pad stays centred under the week no matter how wide the buttons
+   beside it are; the left slot hugs the pad and the right slot hugs it
+   from the other side. One row on a phone too - a button, the pad and a
+   word fit in 375px with room over, and Joey wants the pad "in between the
+   two" at every size, not above or below them. */
+.sf-availability-grid-controls {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  justify-items: center;
+  column-gap: 0.85rem;
+  row-gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+/* PINNED TO THEIR COLUMNS. Auto-placement puts the first child in column
+   one, and when a caller passes nothing for the left slot the first child
+   is the pad - which then sits off-centre in the left column while the
+   middle one collapses to nothing. It only looked right in the admin popup
+   because Save happened to be there to take column one. */
+.sf-availability-grid-controls > .sf-availability-pad {
+  grid-column: 2;
+}
+
+.sf-availability-grid-controls__leading {
+  grid-column: 1;
+  justify-self: end;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.sf-availability-grid-controls__trailing {
+  grid-column: 3;
+  justify-self: start;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+
+/* WHICH ROW AND WHICH COLUMN, SAID BY THE LABELS THAT NAME THEM.
+
+   Joey: "when I said make it clear which row and column are selected I did not
+   mean highlight the whole line of each, just highlight the row and column
+   titles."
+
+   The first version washed all twenty-one cells sharing the cursor's day or
+   hour, which reads as a selection - and this grid already uses filled cells
+   to mean exactly that. Lighting Wednesday and 9:00 AM answers the same
+   question without putting a second kind of shading on top of the week
+   somebody has actually painted. */
+.sf-availability-grid__day[data-on-axis],
+.sf-availability-grid__time[data-on-axis] {
+  color: #ffd4b0;
+  background-image: linear-gradient(
+    rgba(242, 143, 69, 0.16),
+    rgba(242, 143, 69, 0.16)
+  );
+}
+
+.sf-availability-pad {
+  position: relative;
+  width: 7.55rem;
+}
+
+/* A CROSS, which is what a direction pad is. The middle cell is the select,
+   so up sits above it and left beside it and nobody has to read a label to
+   know which does what. */
+.sf-availability-pad__base {
+  display: grid;
+  /* The middle cell used to be sized for the word "Remove"; it holds a mark
+     now, so the cross is three squares wide. */
+  grid-template-columns: 2.4rem 2.75rem 2.4rem;
+  grid-template-rows: 2.15rem 2.75rem 2.15rem;
+  align-items: center;
+  justify-items: center;
+}
+
+.sf-availability-pad__direction,
+.sf-availability-pad__select {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    border-color 160ms ease,
+    color 160ms ease,
+    filter 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.sf-availability-pad__direction {
+  width: 2.2rem;
+  height: 2.2rem;
+  border: 1px solid rgba(142, 216, 248, 0.28);
+  border-radius: 999px;
+  color: rgba(221, 242, 255, 0.82);
+  background:
+    radial-gradient(
+      circle at 50% 28%,
+      rgba(142, 216, 248, 0.2),
+      transparent 54%
+    ),
+    rgba(3, 17, 36, 0.86);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0.4rem 0.85rem rgba(0, 0, 0, 0.28),
+    0 0 0.8rem rgba(142, 216, 248, 0.08);
+}
+
+.sf-availability-pad__direction:hover,
+.sf-availability-pad__direction:focus-visible {
+  border-color: rgba(255, 189, 116, 0.72);
+  color: #ffd4b0;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 0 0 2px rgba(242, 143, 69, 0.12),
+    0 0 1rem rgba(242, 143, 69, 0.3);
+  transform: translateY(-0.06rem);
+}
+
+.sf-availability-pad__direction:focus-visible,
+.sf-availability-pad__select:focus-visible {
+  outline: 2px solid #8ed8f8;
+  outline-offset: 0.12rem;
+}
+
+.sf-availability-pad__direction:disabled {
+  cursor: default;
+  color: rgba(205, 235, 255, 0.2);
+  border-color: rgba(142, 216, 248, 0.1);
+  background: rgba(2, 7, 19, 0.52);
+  box-shadow: none;
+  opacity: 0.62;
+  transform: none;
+}
+
+.sf-availability-pad__direction--up {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.sf-availability-pad__direction--right {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.sf-availability-pad__direction--down {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+.sf-availability-pad__direction--left {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.sf-availability-pad__select {
+  --sf-time-band-accent: 142 216 248;
+  grid-column: 2;
+  grid-row: 2;
+  width: 100%;
+  min-height: 2.65rem;
+  padding: 0;
+  min-height: 2.65rem;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid rgb(var(--sf-time-band-accent) / 0.72);
+  border-radius: 0.45rem;
+  color: rgb(var(--sf-time-band-accent));
+  background:
+    radial-gradient(
+      circle at 50% 0%,
+      rgba(255, 255, 255, 0.24),
+      transparent 54%
+    ),
+    linear-gradient(
+      145deg,
+      rgb(var(--sf-time-band-accent) / 0.24),
+      rgba(3, 16, 35, 0.96) 72%
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 0.45rem 0.95rem rgba(0, 0, 0, 0.34),
+    0 0 1.15rem rgb(var(--sf-time-band-accent) / 0.18);
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.sf-availability-pad__select[data-time-band="pre-dawn"] {
+  --sf-time-band-accent: 132 160 255;
+}
+
+.sf-availability-pad__select[data-time-band="morning"] {
+  --sf-time-band-accent: 255 189 116;
+}
+
+.sf-availability-pad__select[data-time-band="afternoon"] {
+  --sf-time-band-accent: 142 216 248;
+}
+
+.sf-availability-pad__select[data-time-band="evening"] {
+  --sf-time-band-accent: 247 168 196;
+}
+
+.sf-availability-pad__select[data-time-band="night"] {
+  --sf-time-band-accent: 197 163 255;
+}
+
+.sf-availability-pad__select:hover,
+.sf-availability-pad__select:focus-visible {
+  filter: saturate(1.16) brightness(1.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 0 0 2px rgb(var(--sf-time-band-accent) / 0.14),
+    0 0.5rem 1rem rgba(0, 0, 0, 0.36),
+    0 0 1.4rem rgb(var(--sf-time-band-accent) / 0.34);
+  transform: translateY(-0.06rem);
+}
+
+.sf-availability-pad__select[data-selected="true"] {
+  color: #02040a;
+  background:
+    radial-gradient(
+      circle at 50% 0%,
+      rgba(255, 255, 255, 0.76),
+      transparent 58%
+    ),
+    linear-gradient(
+      145deg,
+      rgb(var(--sf-time-band-accent) / 0.98),
+      rgb(var(--sf-time-band-accent) / 0.72)
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 0 0 2px rgb(var(--sf-time-band-accent) / 0.18),
+    0 0 1.45rem rgb(var(--sf-time-band-accent) / 0.44);
+}
+
+.sf-availability-pad[data-direction="up"] .sf-availability-pad__direction--up,
+.sf-availability-pad[data-direction="right"]
+  .sf-availability-pad__direction--right,
+.sf-availability-pad[data-direction="down"]
+  .sf-availability-pad__direction--down,
+.sf-availability-pad[data-direction="left"]
+  .sf-availability-pad__direction--left {
+  color: #02040a;
+  border-color: rgba(255, 212, 176, 0.86);
+  background: linear-gradient(145deg, #ffd4b0, #f28f45);
+  box-shadow: 0 0 1.2rem rgba(242, 143, 69, 0.5);
+  transform: scale(0.94);
+}
+
+@media (prefers-reduced-motion: reduce) {
+.sf-availability-pad__direction,
+  .sf-availability-pad__select {
+    transition: none;
+  }
+}
+
+/* Profile uses the website grid with all 24 hours, including overnight shifts. */
+.profile-weekly-hours .sf-availability-grid { max-height: min(28dvh, 320px); overflow-y: auto; overscroll-behavior: contain; }
+.profile-weekly-hours .sf-availability-grid__day, .profile-weekly-hours .sf-availability-grid__corner { position: sticky; top: 0; z-index: 8; background-color: #071324; }
+.profile-weekly-hours .sf-availability-grid__corner { z-index: 9; }
+
+/* Compact profile-only corner pad; the website remains unchanged. */
+.profile-weekly-hours .sf-availability-grid { max-height: min(40dvh, 440px); }
+.profile-weekly-hours .sf-availability-grid__corner { min-height: 66px; padding: 1px; }
+.profile-weekly-hours .sf-availability-grid__corner .sf-availability-pad { width: 62px; }
+.profile-weekly-hours .sf-availability-pad__base { width: 62px; height: 62px; grid-template-columns: repeat(3, 20px); grid-template-rows: repeat(3, 20px); gap: 1px; }
+.profile-weekly-hours .sf-availability-pad__direction, .profile-weekly-hours .sf-availability-pad__select { width: 20px; height: 20px; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent !important; box-shadow: none !important; color: #bae6fd; }
+.profile-weekly-hours .sf-availability-pad__direction svg { width: 12px; height: 12px; }
+.profile-weekly-hours .sf-availability-pad__select svg { width: 14px; height: 14px; }
+.profile-weekly-hours .sf-availability-pad__select[data-selected='true'] { color: #6ee7b7; }
+.profile-weekly-hours .sf-availability-pad__direction:disabled { color: #64748b; }
+.profile-weekly-hours .sf-availability-pad__direction:hover, .profile-weekly-hours .sf-availability-pad__select:hover { color: white; }
+
+/* Native modal top layer keeps the schedule above header menus and orbit transforms. */
+.profile-schedule-dialog { position: fixed; inset: 0; width: 100%; max-width: none; height: 100dvh; max-height: none; margin: 0; padding: 0; border: 0; color: white; background: #061121; overflow: hidden; }
+.profile-schedule-dialog::backdrop { background: #030812; }
+.profile-schedule-dialog__content { display: flex; flex-direction: column; gap: 12px; height: 100%; min-height: 0; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+.profile-schedule-dialog .sf-availability-grid-wrap { flex: 1; min-height: 0; }
+.profile-schedule-dialog .sf-availability-grid { height: 100%; max-height: none; }
+
+.profile-work-schedule-action { position: relative; isolation: isolate; display: flex; flex-direction: column; gap: 16px; overflow: hidden; width: 100%; padding: 22px; border: 1px solid rgba(125,211,252,.25); border-bottom: 2px solid rgba(56,189,248,.65); border-radius: 20px; text-align: left; color: #e0f2fe; background: radial-gradient(ellipse at 100% 0%,rgba(14,165,233,.2),transparent 65%),linear-gradient(140deg,#14283c,#091423 78%); box-shadow: inset 0 1px 0 rgba(255,255,255,.1),0 10px 24px rgba(0,0,0,.15); transition: border-color .16s,box-shadow .16s; }
+.profile-work-schedule-action:hover { border-color: rgba(125,211,252,.65); box-shadow: inset 0 1px 0 rgba(255,255,255,.14),0 0 22px rgba(14,165,233,.12); }
+.profile-work-schedule-action:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 4px; }
+.profile-work-schedule-action:active { background-color: #142d43; }
+.profile-work-schedule-action__watermark { position: absolute; right: -6px; bottom: 2px; width: 126px; height: 126px; color: rgba(125,211,252,.07); pointer-events: none; z-index: -1; }
+.profile-work-schedule-action__heading { display: flex; align-items: center; gap: 10px; color: #bae6fd; font-size: 17px; font-weight: 750; text-shadow: 0 2px 1px #020617; }
+.profile-work-schedule-action__heading > svg:last-child { margin-left: auto; color: #7dd3fc; }
+.profile-work-schedule-action__summary { display: flex; flex-direction: column; gap: 8px; font-size: 16px; line-height: 1.5; font-weight: 600; color: #f1f5f9; }
+.profile-work-schedule-action__shift { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 12px; row-gap: 2px; }
+.profile-work-schedule-action__days { color: #7dd3fc; font-size: 12px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.profile-work-schedule-action__edit { display: flex; align-items: center; gap: 5px; color: #94b8cb; font-size: 12px; font-weight: 600; }
+
+[data-profile-flat-question='true'] { border: 0 !important; background: transparent !important; box-shadow: none !important; backdrop-filter: none !important; --tw-ring-shadow: 0 0 transparent !important; }
+[data-profile-flat-question='true'] > [data-profile-orbiter-scroll-area] { padding: 12px 8px !important; }
+[data-profile-flat-question='true'] .profile-weekly-hours { padding: 0; }
+.profile-work-combined > :first-child { border: 0 !important; background: transparent !important; box-shadow: none !important; padding: 0 !important; }
+.profile-work-combined .profile-work-schedule-action { border: 0; border-top: 1px solid rgba(125,211,252,.16); border-radius: 0; background: transparent; box-shadow: none; padding: 18px 0 0; }
+.profile-family-schedules .profile-work-schedule-action { padding: 14px 16px; gap: 8px; border-radius: 16px; }
+.profile-family-schedules .profile-work-schedule-action__heading { font-size: 15px; }
+.profile-family-schedules .profile-work-schedule-action__summary { font-size: 13px; }
+.profile-family-schedules .profile-work-schedule-action__watermark { width: 92px; height: 92px; }
+
+/* Readiness answers: fit the short single-select lists, scroll familiarity laterally. */
+[data-profile-option-layout='fit'] [data-profile-options] { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,90px),1fr)); gap: 8px; padding: 2px 0; overflow: visible; }
+[data-profile-option-layout='fit'] [data-profile-options] > button { width: 100%; min-width: 0; aspect-ratio: auto; min-height: 94px; }
+[data-profile-option-layout='horizontal'] [data-profile-options] { display: flex; flex-wrap: nowrap; gap: 8px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x; scroll-snap-type: x proximity; padding: 3px 1px 10px; scrollbar-width: thin; scrollbar-color: #387893 transparent; }
+[data-profile-option-layout='horizontal'] [data-profile-options] > button { flex: 0 0 100px; width: 100px; min-height: 106px; aspect-ratio: auto; scroll-snap-align: start; }
+[data-profile-option-layout='horizontal'] [data-profile-option-icon] { width: 48px; height: 48px; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+[data-profile-option-layout='horizontal'] [data-profile-option-icon] svg { width: 42px; height: 42px; filter: drop-shadow(0 2px 4px rgba(0,0,0,.45)); }
+[data-profile-option-layout='horizontal'] [data-profile-options] > button > span:last-child > span:last-child { font-size: 10px; line-height: 1.15; letter-spacing: 0; white-space: normal; overflow-wrap: anywhere; }
+[data-profile-option-layout='horizontal'] [data-profile-options] > button > span:last-child > span:last-child { text-transform: none; font-size: 11px; }
+[data-profile-option-layout='horizontal'] [data-profile-options] > button > span:last-child > span:last-child { font-size: 11px !important; letter-spacing: 0 !important; }
+[data-profile-option-layout='horizontal'] [data-profile-options][data-scroll-overflow='false'] { scrollbar-width: none; }
+[data-profile-option-layout='horizontal'] [data-profile-options][data-scroll-overflow='false']::-webkit-scrollbar { display: none; }
+
+/* Readiness selection cards share a fitting grid and large, unboxed icons. */
+[data-profile-readiness-question] [data-profile-options],
+[data-profile-readiness-question] > div[data-profile-option-layout='horizontal'] [data-profile-options] { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,90px),1fr)); gap: 8px; overflow: visible; padding: 3px 0; touch-action: auto; scroll-snap-type: none; scrollbar-width: none; }
+[data-profile-readiness-question] [data-profile-options] > button { width: 100%; min-width: 0; min-height: 88px; aspect-ratio: auto; }
+[data-profile-readiness-question] [data-profile-option-icon] { display: grid; width: 44px; height: 44px; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+[data-profile-readiness-question] [data-profile-option-icon] svg { width: 38px; height: 38px; }
+[data-profile-readiness-question] button > span:last-child > span:last-child { letter-spacing: 0 !important; font-size: 11px !important; text-transform: none; overflow-wrap: anywhere; }
+[data-profile-readiness-question] > .grid { grid-template-columns: repeat(auto-fit,minmax(min(100%,90px),1fr)); }
+[data-profile-readiness-question] [data-profile-circumstance-options] { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,90px),1fr)); gap: 8px; overflow: visible; padding: 2px 0; }
+[data-profile-readiness-question] [data-profile-circumstance-options] > button { width: 100%; max-width: none; min-height: 100px; padding: 8px; border-radius: 16px; }
+[data-profile-readiness-question] [data-profile-circumstance-options] > button > p { margin-top: 6px; font-size: 11px !important; line-height: 1.2; }
+[data-profile-readiness-question] [data-profile-circumstance-options] > button > p + p,
+[data-profile-readiness-question] [data-profile-circumstance-options] > button > div:last-child:not(:first-child) { display: none; }
+[data-profile-readiness-question] [data-profile-circumstance-options] > button > div.relative > span:first-child { width: 38px; height: 38px; border: 0; background: transparent; box-shadow: none; padding: 0; }
+[data-profile-readiness-question] [data-profile-circumstance-options] > button > div.relative > span:first-child svg { width: 34px; height: 34px; }
+[data-profile-readiness-question] [data-profile-options] > button { min-height: 84px; }
+[data-profile-readiness-question] [data-profile-circumstance-options] { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 6px; }
+[data-profile-readiness-question] [data-profile-circumstance-options] > button { min-height: 86px; padding: 6px; }
+[data-profile-readiness-question] [data-profile-circumstance-options] > button > div.relative > span:last-child:not(:first-child) { display: none; }
+[data-profile-readiness-question] [data-profile-circumstance-options] > button > p { font-size: 10px !important; line-height: 1.1; }
+[data-profile-readiness-question] [data-profile-circumstance-options] > button > div.relative > span:first-child { width: 32px; height: 32px; font-size: 26px; }
+[data-profile-readiness-question] [data-profile-circumstance-options] > button > div.relative > span:first-child svg { width: 30px; height: 30px; }
+
+[data-profile-location-choices] { overscroll-behavior-x: contain; touch-action: pan-x; scrollbar-width: thin; scrollbar-color: #387893 transparent; }
+[data-profile-location-choices] > button { min-width: 104px; min-height: 100px; }
+[data-profile-location-choices] [data-profile-option-icon] { width: 44px; height: 44px; padding: 0; border: 0; background: transparent; box-shadow: none; }
+[data-profile-location-choices] [data-profile-option-icon] svg { width: 38px; height: 38px; }
+.profile-location-dialog { position: fixed; inset: 0; width: min(640px,calc(100% - 24px)); max-width: none; max-height: calc(100dvh - 24px); margin: auto; padding: 0; overflow-y: auto; overscroll-behavior: contain; border: 1px solid rgba(125,211,252,.3); border-radius: 24px; background: #081526; color: white; box-shadow: 0 24px 80px rgba(0,0,0,.65); }
+.profile-location-dialog::backdrop { background: rgba(2,6,23,.8); }
+
+/* Keep both location rails inside the answer card and show their scroll affordance. */
+[data-profile-readiness-question] { min-width: 0; }
+[data-profile-readiness-question] > div { min-width: 0; max-width: 100%; }
+[data-profile-location-choices] { min-width: 0; max-width: 100%; overflow-x: scroll; padding: 4px 2px 14px; scrollbar-width: thin !important; }
+[data-profile-location-choices]::-webkit-scrollbar { display: block !important; height: 8px; }
+[data-profile-location-choices]::-webkit-scrollbar-track { background: #14283a; border-radius: 8px; }
+[data-profile-location-choices]::-webkit-scrollbar-thumb { background: #589bb4; border-radius: 8px; }
+[aria-label='Selected training locations'] { max-width: 100%; padding: 4px 2px 12px; }
+[aria-label='Selected training locations'] > button > span:first-child > svg { width: 24px; height: 24px; flex-shrink: 0; }
+[data-profile-readiness-question] [data-profile-circumstance-options] { display: flex; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; gap: 10px; padding: 4px 2px 14px; scrollbar-width: thin; touch-action: pan-x; }
+[data-profile-readiness-question] [data-profile-circumstance-options] > button { flex: 0 0 112px; width: 112px; min-height: 104px; }
+[data-profile-dietary-restrictions] { min-width: 0; max-width: 100%; }
+[aria-label='Dietary restriction choices'] { max-width: 100%; overscroll-behavior-x: contain; touch-action: pan-x; scrollbar-width: thin; scrollbar-color: #56b49c #14283a; }
+[aria-label='Dietary restriction choices'] > button { flex: 0 0 112px; min-height: 112px; }
+[aria-label='Dietary restriction choices'] [data-profile-option-icon] { width: 40px; height: 40px; padding: 0; border: 0; background: transparent; box-shadow: none; }
+[aria-label='Dietary restriction choices'] [data-profile-option-icon] svg { width: 36px; height: 36px; }
+[data-profile-preference-row='true'] [data-profile-preference-options] { display: flex; flex-wrap: nowrap; gap: 8px; max-width: 100%; overflow-x: auto; padding: 4px 2px 12px; overscroll-behavior-x: contain; touch-action: pan-x; scrollbar-width: thin; scrollbar-color: #8c7ab8 #14283a; }
+[data-profile-preference-row='true'] [data-profile-preference-options] > button { flex: 0 0 100px; width: 100px; min-width: 100px; min-height: 100px; aspect-ratio: auto; padding: 8px; }
+[data-profile-preference-row='true'] [data-profile-option-icon] { width: 38px; height: 38px; padding: 0; border: 0; background: transparent; box-shadow: none; }
+[data-profile-preference-row='true'] [data-profile-option-icon] svg { width: 34px; height: 34px; }
+[data-profile-preference-row='true'] [data-profile-preference-options] > button > span:last-child > span:last-child { font-size: 11px !important; letter-spacing: 0; line-height: 1.2; text-transform: none; }
+[data-profile-coach-choices] > [role='group'] { grid-template-columns: repeat(auto-fit,minmax(min(100%,100px),1fr)); }
+[data-profile-coach-choices] > [role='group'] > button { min-width: 0; min-height: 112px; aspect-ratio: auto; padding: 10px 8px; }
+[data-profile-coach-choices] [data-profile-option-icon] { width: 42px; height: 42px; padding: 0; border: 0; background: transparent; box-shadow: none; }
+[data-profile-coach-choices] [data-profile-option-icon] svg { width: 36px; height: 36px; }
+[data-profile-coach-choices] button > span:last-child > span:last-child { font-size: 12px !important; letter-spacing: 0; line-height: 1.25; text-transform: none; }
+[data-profile-cardio-fit='true'] [data-profile-preference-options] { grid-template-columns: repeat(auto-fit,minmax(min(100%,70px),1fr)); gap: 6px; }
+[data-profile-cardio-fit='true'] [data-profile-preference-options] > button { min-width: 0; min-height: 76px; aspect-ratio: auto; padding: 6px 3px; gap: 4px; }
+[data-profile-cardio-fit='true'] [data-profile-option-icon] { width: 30px; height: 30px; min-height: 0; padding: 0; border: 0; background: transparent; box-shadow: none; }
+[data-profile-cardio-fit='true'] [data-profile-option-icon] svg { width: 28px; height: 28px; }
+[data-profile-cardio-fit='true'] button > span:last-child > span:last-child { font-size: 11px !important; letter-spacing: 0; line-height: 1.2; text-transform: none; }
+[data-profile-cardio-fit='true'] > div:first-child > span { display: none; }
