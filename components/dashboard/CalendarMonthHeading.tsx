@@ -52,7 +52,7 @@ const ZODIAC = [
 ] as const;
 
 /** Shared calendar heading. Month is zero-based, matching Date.getMonth(). */
-export function CalendarMonthHeading({ month, year, locale = "en-US", compact = false }: { month: number; year: number; locale?: string; compact?: boolean }) {
+export function CalendarMonthHeading({ month, year, locale = "en-US", compact = false, decorative = false }: { month: number; year: number; locale?: string; compact?: boolean; decorative?: boolean }) {
   const accent = calendarMonthColor(month);
   const MonthIcon = MONTH_ICONS[month];
   const monthName = new Intl.DateTimeFormat(locale, { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(year, month, 1)));
@@ -64,7 +64,7 @@ export function CalendarMonthHeading({ month, year, locale = "en-US", compact = 
         <span className="relative z-10">{monthName}</span>
       </span>
       <span className={`relative z-10 inline-flex items-center font-semibold tracking-[0.16em] text-white/72 ${compact ? "gap-1 text-xs" : "flex-col text-sm sm:text-base"}`}>
-        <span role="img" aria-label={`${year} Chinese New Year: Year of the ${zodiac.name}`} data-sf-tooltip={`${year} · Year of the ${zodiac.name}`} tabIndex={0} className={`inline-block -rotate-6 leading-none tracking-normal drop-shadow-[0_2px_6px_rgba(255,189,120,.35)] transition-transform hover:rotate-6 hover:scale-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ffbd78] ${compact ? "text-lg" : "mb-0.5 text-2xl"}`} style={{ "--sf-tooltip-color": "#ffbd78" } as CSSProperties}>{zodiac.icon}</span>
+        <span role="img" aria-hidden={decorative || undefined} aria-label={decorative ? undefined : `${year} Chinese New Year: Year of the ${zodiac.name}`} data-sf-tooltip={decorative ? undefined : `${year} · Year of the ${zodiac.name}`} tabIndex={decorative ? undefined : 0} className={`inline-block -rotate-6 leading-none tracking-normal drop-shadow-[0_2px_6px_rgba(255,189,120,.35)] transition-transform hover:rotate-6 hover:scale-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ffbd78] ${compact ? "text-lg" : "mb-0.5 text-2xl"}`} style={{ "--sf-tooltip-color": "#ffbd78" } as CSSProperties}>{zodiac.icon}</span>
         <span>{year}</span>
       </span>
     </span>

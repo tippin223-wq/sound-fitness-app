@@ -7,7 +7,7 @@ import DashboardTabIcon from "./DashboardTabIcon";
 import styles from "./SessionsCardNavigation.module.css";
 
 type Direction = "up" | "down" | "left" | "right";
-type Row = { title: string; cards: { title: string; icon: string }[] };
+type Row = { title: string; icon?: string; cards: { title: string; icon: string }[] };
 export default function SessionsCardNavigation({ rows, row, card, onNavigate, onRow, onCard, labelPrefix = "session", showTitle = true, showHorizontalIndicators = true, disabled = false, accentColor }: {
   labelPrefix?: string; showTitle?: boolean; showHorizontalIndicators?: boolean; disabled?: boolean;
   accentColor?: string;
@@ -58,7 +58,7 @@ export default function SessionsCardNavigation({ rows, row, card, onNavigate, on
       </button>
       {(['up','right','down','left'] as const).map(direction=>{const Arrow=direction==='up'?ChevronUp:direction==='down'?ChevronDown:direction==='left'?ChevronLeft:ChevronRight;return <button key={direction} type="button" data-card-joystick-arrow={direction} disabled={!available(direction)} aria-label={`Navigate ${labelPrefix} cards ${direction}`} onClick={event=>{event.stopPropagation();navigate(direction);}}><Arrow aria-hidden="true"/></button>;})}
     </>}>
-      <nav className={styles.vertical} aria-label={`${labelPrefix} rows`}>{rows.map((item,index)=><button type="button" key={item.title} aria-current={index===row?'true':undefined} onClick={()=>{onRow(index);reveal('vertical');}}><DashboardTabIcon name={index===0?'Workout':index===1?'Plan':'Settings'} label={item.title}/><span>{item.title}</span></button>)}</nav>
+      <nav className={styles.vertical} aria-label={`${labelPrefix} rows`}>{rows.map((item,index)=><button type="button" key={item.title} aria-current={index===row?'true':undefined} onClick={()=>{onRow(index);reveal('vertical');}}><DashboardTabIcon name={item.icon || (index===0?'Workout':index===1?'Plan':'Settings')} label={item.title}/><span>{item.title}</span></button>)}</nav>
     </DashboardRowMenu>
     {showTitle && <div className={styles.title} style={{color}}>{title}</div>}
     {horizontal&&showHorizontalIndicators&&<nav className={styles.horizontal} aria-label={`${labelPrefix} card indicators`} onPointerMove={()=>reveal(mode==='both'?'both':'horizontal')} onFocus={()=>reveal(mode==='both'?'both':'horizontal')}>

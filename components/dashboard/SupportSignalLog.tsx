@@ -20,7 +20,7 @@ export default function SupportSignalLog({ kind, onPendingChange }: { kind: stri
   const owner = useSyncExternalStore(subscribePlanning, planningOwner, () => null);
   const generation = useSyncExternalStore(subscribePlanning, planningAccountGeneration, () => -1);
   if (kind === "readiness") return <ReadinessSignal account={owner} generation={generation} onPendingChange={onPendingChange} />;
-  if (kind === "weight" || kind === "measurements" || kind === "benchmarks") return <ProfileSignalQuestions key={`${owner}:${generation}:${kind}`} supportSection={kind} onPendingChange={onPendingChange} />;
+  if (kind === "weight" || kind === "measurements" || kind === "benchmarks" || kind === "bodyScan") return <ProfileSignalQuestions key={`${owner}:${generation}:${kind}`} supportSection={kind} onPendingChange={onPendingChange} />;
   if (kind === "photos") return <ProfileSignalQuestions key={`${owner}:${generation}:${kind}`} supportSection="measurements" onPendingChange={onPendingChange} />;
   if (["protein", "carbs", "fat", "meals"].includes(kind)) return <section className="space-y-3 p-2 text-sm text-slate-200"><p>Review today’s food records and log meals in Nutrition. Nutrient totals update from your saved meals.</p><Link className={`${button} inline-flex`} href="/dashboard/nutrition">View and log food</Link></section>;
   if (kind === "fatigue") return <div className="space-y-4"><AccountLog key={`${owner}:${generation}:fatigue`} kind={kind} account={owner} generation={generation} /><ProfileSignalQuestions supportSection="fatigue" onPendingChange={onPendingChange} /></div>;

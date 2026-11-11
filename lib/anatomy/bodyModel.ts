@@ -30,6 +30,8 @@ export function normalizeBodyModel(value: unknown): BodyModel {
 export function getBodyModelFromProfile(profile: unknown): BodyModel {
   const record = asRecord(profile);
 
+  // Anatomy follows the member's profile, never their cosmetic avatar settings.
+  // Keep these legacy anatomy fields for profiles saved before gender was added.
   return normalizeBodyModel(
     record.gender || record.bodyModel || record.anatomyBodyModel || record.bodyType,
   );

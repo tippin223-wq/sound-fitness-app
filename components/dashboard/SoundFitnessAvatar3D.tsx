@@ -5,6 +5,8 @@ import { createAvatarNecklace } from "./soundFitnessAvatarNecklace";
 import { createSaluteRig } from "./soundFitnessSaluteRig";
 
 import { useEffect, useRef, useState } from "react";
+import { useProfile } from "@/components/profile/ProfileProvider";
+import { avatarAreaPainLevel, painLevelColor, type TrainingAreaPreferences } from "@/lib/trainingAreaCare";
 import loadingStyles from "./DashboardLoading.module.css";
 import { exerciseAnatomyRegionVisuals } from "@/lib/anatomy/exerciseAnatomyColors";
 import { createSoundFitnessMuscleOverlays, isAvatarMuscleSelected, type AvatarMuscleOverlay } from "./soundFitnessAvatarAnatomy";
@@ -352,6 +354,8 @@ export default function SoundFitnessAvatar3D({
   selectedBodyPart,
   viewOverride,
 }: SoundFitnessAvatar3DProps) {
+  const { profile } = useProfile();
+  const areaPain = profile.trainingRegressions as TrainingAreaPreferences | undefined;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [sceneAttempt, setSceneAttempt] = useState(0);
@@ -359,6 +363,7 @@ export default function SoundFitnessAvatar3D({
   const resolvedAppearance = sanitizeSoundFitnessAvatarAppearance(appearance);
   const appearanceKey = JSON.stringify(resolvedAppearance);
   const highlightKey = JSON.stringify({
+    areaPain,
     active: bodyPartGlowActive,
     colors: bodyPartGlowColors ?? null,
     focus: glowMode === "pieces" ? (glowFocus ?? null) : null,
@@ -369,6 +374,7 @@ export default function SoundFitnessAvatar3D({
 
   // Latest props for the render loop and the imperative updaters.
   const latest = useRef({
+    areaPain,
     active,
     appearance: resolvedAppearance,
     bodyPartGlowActive,
@@ -386,6 +392,7 @@ export default function SoundFitnessAvatar3D({
     view: resolvedView,
   });
   latest.current = {
+    areaPain,
     active,
     appearance: resolvedAppearance,
     bodyPartGlowActive,
@@ -1413,7 +1420,18 @@ export default function SoundFitnessAvatar3D({
           canvas.dataset.soundAvatarAnatomy = String(anatomy.length);
         };
         const clearHighlight = () => {
-          for (const {mesh} of anatomy) {
+          for (const {mesh, definition} of anatomy) {
+            const pain = avatarAreaPainLevel(latest.current.areaPain, definition.region, definition.name);
+            if (pain !== undefined) {
+              const color = new THREE.Color(painLevelColor(pain));
+              mesh.material.color.copy(color);
+              mesh.material.emissive.copy(color);
+              mesh.material.emissiveIntensity = .12;
+              mesh.material.opacity = .78;
+              mesh.renderOrder = 11;
+              mesh.visible = true;
+              continue;
+            }
             mesh.material.color.copy(mesh.userData.neutralColor);
             mesh.material.emissive.set(0x000000);
             mesh.material.opacity=.12;
@@ -1433,6 +1451,7 @@ export default function SoundFitnessAvatar3D({
           clearHighlight();
           const focus=state.glowMode==="pieces" ? state.glowFocus ?? null : null;
           for (const {mesh,definition} of anatomy) {
+            if (avatarAreaPainLevel(state.areaPain, definition.region, definition.name) !== undefined) continue;
             if (!isAvatarMuscleSelected(definition,state.selectedBodyPart,focus)) continue;
             // Whole groups retain each muscle's exercise-library color.
             const key = definition.region;

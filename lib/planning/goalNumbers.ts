@@ -10,7 +10,12 @@ export function validateGoalTargets(goals: Partial<GoalState>): string | null {
     ["targetWeeklySessions", 1, 7, true], ["targetWeeklySets", 1, 500, true],
     ["targetProtein", 1, 500, false], ["targetSteps", 1, 100000, true], ["stepsGoal", 1, 100000, true],
     ["targetSleep", 1, 24, false], ["waterGoal", 1, 500, false],
+    ["targetCalories", 1, 20000, false], ["targetCarbs", 0, 2000, false],
+    ["targetFat", 0, 1000, false], ["targetFiber", 0, 200, false],
     ["currentWeight", 1, 1500, false], ["goalWeight", 1, 1500, false],
+    ["sessionMinutes", 5, 240, true], ["muscleGain", 0, 500, false], ["fatLoss", 0, 500, false],
+    ["strengthGain", 0, 1500, false], ["mobilityGain", 0, 180, false], ["conditioningGain", 0, 1440, false],
+    ["benchTarget", 0, 1500, false], ["squatTarget", 0, 1500, false], ["deadliftTarget", 0, 1500, false], ["pullupTarget", 0, 500, true],
   ];
   for (const [key, min, max, integer] of fields) {
     const raw = goals[key];

@@ -1524,7 +1524,7 @@ function SupportSignalDetailDialog({
           data-dashboard-orbiter-local-scroll="true"
         >
           <SupportSignalLog kind={stat.glyph} onPendingChange={onPendingChange} />
-          {!["weight", "photos", "measurements", "readiness", "benchmarks", "bloodPressure"].includes(stat.glyph) && <SupportSignalLastSevenDays
+          {!["weight", "photos", "measurements", "readiness", "benchmarks", "bloodPressure", "bodyScan"].includes(stat.glyph) && <SupportSignalLastSevenDays
             stat={stat}
             statusTheme={statusTheme}
           />}
@@ -1583,7 +1583,7 @@ function BodyStatStack(props: SupportStackProps) {
   const owner = useSyncExternalStore(subscribePlanning, planningOwner, () => null);
   const selected: string[] = useMemo(() => {
     const saved = JSON.parse(preference);
-    return Array.isArray(saved) ? saved.filter((id: unknown): id is string => typeof id === "string") : props.stats.filter(stat => !["core", "protein", "carbs", "fat", "meals", "measurements", "bloodPressure", "benchmarks", "caffeine"].includes(stat.glyph)).map(stat => stat.glyph);
+    return Array.isArray(saved) ? Array.from(new Set(saved.filter((id: unknown): id is string => typeof id === "string").map((id: string) => id === "bodyScan" ? "measurements" : id))) : props.stats.filter(stat => !["core", "protein", "carbs", "fat", "meals", "measurements", "bloodPressure", "benchmarks", "caffeine", "bodyScan"].includes(stat.glyph)).map(stat => stat.glyph);
   }, [preference, props.stats]);
   const visibleStats = props.stats.filter(stat => selected.includes(stat.glyph));
   const [editing, setEditing] = useState(false);

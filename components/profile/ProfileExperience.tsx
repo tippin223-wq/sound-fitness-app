@@ -1,5 +1,9 @@
 "use client";
 import ProfileCloudStatus from "@/components/profile/ProfileCloudStatus";
+import { CalendarMonthHeading } from "@/components/dashboard/CalendarMonthHeading";
+import { calendarMonthColor } from "@/lib/calendar-themes";
+import { dialAngle, dialAngleDelta, dialDragValue, dialPointValue } from "@/lib/profileDial";
+import { trainingLocationIconBank, trainingLocationColors, resolveTrainingLocationAppearance, type TrainingLocationAppearance } from "@/lib/trainingLocationAppearance";
 import ProfileDropdownLayer from "@/components/profile/ProfileDropdownLayer";
 import { uploadProfilePhoto } from "@/lib/profilePhoto";
 import { readBodyCommandEvidence } from "@/lib/planning/bodyCommandEvidence";
@@ -15,6 +19,8 @@ import {
   Fragment,
   isValidElement,
   type CSSProperties,
+  type HTMLAttributes,
+  type RefObject,
   type ReactNode,
   type ChangeEvent,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -28,7 +34,7 @@ import {
   useState,
 } from "react";
 import Link from "@/components/IntentLink";
-import { Bandage, Salad, Pencil } from "lucide-react";
+import { Cake, Ruler, Scale, Bandage, Salad, Pencil, Sprout, RotateCcw, ChartNoAxesColumnIncreasing, Mountain, Timer, Flame, BicepsFlexed, Weight, PersonStanding, Monitor, UserRoundCheck, WheatOff, MilkOff, Leaf, Dumbbell, Medal, CircleGauge, Layers, Repeat2, Split, Ellipsis, Footprints, Zap, Bike } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import {
@@ -40,11 +46,16 @@ import { getSupabaseUser, supabase } from "@/lib/supabaseClient";
 import { ROUTES } from "@/lib/routes";
 import { planningAccountGeneration, planningOwner, planningKeys, planningRecordVersion, planningOnlineSaveState } from "@/lib/planning/store";
 import MuscleHeatMap from "@/components/anatomy/MuscleHeatMap";
+import TrainingAreaSelector from "@/components/anatomy/TrainingAreaSelector";
+import PhysicalReadinessMeter from "@/components/profile/PhysicalReadinessMeter";
+import type { TrainingAreaPreferences } from "@/lib/trainingAreaCare";
+import { readFastingPeriods, updateFastingPeriods, type FastingPeriod } from "@/lib/profileFasting";
 import {
   asRecord,
   readSoundFitnessProfile,
 } from "@/lib/profile-storage";
 import {
+  getBodyModelFromProfile,
   normalizeBodyModel,
   type BodyModel,
 } from "@/lib/anatomy/bodyModel";
@@ -88,7 +99,17 @@ function ImagePlusIcon({ className = "" }: { className?: string }) {
   );
 }
 
-type SelectorIconName =
+const profileChoiceIcons = {
+  sprout: Sprout, restart: RotateCcw, progression: ChartNoAxesColumnIncreasing,
+  summit: Mountain, intervals: Timer, flame: Flame, muscle: BicepsFlexed,
+  plates: Weight, calisthenics: PersonStanding, online: Monitor,
+  trainer: UserRoundCheck, "gluten-free": WheatOff, "dairy-free": MilkOff,
+  leaf: Leaf, barbell: Dumbbell, medal: Medal, intensity: CircleGauge,
+  layers: Layers, repeat: Repeat2, split: Split, alternatives: Ellipsis,
+  walking: Footprints, power: Zap, bicycle: Bike,
+};
+
+type SelectorIconName = keyof typeof profileChoiceIcons
   | "activity"
   | "arrow-up"
   | "baby"
@@ -118,6 +139,7 @@ type SelectorIconName =
   | "panel-top"
   | "plane"
   | "runner"
+  | "rowing"
   | "ruler"
   | "scale"
   | "settings"
@@ -130,10 +152,19 @@ type SelectorIconName =
   | "trees"
   | "salad"
   | "utensils"
+  | "upper-lower-body"
   | "user"
   | "users"
   | "wallet"
   | "waves";
+
+type CardioMethodDetail = {
+  environment?: "Indoor" | "Outdoor" | "Either";
+  route?: string;
+  distance?: string;
+  distanceUnit?: "km" | "mi";
+  notes?: string;
+};
 
 function SelectorIcon({
   className = "h-5 w-5",
@@ -153,7 +184,14 @@ function SelectorIcon({
     viewBox: "0 0 24 24",
   };
 
+  if (name in profileChoiceIcons) {
+    const Icon = profileChoiceIcons[name as keyof typeof profileChoiceIcons];
+    return <Icon aria-hidden="true" className={className} strokeWidth={1.8} />;
+  }
+
   switch (name) {
+    case "upper-lower-body":
+      return <svg {...iconProps}><circle cx="12" cy="3.5" r="2" /><path d="m8.5 7-4 2.5 2 3 2.5-1V13h6v-1.5l2.5 1 2-3L15.5 7" /><path d="M9 17h6l1 5h-3l-1-3-1 3H8l1-5Z" /><path d="M4 15h16" strokeDasharray="2 2" strokeWidth="1" /></svg>;
     case "activity":
       return <svg {...iconProps}><path d="M22 12h-4l-3 8-6-16-3 8H2" /></svg>;
     case "arrow-up":
@@ -212,8 +250,10 @@ function SelectorIcon({
       return <svg {...iconProps}><rect height="14" rx="2" width="18" x="3" y="5" /><path d="M3 10h18" /></svg>;
     case "plane":
       return <svg {...iconProps}><path d="M22 2 11 13" /><path d="m22 2-7 20-4-9-9-4 20-7Z" /></svg>;
+    case "rowing":
+      return <svg {...iconProps}><circle cx="13" cy="4" r="2" /><path d="m12 8-3 5 5 3h4m-6-8 4 3 4-1M4 8l14 12M3 17c4 3 14 3 18 0M3 22h18" /></svg>;
     case "runner":
-      return <svg {...iconProps}><circle cx="13" cy="4" r="2" /><path d="m7 21 3-6" /><path d="m17 21-4-6-4-2 2-5 4 2 3 4" /><path d="M5 10h4" /></svg>;
+      return <svg {...iconProps}><circle cx="15" cy="4" r="2" /><path d="m5 10 4-2 4 3 4 1 3-3" /><path d="m13 11-3 5-6 1" /><path d="m10 16 5 2 2 4" /><path d="m9 8 3-2" /></svg>;
     case "ruler":
       return <svg {...iconProps}><path d="m4 15 11-11 5 5L9 20l-5-5Z" /><path d="m8 11 2 2" /><path d="m11 8 2 2" /><path d="m14 5 2 2" /></svg>;
     case "scale":
@@ -229,7 +269,7 @@ function SelectorIcon({
     case "square":
       return <svg {...iconProps}><rect height="14" rx="2" width="14" x="5" y="5" /></svg>;
     case "stretch":
-      return <svg {...iconProps}><path d="M4 12h16" /><path d="m7 8-3 4 3 4" /><path d="m17 8 3 4-3 4" /></svg>;
+      return <svg {...iconProps}><circle cx="12" cy="4" r="2" /><path d="m5 8 7 2 7-2M12 10v5m0 0-7 6m7-6 7 6" /></svg>;
     case "trophy":
       return <svg {...iconProps}><path d="M8 21h8" /><path d="M12 17v4" /><path d="M7 4h10v5a5 5 0 0 1-10 0V4Z" /><path d="M5 5H3v3a4 4 0 0 0 4 4" /><path d="M19 5h2v3a4 4 0 0 1-4 4" /></svg>;
     case "trees":
@@ -383,6 +423,11 @@ type Benchmark = {
 };
 
 type NutritionDirection = {
+  fastingPeriods?: FastingPeriod[];
+  fastingStatus?: "No" | "Yes" | "Sometimes";
+  fastingStart?: string;
+  fastingEnd?: string;
+  fastingNotes?: string;
   calorieStyle: string;
   dietPreferences: string[];
   eatingSchedule: string;
@@ -599,6 +644,8 @@ type SoundFitnessProfile = {
   preferredSplit: string;
   preferredSplits: string[];
   previousCoaching: string[];
+  previousCoachingNotes?: Record<string, string>;
+  trainingRegressions?: TrainingAreaPreferences;
   primaryGoal: string;
   priorityExercises: string;
   proteinConsistency: string;
@@ -619,7 +666,11 @@ type SoundFitnessProfile = {
   trainingLocation: string;
   trainingLocations: string[];
   trainingLocationNames?: Record<string, string>;
-  trainingLocationEquipmentAssumptions?: Record<string, "well-stocked-gym" | "home-selection">;
+  trainingLocationCommuteMinutes?: Record<string, string>;
+  trainingLocationAppearance?: Record<string, TrainingLocationAppearance>;
+  trainingLocationEquipment?: Record<string, string[]>;
+  trainingLocationEquipmentNotes?: Record<string, Record<string, string>>;
+  trainingLocationEquipmentAssumptions?: Record<string, "well-stocked-gym" | "home-selection" | "location-selection">;
   trainingStyles: string[];
   travelTrainingNotes: string;
   bestTimeOfDay: string;
@@ -627,6 +678,7 @@ type SoundFitnessProfile = {
   waist: string;
   workoutIntensityPreference: string;
   cardioPreference: string;
+  cardioMethodDetails?: Record<string, CardioMethodDetail>;
   cardioPreferences: string[];
   mobilityPreference: string;
   mobilityPreferences: string[];
@@ -1818,7 +1870,7 @@ const selectorCardShortLabels: Record<string, string> = {
   "recovery-sessions": "Recovery",
   "strength-mobility": "Strength+Mobility",
   stretching: "Stretch",
-  "upper-lower": "Upper/Lower",
+  "upper-lower": "Upper / Lower",
   "warm-up-mobility": "Warm-Up",
   "yoga-flow": "Yoga",
 };
@@ -1863,31 +1915,31 @@ const selectorCardIconNames: Record<string, SelectorIconName> = {
   "cardio-equipment": "heart-pulse",
   caregiving: "heart-handshake",
   "coaching-group": "users",
-  "coaching-online": "activity",
+  "coaching-online": "online",
   "coaching-pt": "bandage",
   "coaching-self": "user",
   "coaching-sports": "trophy",
-  "coaching-trainer": "users",
-  "consistency-brand-new": "sparkles",
+  "coaching-trainer": "trainer",
+  "consistency-brand-new": "sprout",
   "consistency-long-term": "trophy",
-  "consistency-on-off": "shuffle",
+  "consistency-on-off": "restart",
   "consistency-one-year": "calendar-clock",
-  "consistency-some": "activity",
+  "consistency-some": "progression",
   correctives: "bandage",
-  cycling: "bike",
+  cycling: "bicycle",
   custom: "settings",
   dumbbells: "dumbbell",
-  "experience-advanced": "activity",
-  "experience-beginner": "sparkles",
+  "experience-advanced": "summit",
+  "experience-beginner": "sprout",
   "experience-competitive": "trophy",
-  "experience-intermediate": "activity",
-  "experience-returning": "shuffle",
-  "familiar-calisthenics": "user",
-  "familiar-hiit": "heart-pulse",
-  "familiar-hypertrophy": "activity",
+  "experience-intermediate": "progression",
+  "experience-returning": "restart",
+  "familiar-calisthenics": "calisthenics",
+  "familiar-hiit": "intervals",
+  "familiar-hypertrophy": "muscle",
   "familiar-mobility": "stretch",
-  "familiar-olympic": "activity",
-  "familiar-powerlifting": "dumbbell",
+  "familiar-olympic": "medal",
+  "familiar-powerlifting": "plates",
   "familiar-rehab": "bandage",
   "familiar-running": "runner",
   "familiar-sports": "trophy",
@@ -1895,7 +1947,7 @@ const selectorCardIconNames: Record<string, SelectorIconName> = {
   "financial-constraints": "wallet",
   "full-body": "user",
   gym: "dumbbell",
-  hiit: "heart-pulse",
+  hiit: "intervals",
   "high-stress-season": "brain",
   hiking: "trees",
   home: "home",
@@ -1922,10 +1974,10 @@ const selectorCardIconNames: Record<string, SelectorIconName> = {
   postpartum: "baby",
   pregnancy: "heart-pulse",
   "pull-up-bar": "arrow-up",
-  "push-pull-legs": "shuffle",
+  "push-pull-legs": "split",
   "recovery-sessions": "moon",
   "religious-cultural-scheduling": "calendar-clock",
-  rowing: "waves",
+  rowing: "rowing",
   running: "runner",
   "school-college": "graduation-cap",
   "senior-support": "heart-handshake",
@@ -1941,8 +1993,8 @@ const selectorCardIconNames: Record<string, SelectorIconName> = {
   travel: "plane",
   "travel-hotel": "plane",
   "unpredictable-schedule": "shuffle",
-  "upper-lower": "square",
-  walking: "footprints",
+  "upper-lower": "upper-lower-body",
+  walking: "walking",
   "warm-up-mobility": "clock",
   "yoga-flow": "stretch",
 };
@@ -3441,8 +3493,7 @@ const normalizeBodyMetricHistory = (
         weightTrend: readBodyScanValue(record.weightTrend) || "Not Sure",
       };
     })
-    .filter((item): item is BodyMetricHistoryPoint => item !== null)
-    .slice(-36);
+    .filter((item): item is BodyMetricHistoryPoint => item !== null);
 };
 
 const createBodyMetricHistoryPoint = (
@@ -4646,16 +4697,8 @@ const getProfileTabCompletions = (
       circumstanceFields,
     ]),
     nutrition: calculateSectionCompletion([
-      profile.nutritionDirection.nutritionGoal,
-      profile.nutritionDirection.proteinTargetMode,
-      profile.nutritionDirection.proteinTarget,
-      profile.nutritionDirection.calorieStyle,
       profile.nutritionDirection.dietPreferences,
-      profile.proteinConsistency,
-      profile.calorieGoalKnown,
-      profile.nutritionDirection.mealPrepPreference,
-      profile.nutritionDirection.eatingSchedule,
-      profile.nutritionDirection.foodRestrictions,
+      profile.nutritionDirection.fastingStatus,
     ]),
     benchmarks: calculateSectionCompletion(benchmarkFields),
     preferences: calculateSectionCompletion([
@@ -4687,7 +4730,7 @@ const getProfileTabCompletions = (
 };
 
 const mergeProfile = (saved: Partial<SoundFitnessProfile>): SoundFitnessProfile => {
-  const gender = normalizeBodyModel(saved.gender || saved.bodyModel);
+  const gender = getBodyModelFromProfile(saved);
   const trainingLocations = normalizePreferenceSelection(
     saved.trainingLocations,
     saved.trainingLocation,
@@ -5626,6 +5669,7 @@ function CompactSelectableCard({
   disabled = false,
   icon,
   label,
+  compactLabel = false,
   onClick,
   selected,
   title,
@@ -5637,6 +5681,7 @@ function CompactSelectableCard({
   disabled?: boolean;
   icon: React.ReactNode;
   label: string;
+  compactLabel?: boolean;
   onClick: () => void;
   selected: boolean;
   title?: string;
@@ -5690,12 +5735,78 @@ function CompactSelectableCard({
         >
           {icon}
         </span>
-        <span className="max-w-full text-[11px] font-black uppercase leading-[1.05] tracking-[0.035em] text-white drop-shadow-[0_1px_6px_rgba(0,0,0,0.55)]">
+        <span data-compact-label={compactLabel ? "true" : undefined} className="max-w-full text-[11px] font-black uppercase leading-[1.05] tracking-[0.035em] text-white drop-shadow-[0_1px_6px_rgba(0,0,0,0.55)]">
           {label}
         </span>
       </span>
     </button>
   );
+}
+
+function ProfileScrollViewport({ viewportRef, onWheelNative, ...props }: Omit<HTMLAttributes<HTMLDivElement>, "onWheel"> & {
+  viewportRef: RefObject<HTMLDivElement | null>;
+  onWheelNative: (event: WheelEvent) => void;
+}) {
+  const localRef = useRef<HTMLDivElement>(null);
+  const handlerRef = useRef(onWheelNative);
+  useLayoutEffect(() => { handlerRef.current = onWheelNative; }, [onWheelNative]);
+  const setRef = useCallback((node: HTMLDivElement | null) => { localRef.current = node; viewportRef.current = node; }, [viewportRef]);
+  useEffect(() => {
+    const viewport = localRef.current;
+    if (!viewport) return;
+    const wheel = (event: WheelEvent) => handlerRef.current(event);
+    viewport.addEventListener("wheel", wheel, {passive: false});
+    return () => viewport.removeEventListener("wheel", wheel);
+  }, []);
+  return <div {...props} ref={setRef} />;
+}
+
+function SelectionCardHelp({ children, label, help }: { children: ReactNode; label: string; help?: string }) {
+  const [open, setOpen] = useState(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    if (!open || !dialogRef.current) return;
+    const dialog = dialogRef.current; dialog.showModal();
+    return () => { if (dialog.open) dialog.close(); };
+  }, [open]);
+  return <div className={heroStyles.selectionCardHelp}>{children}{help && <span className={heroStyles.selectionCardInfo}><button type="button" aria-label={`${label} info`} aria-haspopup="dialog" onClick={event => {event.stopPropagation(); setOpen(true);}} className="grid place-items-center rounded-full bg-slate-950/70 text-xs font-bold text-slate-300">i</button></span>}
+    {open && help && typeof document !== "undefined" && createPortal(<dialog ref={dialogRef} className="profile-location-dialog" aria-label={`${label} explanation`} onCancel={() => setOpen(false)} onClose={() => setOpen(false)}><div className="space-y-4 p-5"><h2 className="text-lg font-bold text-violet-100">{label}</h2><p className="text-sm leading-6 text-slate-200">{help}</p><button type="button" className="min-h-11 font-bold text-violet-100" onClick={() => setOpen(false)}>Done</button></div></dialog>, document.body)}
+  </div>;
+}
+
+function ProfileSelectionRail({ children, label, alwaysShowArrows = false }: { children: ReactNode; label: string; alwaysShowArrows?: boolean }) {
+  const railRef = useRef<HTMLDivElement>(null);
+  const [columns, setColumns] = useState(3);
+  const [highlight, setHighlight] = useState(0);
+  const cards = Children.toArray(children);
+  useLayoutEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const measure = () => setColumns(Math.max(1, Math.floor((rail.clientWidth + 8) / 108)));
+    const observer = new ResizeObserver(measure);
+    observer.observe(rail); measure();
+    return () => observer.disconnect();
+  }, []);
+  const move = (direction: number) => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const next = (highlight + direction + cards.length) % cards.length;
+    setHighlight(next);
+    const card = rail.children[next] as HTMLElement;
+    if (card) {
+      const firstVisible = Math.min(next, Math.max(0, cards.length - columns));
+      const first = rail.children[firstVisible] as HTMLElement;
+      rail.scrollTo({left: first.offsetLeft, behavior: "smooth"});
+    }
+  };
+  return <div className={heroStyles.selectionRailGroup}>
+    <div ref={railRef} className={heroStyles.selectionRail} style={{gridAutoColumns: `calc((100% - ${(columns - 1) * 8}px) / ${columns})`}} role="group" aria-label={label} data-profile-orbiter-scroll-area="true" onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()} onWheel={event => event.stopPropagation()}>
+      {cards.map((card, index) => <div key={isValidElement(card) ? card.key ?? index : index} data-highlighted={index === highlight ? "true" : undefined} className={heroStyles.selectionRailCard}>{card}</div>)}
+    </div>
+    {(alwaysShowArrows || cards.length > columns) && <nav className="flex justify-center gap-6" aria-label={`${label} highlight controls`}>
+      {([-1,1] as const).map(direction => <button key={direction} type="button" className={heroStyles.questionArrow} aria-label={`Highlight ${direction < 0 ? "previous" : "next"} ${label} option`} onClick={() => move(direction)}><span aria-hidden="true" className="text-3xl font-black [text-shadow:0_3px_0_#083344]">{direction < 0 ? "‹" : "›"}</span></button>)}
+    </nav>}
+  </div>;
 }
 
 function PreferenceCardGrid({
@@ -5729,25 +5840,27 @@ function PreferenceCardGrid({
         </span>
       </div>
 
-      <div data-profile-preference-options="true" data-profile-orbiter-scroll-area={compactRow ? "true" : undefined} onPointerDown={compactRow ? event => event.stopPropagation() : undefined} onPointerUp={compactRow ? event => event.stopPropagation() : undefined} onWheel={compactRow ? event => event.stopPropagation() : undefined} className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
+      <ProfileSelectionRail label={title}>
         {options.map((option) => {
           const active = selected.includes(option.title);
 
           return (
+            <SelectionCardHelp key={option.id} label={option.title} help={option.id === "push-pull-legs" ? "PPL means Push / Pull / Legs: separate sessions for pushing muscles, pulling muscles, and legs." : option.id === "upper-lower" ? "Upper / Lower alternates upper-body and lower-body training days." : undefined}>
             <CompactSelectableCard
-              key={option.id}
               aria-label={`Toggle ${option.title}`}
               accent={option.accent}
-              icon={compactRow && option.id === "upper-lower" ? <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="3" r="2"/><path d="m8 7-4 5m12-5 4 5M8 7h8l-1 7H9L8 7Zm1 10-1 5m7-5 1 5M6 16h12"/></svg> : getSelectorCardIcon(option.id, option.visual)}
+              icon={getSelectorCardIcon(option.id, option.visual)}
+              compactLabel={option.id === "upper-lower"}
               label={selectorCardShortLabels[option.id] || option.title}
               onClick={() => onToggle(option.title)}
               selected={active}
               tone={preferenceCardTones[option.id] || "cyan"}
               title={option.helper}
             />
+            </SelectionCardHelp>
           );
         })}
-      </div>
+      </ProfileSelectionRail>
     </div>
   );
 }
@@ -5767,19 +5880,6 @@ function CompactMultiSelectGrid({
 }) {
   const selectedValues = Array.isArray(selected) ? selected : [];
   const isBold = variant === "bold";
-  const optionsRef = useRef<HTMLDivElement>(null);
-  const [hasOverflow, setHasOverflow] = useState(false);
-  useEffect(() => {
-    if (title !== "Familiarity Areas") return;
-    const element = optionsRef.current;
-    if (!element) return;
-    const measure = () => setHasOverflow(element.scrollWidth > element.clientWidth + 1);
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    for (const child of element.children) observer.observe(child);
-    measure();
-    return () => observer.disconnect();
-  }, [title, options]);
 
   return (
     <div
@@ -5798,7 +5898,7 @@ function CompactMultiSelectGrid({
           {selectedValues.length ? `${selectedValues.length} selected` : "Multi-select"}
         </span>
       </div>
-      <div ref={optionsRef} data-scroll-overflow={hasOverflow ? "true" : "false"} data-profile-options="true" data-profile-orbiter-scroll-area={title === "Familiarity Areas" ? "true" : undefined} onWheel={title === "Familiarity Areas" ? event => event.stopPropagation() : undefined} onPointerDown={title === "Familiarity Areas" ? event => event.stopPropagation() : undefined} onPointerUp={title === "Familiarity Areas" ? event => event.stopPropagation() : undefined} className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10">
+      <ProfileSelectionRail label={title}>
         {options.map((option) => {
           const active = selectedValues.includes(option.title);
           const displayTitle = selectorCardShortLabels[option.id] || option.title;
@@ -5826,9 +5926,26 @@ function CompactMultiSelectGrid({
             />
           );
         })}
-      </div>
+      </ProfileSelectionRail>
     </div>
   );
+}
+
+function ProfileAnswerSurface({ title, children }: { title: string; children: ReactNode }) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const normalize = (text: string) => text.toLowerCase().replace(/[^a-z0-9]/g, "").replace(/s$/, "");
+    const marked: HTMLElement[] = [];
+    for (const heading of root.querySelectorAll<HTMLElement>("h1,h2,h3,h4,p,label > span:first-child")) {
+      if (normalize(heading.textContent || "") !== normalize(title)) continue;
+      heading.setAttribute("data-profile-repeated-heading", "true");
+      marked.push(heading);
+    }
+    return () => marked.forEach(heading => heading.removeAttribute("data-profile-repeated-heading"));
+  }, [title, children]);
+  return <div ref={rootRef} className={heroStyles.answerSurface} data-profile-answer-content="true">{children}</div>;
 }
 
 function CompactSingleSelectRow({
@@ -5857,7 +5974,7 @@ function CompactSingleSelectRow({
           Single-select
         </span>
       </div>
-      <div data-profile-options="true" className="flex max-w-full snap-x snap-mandatory gap-2 overflow-x-auto pb-2 pr-3 scroll-smooth [scrollbar-color:rgba(34,211,238,0.45)_rgba(15,23,42,0.62)] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/45 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/70">
+      <ProfileSelectionRail label={title}>
         {options.map((option) => {
           const active = selected === option.title;
           const visibleTitle = selectorCardShortLabels[option.id] || option.title;
@@ -5876,7 +5993,7 @@ function CompactSingleSelectRow({
             />
           );
         })}
-      </div>
+      </ProfileSelectionRail>
     </div>
   );
 }
@@ -5980,6 +6097,113 @@ function AdaptivePlanningFactorsGrid({
       </div>
     </div>
   );
+}
+
+function CircularProfileRating({ label, helper, min, max, value, onChange }: {
+  label: string; helper: string; min: number; max: number; value: number; onChange: (value: number) => void;
+}) {
+  const safeValue = clampNumber(value, min, max);
+  const dialRef = useRef<SVGSVGElement>(null);
+  const latest = useRef({value: safeValue, onChange});
+  const drag = useRef<{id: number; x: number; y: number; angle: number; delta: number; start: number; moved: boolean; circular: boolean} | null>(null);
+  const suppressClick = useRef(false);
+  const [dragging, setDragging] = useState(false);
+  useLayoutEffect(() => { latest.current = {value: safeValue, onChange}; }, [safeValue, onChange]);
+  const commit = (next: number) => {
+    const rounded = Math.round(clampNumber(next, min, max));
+    if (rounded === latest.current.value) return;
+    latest.current.value = rounded;
+    latest.current.onChange(rounded);
+  };
+  useEffect(() => {
+    const dial = dialRef.current;
+    if (!dial) return;
+    let accumulated = 0, lastWheel = 0, lastStep = 0;
+    const wheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey) return;
+      event.preventDefault(); event.stopPropagation();
+      if (drag.current) return;
+      const now = performance.now();
+      if (now - lastWheel > 180) accumulated = 0;
+      lastWheel = now;
+      const raw = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      accumulated += raw * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 120 : 1);
+      if (Math.abs(accumulated) < 45) return;
+      if (now - lastStep < 70) { accumulated = 0; return; }
+      lastStep = now;
+      const next = Math.max(min, Math.min(max, latest.current.value + Math.sign(accumulated)));
+      accumulated = 0;
+      if (next !== latest.current.value) { latest.current.value = next; latest.current.onChange(next); }
+    };
+    dial.addEventListener("wheel", wheel, {passive: false});
+    return () => dial.removeEventListener("wheel", wheel);
+  }, [min, max]);
+  const relativePoint = (event: ReactPointerEvent<SVGSVGElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left - rect.width / 2, y = event.clientY - rect.top - rect.height / 2;
+    return {x, y, angle: dialAngle(x, y), radius: Math.hypot(x, y) / (rect.width / 2)};
+  };
+  const ratio = (safeValue - min) / (max - min);
+  const color = `hsl(${170 - ratio * 160} 80% 68%)`;
+  const level = ratio < .34 ? "Low" : ratio < .7 ? "Moderate" : "High";
+  const icon: SelectorIconName = label === "Mobility Priority" ? ratio < .34 ? "moon" : ratio < .7 ? "stretch" : "sparkles" : label === "Cardio Priority" ? ratio < .34 ? "walking" : ratio < .7 ? "runner" : "heart-pulse" : ratio < .34 ? "sprout" : ratio < .7 ? "dumbbell" : "flame";
+  const values = Array.from({length: max - min + 1}, (_, index) => min + index);
+  const point = (angle: number, radius: number) => { const radians = angle * Math.PI / 180; return {x: 130 + radius * Math.cos(radians), y: 130 + radius * Math.sin(radians)}; };
+  const slot = 360 / values.length;
+  return <div className="mx-auto w-full max-w-[360px] text-center" data-profile-circular-rating="true">
+    <p className="sr-only">{label}</p>
+    <div className="relative mx-auto w-[min(100%,280px)]">
+      <svg ref={dialRef} viewBox="0 0 260 260" className="block h-auto w-full overflow-visible select-none" style={{touchAction: "none", cursor: dragging ? "grabbing" : "grab"}} role="radiogroup" aria-label={label}
+        onPointerDown={event => {
+          if (event.button !== 0 || drag.current) return;
+          event.preventDefault(); event.stopPropagation();
+          const point = relativePoint(event);
+          suppressClick.current = false;
+          drag.current = {id: event.pointerId, x: event.clientX, y: event.clientY, angle: point.angle, delta: 0, start: latest.current.value, moved: false, circular: point.radius > .4};
+          event.currentTarget.setPointerCapture(event.pointerId);
+          setDragging(true);
+        }}
+        onPointerMove={event => {
+          const start = drag.current;
+          if (!start || start.id !== event.pointerId) return;
+          event.preventDefault(); event.stopPropagation();
+          const point = relativePoint(event);
+          if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > 5) start.moved = true;
+          const degreesPerStep = 360 / (max - min + 1);
+          start.delta = clampNumber(start.delta + dialAngleDelta(start.angle, point.angle), (min - start.start) * degreesPerStep, (max - start.start) * degreesPerStep);
+          start.angle = point.angle;
+          if (!start.moved) return;
+          suppressClick.current = true;
+          commit(start.circular ? dialDragValue(start.start, start.delta, min, max) : start.start + (event.clientX - start.x - (event.clientY - start.y)) / 18);
+        }}
+        onPointerUp={event => {
+          const start = drag.current;
+          if (!start || start.id !== event.pointerId) return;
+          event.preventDefault(); event.stopPropagation();
+          if (!start.moved) { const point = relativePoint(event); if (point.radius > .4) commit(dialPointValue(point.angle, min, max)); }
+          drag.current = null; setDragging(false);
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+        }}
+        onPointerCancel={event => { event.stopPropagation(); drag.current = null; suppressClick.current = true; setDragging(false); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
+        onLostPointerCapture={() => { drag.current = null; setDragging(false); }}
+        onClickCapture={event => { if (suppressClick.current) { event.preventDefault(); event.stopPropagation(); suppressClick.current = false; } }}
+      >
+        {values.map((number, index) => {
+          const start = -90 + index * slot + 2; const end = start + slot - 4;
+          const a = point(start, 90), b = point(end, 90), text = point(start + (slot - 4) / 2, 115);
+          return <g key={number} role="radio" aria-checked={number === safeValue} aria-label={`${label}: ${number} of ${max}`} tabIndex={number === safeValue ? 0 : -1} className="outline-none [&:focus-visible_path]:stroke-white" onClick={event => { event.stopPropagation(); if (event.detail === 0) commit(number); }} onKeyDown={event => { const key = event.key; if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", " ", "Enter"].includes(key)) return; event.preventDefault(); event.stopPropagation(); commit(key === "Home" ? min : key === "End" ? max : key === " " || key === "Enter" ? number : clampNumber(safeValue + (key === "ArrowRight" || key === "ArrowUp" ? 1 : -1), min, max)); }}>
+            <path d={`M ${a.x} ${a.y} A 90 90 0 0 1 ${b.x} ${b.y}`} fill="none" stroke="transparent" strokeWidth="36" />
+            <path d={`M ${a.x} ${a.y} A 90 90 0 0 1 ${b.x} ${b.y}`} fill="none" stroke={number <= safeValue ? color : "#334155"} strokeWidth={number === safeValue ? 20 : 15} strokeLinecap="butt" opacity={number <= safeValue ? 1 : .45} style={{filter: number === safeValue ? `drop-shadow(0 0 4px ${color})` : undefined, transition: "stroke 160ms ease, opacity 160ms ease"}} />
+            <text x={text.x} y={text.y} dy=".35em" textAnchor="middle" fill={number === safeValue ? "#ffffff" : "#94a3b8"} fontSize="12" fontWeight="800">{number}</text>
+          </g>;
+        })}
+      </svg>
+      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1" style={{color}}>
+        <SelectorIcon name={icon} className="h-10 w-10" /><span className="text-3xl font-black tabular-nums">{safeValue}<span className="text-sm opacity-65">/{max}</span></span><span className="text-xs font-bold uppercase tracking-wider">{level}</span>
+      </div>
+    </div>
+    <p className="mx-auto max-w-xs text-xs leading-5 text-slate-400">{helper}</p>
+  </div>;
 }
 
 function AnimatedProfileSlider({
@@ -6116,13 +6340,7 @@ function FloatingInfoBubble({
         aria-expanded={isOpen}
         aria-label={`${label} info`}
         onBlur={() => setIsOpen(false)}
-        onClick={() => {
-          if (isOpen) {
-            setIsOpen(false);
-            return;
-          }
-          openTooltip();
-        }}
+        onClick={() => { if (isOpen) { setIsOpen(false); return; } openTooltip(); }}
         onFocus={openTooltip}
         onKeyDown={(event) => {
           if (event.key === "Escape") setIsOpen(false);
@@ -6154,6 +6372,7 @@ function FloatingInfoBubble({
 }
 
 function MetricControl({
+  bare = false,
   compact = false,
   color = "cyan",
   defaultValue,
@@ -6175,6 +6394,7 @@ function MetricControl({
   unit,
   value,
 }: {
+  bare?: boolean;
   compact?: boolean;
   color?: MetricColor;
   defaultValue: number;
@@ -6217,11 +6437,11 @@ function MetricControl({
 
   return (
     <div
-      className={`relative z-0 flex h-full flex-col overflow-visible border shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition focus-within:z-50 hover:z-50 ${accent.shell} ${
-        compact ? (dense ? "rounded-[20px] p-3" : "rounded-[22px] p-4") : "rounded-[26px] p-5"
+      className={`relative z-0 flex h-full flex-col overflow-visible transition focus-within:z-50 hover:z-50 ${
+        bare ? "px-2 py-1" : `border shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ${accent.shell} ${compact ? (dense ? "rounded-[20px] p-3" : "rounded-[22px] p-4") : "rounded-[26px] p-5"}`
       }`}
     >
-      {!hideAccentLine && <span
+      {!bare && !hideAccentLine && <span
         aria-hidden="true"
         className={`pointer-events-none absolute ${dense ? "inset-x-4" : "inset-x-5"} top-0 h-px rounded-full bg-gradient-to-r ${activeClass} opacity-70`}
       />}
@@ -6794,10 +7014,225 @@ function ProfileQuestionPager({
   );
 }
 
-function TrainingLocationPicker({ selected, names, onAdd, onRemove, onName, homeEquipment }: {
-  selected: string[]; names?: Record<string, string>; onAdd: (location: string) => void; onRemove: (location: string) => void; onName: (location: string, name: string) => void; homeEquipment: ReactNode;
+function SpecialCircumstancePicker({ selected, onToggle, onUpdate }: {
+  selected: SpecialCircumstance[];
+  onToggle: (item: { id: string; label: string }) => void;
+  onUpdate: <K extends keyof SpecialCircumstance>(id: string, key: K, value: SpecialCircumstance[K]) => void;
+}) {
+  const [view, setView] = useState<"add" | "selected">("selected");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const editDialogRef = useRef<HTMLDialogElement>(null);
+  const editing = selected.find(item => item.id === editingId);
+  useEffect(() => {
+    if (!editing || !editDialogRef.current) return;
+    const dialog = editDialogRef.current;
+    dialog.showModal();
+    return () => { if (dialog.open) dialog.close(); };
+  }, [editing?.id]);
+  const railRef = useRef<HTMLDivElement>(null);
+  const available = specialCircumstanceOptions.filter(option => !["manual-labor", "sport-season", "surgery-history"].includes(option.id) && !selected.some(item => item.id === option.id));
+  return <div className="min-w-0 space-y-3 pb-3" data-profile-circumstance-picker="true" onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()} onWheel={event => event.stopPropagation()}>
+    <div className="flex flex-col items-center justify-center gap-2">
+      {(["add", "selected"] as const).map(item => <button key={item} type="button" aria-expanded={view === item} onClick={() => setView(item)} className={view === item ? "px-3 py-2 text-xs font-black uppercase tracking-wider text-emerald-100" : "rounded-full border border-emerald-200/25 bg-emerald-300/10 px-3 py-2 text-xs font-bold text-slate-300 hover:text-white"}>{item === "add" ? "Add a circumstance" : `Your circumstances · ${selected.length}`}</button>)}
+    </div>
+    <div key={view} ref={railRef} data-profile-orbiter-scroll-area="true" style={{gridAutoColumns: "calc((100% - 24px) / 3)"}} aria-label={view === "add" ? "Available circumstances" : "Your circumstances and notes"} className="grid min-w-0 grid-flow-col auto-cols-[100%] gap-3 overflow-x-auto overflow-y-hidden snap-x snap-mandatory px-1 pb-3 pt-2 [scrollbar-width:none] sm:auto-cols-[calc((100%_-_12px)/2)] lg:auto-cols-[calc((100%_-_24px)/3)]">
+      {view === "add" ? available.map(option => <button key={option.id} type="button" aria-label={`Add ${option.label}`} onClick={() => onToggle(option)} className="group relative isolate flex h-[116px] min-w-0 snap-start flex-col overflow-hidden rounded-[18px] border border-white/10 bg-slate-950/48 p-2 text-center text-slate-300 transition hover:border-emerald-200/35 hover:bg-emerald-300/8">
+        <span aria-hidden="true" className={`absolute inset-x-0 top-0 -z-10 h-24 bg-gradient-to-br ${option.visual} opacity-90`} />
+        <span aria-hidden="true" className="absolute -right-8 -top-8 -z-10 h-28 w-28 rounded-full border border-white/10 bg-white/[0.035]" />
+        <span aria-hidden="true" className="mx-auto grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-slate-950/40 text-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">{option.icon}</span>
+        <span className="relative mt-2 text-[11px] font-black leading-tight text-white">{option.label}</span>
+        <span className="relative mt-auto text-[9px] font-bold uppercase tracking-wider text-emerald-200">+ Add</span>
+      </button>) : selected.map(item => <button key={item.id} type="button" aria-label={`Edit ${item.label} details`} aria-haspopup="dialog" onClick={() => setEditingId(item.id)} className="relative flex h-[116px] min-w-0 snap-start flex-col items-center justify-center gap-2 overflow-hidden rounded-[18px] border border-emerald-200/25 bg-emerald-300/10 p-2 text-center">
+        <span aria-hidden="true" className="text-3xl">{specialCircumstanceOptions.find(option => option.id === item.id)?.icon || "✦"}</span>
+        <span className="text-[11px] font-black leading-tight text-white">{item.label}</span>
+        <Pencil aria-hidden="true" className="absolute right-2 top-2 h-3 w-3 text-emerald-200" />
+      </button>)}
+      {!(view === "add" ? available.length : selected.length) && <p className="py-3 text-sm text-slate-400">{view === "add" ? "All available circumstances have been added." : "Add a circumstance to include context and notes."}</p>}
+    </div>
+    {editing && typeof document !== "undefined" && createPortal(<dialog ref={editDialogRef} className="profile-location-dialog" aria-label={`${editing.label} details`} onCancel={() => setEditingId(null)} onClose={() => setEditingId(null)}>
+      <div className="space-y-4 p-5" onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()}>
+        <header className="flex items-center justify-between gap-3"><h2 className="text-lg font-bold text-emerald-100">{editing.label}</h2><button type="button" className="min-h-11 px-3 font-bold text-emerald-100" onClick={() => setEditingId(null)}>Done</button></header>
+        <SelectField label="Status" options={["active", "improving", "resolved", "monitoring"]} value={editing.status} onChange={value => onUpdate(editing.id, "status", value as SpecialCircumstanceStatus)} />
+        <Field label="Start Date" type="date" value={editing.startDate} onChange={value => onUpdate(editing.id, "startDate", value)} />
+        <TextAreaField label="Notes" rows={3} value={editing.notes} placeholder="Optional training preferences or practical adjustments. Avoid diagnoses or medical history." onChange={value => onUpdate(editing.id, "notes", value)} />
+        <button type="button" className="min-h-11 text-sm font-semibold text-rose-200" onClick={() => { onToggle(editing); setEditingId(null); }}>Remove circumstance</button>
+      </div>
+    </dialog>, document.body)}
+    <nav className="flex justify-center gap-6" aria-label="Circumstances scrolling">
+      {([-1, 1] as const).map(direction => <button key={direction} type="button" className={heroStyles.questionArrow} aria-label={`Scroll circumstances ${direction < 0 ? "left" : "right"}`} onClick={() => { const rail = railRef.current; if (rail) rail.scrollBy({left: direction * rail.clientWidth, behavior: "smooth"}); }}><span aria-hidden="true" className="text-3xl font-black [text-shadow:0_3px_0_#065f46]">{direction < 0 ? "‹" : "›"}</span></button>)}
+    </nav>
+  </div>;
+}
+
+function FitProfileIdentityName({name}: {name: string}) {
+  const textRef = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const text = textRef.current;
+    const row = text?.parentElement;
+    if (!text || !row) return;
+    const fit = () => {
+      const base = Number.parseFloat(getComputedStyle(row).fontSize);
+      text.style.fontSize = `${base}px`;
+      const buttonWidth = row.querySelector("button")?.getBoundingClientRect().width || 0;
+      const available = Math.max(1, row.clientWidth - buttonWidth - 6);
+      if (text.scrollWidth > available) text.style.fontSize = `${Math.max(10, Math.min(base, base * available / text.scrollWidth))}px`;
+    };
+    const observer = new ResizeObserver(fit);
+    observer.observe(row); fit();
+    return () => observer.disconnect();
+  }, [name]);
+  return <span ref={textRef} title={name}>{name}</span>;
+}
+
+function FastingPeriodPicker({value, onChange}: {value: NutritionDirection; onChange: (value: NutritionDirection) => void}) {
+  const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const periods = readFastingPeriods(value);
+  const editing = periods.find(period => period.id === editingId);
+  useEffect(() => {
+    if (!editingId || !dialogRef.current) return;
+    const dialog = dialogRef.current;
+    dialog.showModal();
+    return () => {if (dialog.open) dialog.close();};
+  }, [editingId]);
+  const patch = (changes: Partial<FastingPeriod>) => onChange(updateFastingPeriods(value, periods.map(period => period.id === editingId ? {...period, ...changes} : period)));
+  return <div className="space-y-3" aria-label="Fasting periods question">
+    <div className="flex justify-center"><button type="button" className="min-h-9 rounded-full border border-emerald-200/25 px-4 text-xs font-bold text-emerald-100" onClick={() => setAdding(current => !current)}>{adding ? "Your fasting periods" : "Add a fasting period"}</button></div>
+    {adding ? <>
+      <ProfileSelectionRail label="Add a fasting period" alwaysShowArrows>
+        {(["Regular", "Occasional"] as const).map(kind => <CompactSelectableCard key={kind} compactLabel tone="green" accent="from-emerald-300/25 via-teal-500/10 to-slate-950" icon={<SelectorIcon name={kind === "Regular" ? "clock" : "calendar-clock"} />} label={`${kind} fasting`} selected={false} onClick={() => {
+          onChange(updateFastingPeriods(value, [...periods, {id: crypto.randomUUID(), kind, start: "", end: "", notes: ""}]));
+          setAdding(false);
+        }} />)}
+        <CompactSelectableCard compactLabel tone="green" accent="from-emerald-300/25 via-teal-500/10 to-slate-950" icon={<SelectorIcon name="utensils" />} label="No fasting" selected={value.fastingStatus === "No"} onClick={() => {onChange(updateFastingPeriods(value, [], true)); setAdding(false);}} />
+      </ProfileSelectionRail>
+    </> : <>
+      <h3 className="text-center text-xs font-bold text-emerald-100">Your fasting periods</h3>
+      {periods.length ? <ProfileSelectionRail label="Your fasting periods" alwaysShowArrows>{periods.map(period => <CompactSelectableCard key={period.id} compactLabel tone="green" accent="from-emerald-300/25 via-teal-500/10 to-slate-950" icon={<SelectorIcon name={period.kind === "Regular" ? "clock" : "calendar-clock"} />} label={`${period.kind} fasting`} selected ariaLabel={`Edit ${period.kind.toLowerCase()} fasting period${period.start ? ` starting ${period.start}` : ""}`} onClick={() => setEditingId(period.id)} />)}</ProfileSelectionRail> : <p className="px-2 text-center text-xs text-slate-400">{value.fastingStatus === "No" ? "No fasting periods" : "No fasting periods added yet"}</p>}
+    </>}
+    {editing && typeof document !== "undefined" && createPortal(<dialog ref={dialogRef} className="profile-location-dialog" aria-label={`${editing.kind} fasting details`} onCancel={() => setEditingId(null)} onClose={() => setEditingId(null)}><div className="space-y-4 p-5" onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()}>
+      <h2 className="text-lg font-bold text-emerald-100">{editing.kind} fasting</h2>
+      <div className="grid grid-cols-2 gap-3"><Field label="Fasting start (optional)" type="time" value={editing.start} onChange={start => patch({start})} /><Field label="Fasting end (optional)" type="time" value={editing.end} onChange={end => patch({end})} /></div>
+      <TextAreaField label="Days or periods (optional)" rows={3} value={editing.notes} placeholder="Certain weekdays or an occasional period" onChange={notes => patch({notes: notes.slice(0, 1000)})} />
+      <div className="flex justify-between gap-3"><button type="button" className="min-h-11 text-sm font-bold text-red-200" onClick={() => {onChange(updateFastingPeriods(value, periods.filter(period => period.id !== editingId))); setEditingId(null);}}>Remove period</button><button type="button" className="min-h-11 text-sm font-bold text-emerald-100" onClick={() => setEditingId(null)}>Done</button></div>
+    </div></dialog>, document.body)}
+  </div>;
+}
+
+function TrainingRegressionsPicker({ value, onChange, bodyModel }: {
+  value: TrainingAreaPreferences;
+  onChange: (value: TrainingAreaPreferences) => void;
+  bodyModel: BodyModel;
+}) {
+  return <section className="space-y-4" aria-label="Training regressions and adjustments">
+
+    <TrainingAreaSelector bodyModel={bodyModel} selected={value.areas} noConcerns={value.noAreasOfConcern} onNoConcernsChange={checked => onChange({...value, noAreasOfConcern: checked, ...(checked ? {areas: [], areaCareLevels: {}} : {})})} careLevels={value.areaCareLevels} onCareChange={(area, level) => onChange({...value, areaCareLevels: {...value.areaCareLevels, [area]: level}})} onChange={areas => onChange({...value, areas, noAreasOfConcern: false, areaCareLevels: Object.fromEntries(Object.entries(value.areaCareLevels || {}).filter(([area]) => areas.includes(area)))})} />
+  </section>;
+}
+
+function TrainingAdjustmentChoices({ kind, selected, onChange }: {
+  kind: "movements" | "adjustments"; selected: string[]; onChange: (values: string[]) => void;
+}) {
+  const options: {label: string; icon: SelectorIconName}[] = kind === "movements" ? [
+    {label: "Overhead pressing", icon: "dumbbell"}, {label: "Deep squats", icon: "calisthenics"}, {label: "Lunges", icon: "walking"}, {label: "Hip hinges", icon: "kettlebell"},
+    {label: "Running / jumping", icon: "runner"}, {label: "Kneeling", icon: "shield"}, {label: "Floor exercises", icon: "panel-top"}, {label: "Twisting", icon: "shuffle"},
+  ] : [
+    {label: "Lighter loads", icon: "plates"}, {label: "Shorter range of motion", icon: "ruler"}, {label: "Low impact", icon: "heart-handshake"},
+    {label: "Supported / seated options", icon: "user"}, {label: "Slower progression", icon: "clock"}, {label: "Ask my coach first", icon: "trainer"},
+  ];
+  const title = kind === "movements" ? "Movements to avoid" : "Preferred adjustments";
+  return <section className="space-y-3" aria-label={title}>
+    <p className="text-sm text-slate-400">{kind === "movements" ? "Choose any movements you prefer to avoid or modify." : "Choose the adjustments that make training work better for you."} Select as many as you need.</p>
+    <ProfileSelectionRail label={title} alwaysShowArrows>{options.map(option => <CompactSelectableCard key={option.label} ariaLabel={`Toggle ${option.label}`} compactLabel accent="from-emerald-300/25 via-teal-500/10 to-slate-950" icon={<SelectorIcon name={option.icon} />} label={option.label} selected={selected.includes(option.label)} tone="green" onClick={() => onChange(toggleArrayValue(selected, option.label))} />)}</ProfileSelectionRail>
+  </section>;
+}
+
+function CardioMethodPicker({ selected, details, onToggle, onDetail, defaultUnit }: {
+  selected: string[]; details: Record<string, CardioMethodDetail>; onToggle: (method: string) => void; onDetail: (method: string, detail: CardioMethodDetail) => void; defaultUnit: "km" | "mi";
+}) {
+  const [view, setView] = useState<"add" | "selected">("selected");
+  const [editing, setEditing] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    if (!editing || !dialogRef.current) return;
+    const dialog = dialogRef.current; dialog.showModal();
+    return () => { if (dialog.open) dialog.close(); };
+  }, [editing]);
+  const options = cardioPreferenceOptions.filter(option => view === "add" ? !selected.includes(option.title) : selected.includes(option.title));
+  const detail = editing ? details[editing] || {} : {};
+  const patch = (value: Partial<CardioMethodDetail>) => { if (editing) onDetail(editing, {...detail, ...value}); };
+  return <section className="min-w-0 space-y-3" aria-label="Preferred cardio method selections">
+    <div className="flex flex-col items-center gap-2">{(["add", "selected"] as const).map(tab => <button key={tab} type="button" aria-expanded={view === tab} onClick={() => setView(tab)} className={view === tab ? "px-3 py-2 text-xs font-black uppercase tracking-wider text-violet-100" : "rounded-full border border-violet-200/25 bg-violet-300/10 px-3 py-2 text-xs font-bold text-slate-300"}>{tab === "add" ? "Add cardio method" : `Your cardio · ${selected.length}`}</button>)}</div>
+    {options.length ? <ProfileSelectionRail key={view} label={view === "add" ? "Cardio method choices" : "Your cardio methods"}>{options.map(option => <SelectionCardHelp key={option.id} label={option.title} help={option.id === "hiit" ? "HIIT means High-Intensity Interval Training: short harder efforts alternating with easier recovery." : undefined}><CompactSelectableCard ariaLabel={`${view === "add" ? "Add" : "Edit"} ${option.title} cardio method`} accent={option.accent} icon={getSelectorCardIcon(option.id)} label={option.title} selected={view === "selected"} tone={preferenceCardTones[option.id] || "purple"} onClick={() => { if (view === "add") onToggle(option.title); else setEditing(option.title); }} /></SelectionCardHelp>)}</ProfileSelectionRail> : <p className="py-3 text-center text-sm text-slate-400">{view === "add" ? "All cardio methods have been added." : "Add the cardio methods you enjoy."}</p>}
+    {view === "add" && <button type="button" className="mx-auto block min-h-10 px-3 text-xs font-bold text-violet-100" onClick={() => setView("selected")}>Done adding</button>}
+    {editing && typeof document !== "undefined" && createPortal(<dialog ref={dialogRef} className={`profile-location-dialog ${heroStyles.cardioMethodDialog}`} aria-label={`${editing} cardio details`} onCancel={() => setEditing(null)} onClose={() => setEditing(null)}><div className="space-y-4 p-5" onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()}>
+      <header className="flex items-center justify-between gap-3"><h2 className="text-lg font-bold text-violet-100">{editing}</h2><button type="button" className="min-h-11 px-3 font-bold text-violet-100" onClick={() => setEditing(null)}>Done</button></header>
+      <fieldset><legend className="mb-2 text-xs font-bold text-slate-300">Where do you usually do this?</legend><div className="grid grid-cols-3 gap-2">{(["Indoor", "Outdoor", "Either"] as const).map(environment => <CompactSelectableCard key={environment} ariaLabel={`${editing}: ${environment}`} accent="from-violet-300/20 to-transparent" icon={<SelectorIcon name={environment === "Indoor" ? "building" : environment === "Outdoor" ? "trees" : "shuffle"} />} label={environment} selected={detail.environment === environment} onClick={() => patch({environment})} tone="purple" />)}</div></fieldset>
+      <Field label="Route, class or activity (optional)" value={detail.route || ""} placeholder="e.g. Park loop or indoor bike" onChange={route => patch({route: route.slice(0, 160)})} />
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3"><Field label="Typical distance (optional)" type="number" value={detail.distance || ""} placeholder="e.g. 5" onChange={distance => { if (/^\d{0,4}(\.\d{0,2})?$/.test(distance)) patch({distance, distanceUnit: detail.distanceUnit || defaultUnit}); }} /><div className="flex gap-1 pb-1" role="group" aria-label="Distance units">{(["mi", "km"] as const).map(unit => <button key={unit} type="button" aria-pressed={(detail.distanceUnit || defaultUnit) === unit} onClick={() => patch({distanceUnit: unit})} className="min-h-11 rounded-lg border border-white/10 px-3 text-xs font-bold text-slate-400 aria-pressed:border-violet-200/50 aria-pressed:text-violet-100">{unit}</button>)}</div></div>
+      <TextAreaField label="Extra details (optional)" rows={3} value={detail.notes || ""} placeholder="Preferred terrain, equipment, class, or what makes this enjoyable…" onChange={notes => patch({notes: notes.slice(0, 2000)})} />
+      <button type="button" className="min-h-11 text-sm font-bold text-rose-200" onClick={() => { onToggle(editing); setEditing(null); }}>Remove cardio method</button>
+    </div></dialog>, document.body)}
+  </section>;
+}
+
+function PreviousCoachingPicker({ selected, notes, onToggle, onNote }: {
+  selected: string[]; notes: Record<string, string>; onToggle: (value: string) => void; onNote: (value: string, note: string) => void;
+}) {
+  const [view, setView] = useState<"add" | "selected">("selected");
+  const [editing, setEditing] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    if (!editing || !dialogRef.current) return;
+    const dialog = dialogRef.current; dialog.showModal();
+    return () => { if (dialog.open) dialog.close(); };
+  }, [editing]);
+  const options = previousCoachingOptions.filter(option => view === "add" ? !selected.includes(option.title) : selected.includes(option.title));
+  return <section className="min-w-0 space-y-3" aria-label="Previous coaching selections">
+    <div className="flex flex-col items-center gap-2">{(["add", "selected"] as const).map(tab => <button key={tab} type="button" aria-expanded={view === tab} onClick={() => setView(tab)} className={view === tab ? "px-3 py-2 text-xs font-black uppercase tracking-wider text-emerald-100" : "rounded-full border border-emerald-200/25 bg-emerald-300/10 px-3 py-2 text-xs font-bold text-slate-300"}>{tab === "add" ? "Add coaching experience" : `Your coaching · ${selected.length}`}</button>)}</div>
+    {options.length ? <ProfileSelectionRail key={view} label={view === "add" ? "Coaching experience choices" : "Your coaching experience"}>{options.map(option => <SelectionCardHelp key={option.id} label={option.title} help={option.id === "coaching-pt" ? "PT here means Physical Therapy. You can share the training approach without adding medical history." : undefined}><CompactSelectableCard ariaLabel={`${view === "add" ? "Add" : "Edit"} ${option.title} experience`} accent={option.accent} icon={getSelectorCardIcon(option.id)} label={selectorCardShortLabels[option.id] || option.title} selected={view === "selected"} tone={option.tone} onClick={() => { if (view === "add") onToggle(option.title); else setEditing(option.title); }} /></SelectionCardHelp>)}</ProfileSelectionRail> : <p className="py-3 text-center text-sm text-slate-400">{view === "add" ? "All coaching experience types have been added." : "Add any previous coaching experience you want to share."}</p>}
+    {view === "add" && <button type="button" className="mx-auto block min-h-10 px-3 text-xs font-bold text-emerald-100" onClick={() => setView("selected")}>Done adding</button>}
+    {editing && typeof document !== "undefined" && createPortal(<dialog ref={dialogRef} className="profile-location-dialog" aria-label={`${editing} experience details`} onCancel={() => setEditing(null)} onClose={() => setEditing(null)}><div className="space-y-4 p-5" onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()}>
+      <header className="flex items-center justify-between gap-3"><h2 className="text-lg font-bold text-emerald-100">{editing}</h2><button type="button" className="min-h-11 px-3 font-bold text-emerald-100" onClick={() => setEditing(null)}>Done</button></header>
+      <TextAreaField label="Coaching experience details" rows={5} value={notes[editing] || ""} placeholder="Coach or program, when you trained, what helped, or anything you want your coach to know…" onChange={value => onNote(editing, value.slice(0, 4000))} />
+      <button type="button" className="min-h-11 text-sm font-bold text-rose-200" onClick={() => { onToggle(editing); setEditing(null); }}>Remove experience</button>
+    </div></dialog>, document.body)}
+  </section>;
+}
+
+function LocationEquipmentPicker({ selected, notes, onToggle, onNote }: {
+  selected: string[]; notes: Record<string, string>; onToggle: (equipment: string) => void; onNote: (equipment: string, note: string) => void;
+}) {
+  const [view, setView] = useState<"add" | "selected">("selected");
+  const [editing, setEditing] = useState<string | null>(null);
+  const options = view === "add" ? compactEquipmentOptions.filter(option => !selected.includes(option.title)) : compactEquipmentOptions.filter(option => selected.includes(option.title));
+  return <section className={`${heroStyles.equipmentPicker} min-w-0 space-y-3`} aria-label="Location equipment">
+    <div className="flex flex-wrap justify-center gap-2">{(["add", "selected"] as const).map(tab => <button key={tab} type="button" aria-pressed={view === tab} onClick={() => { setView(tab); setEditing(null); }} className={`rounded-full px-3 py-2 text-xs font-bold ${view === tab ? "bg-cyan-300/15 text-cyan-100" : "border border-white/15 text-slate-300"}`}>{tab === "add" ? "Add equipment" : `Your equipment · ${selected.length}`}</button>)}</div>
+    {options.length ? <ProfileSelectionRail key={view} label={view === "add" ? "Available equipment" : "Selected equipment"}>{options.map(option => <CompactSelectableCard key={option.id} ariaLabel={`${view === "add" ? "Add" : "Edit"} ${option.title} equipment`} accent={option.accent} icon={getSelectorCardIcon(option.id)} label={option.title} selected={view === "selected"} tone={option.tone} onClick={() => { if (view === "add") onToggle(option.title); else setEditing(option.title); }} />)}</ProfileSelectionRail> : <p className="py-2 text-sm text-slate-400">{view === "selected" ? "Add the equipment available at this location." : "All equipment types have been added."}</p>}
+    {editing && selected.includes(editing) && <div className="space-y-2 rounded-xl border border-cyan-200/20 p-3"><TextAreaField label={`${editing} details`} rows={3} value={notes[editing] || ""} placeholder="Brand, quantity, weights, attachments, or other details…" onChange={value => onNote(editing, value.slice(0, 2000))} /><div className="flex justify-between"><button type="button" className="px-2 py-2 text-xs font-bold text-rose-200" onClick={() => { onToggle(editing); setEditing(null); }}>Remove equipment</button><button type="button" className="px-2 py-2 text-xs font-bold text-cyan-100" onClick={() => setEditing(null)}>Done</button></div></div>}
+  </section>;
+}
+
+function TrainingLocationPicker({ selected, names, commuteMinutes, appearances, onAppearance, onAdd, onRemove, onName, onCommute, renderEquipment }: {
+  selected: string[]; names?: Record<string, string>; commuteMinutes?: Record<string, string>; appearances?: Record<string, TrainingLocationAppearance>; onAppearance: (location: string, appearance: TrainingLocationAppearance) => void; onAdd: (location: string) => void; onRemove: (location: string) => void; onName: (location: string, name: string) => void; onCommute: (location: string, minutes: string) => void; renderEquipment: (location: string) => ReactNode;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const editingAppearance = resolveTrainingLocationAppearance(editing ? appearances?.[editing] : undefined);
+  const [locationView, setLocationView] = useState<"add" | "saved">(selected.length ? "saved" : "add");
+  const locationRailRef = useRef<HTMLDivElement>(null);
+  const [visibleLocations, setVisibleLocations] = useState(1);
+  useLayoutEffect(() => {
+    const rail = locationRailRef.current;
+    if (!rail) return;
+    const update = () => setVisibleLocations(Math.max(1, Math.floor((rail.clientWidth - 8 + 8) / ((locationView === "add" ? 104 : 150) + 8))));
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(rail);
+    return () => observer.disconnect();
+  }, [locationView]);
+  const locationRailStyle = { gridAutoColumns: `calc((100% - ${(visibleLocations - 1) * 8}px) / ${visibleLocations})` };
   const dialogRef = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -6805,35 +7240,63 @@ function TrainingLocationPicker({ selected, names, onAdd, onRemove, onName, home
     dialog.showModal();
     return () => { if (dialog.open) dialog.close(); };
   }, [editing]);
-  return <div className="space-y-4" onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()} onWheel={event => event.stopPropagation()}>
-    <div><p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-300">Add a location</p>
-      <div data-profile-location-choices="true" data-profile-orbiter-scroll-area="true" className="flex gap-2 overflow-x-auto pb-3">
+  return <div className="min-w-0 space-y-2 pb-3" onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()} onWheel={event => event.stopPropagation()}>
+    <div className="flex flex-wrap items-center justify-center gap-3" aria-label="Training location lists">
+      {(["add", "saved"] as const).map(view => <button key={view} type="button" aria-expanded={locationView === view} aria-controls="profile-location-active-list" onClick={() => setLocationView(view)} className={locationView === view ? "px-3 py-2 text-xs font-black uppercase tracking-wider text-cyan-100" : "rounded-full border border-cyan-200/25 bg-cyan-300/10 px-3 py-2 text-xs font-bold text-slate-300 hover:text-white"}>{view === "add" ? "Add a location" : `Your locations · ${selected.length}`}</button>)}
+    </div>
+    {locationView === "add" ? <div id="profile-location-active-list">
+      <div key="add" ref={locationRailRef} style={locationRailStyle} data-profile-location-choices="true" data-profile-orbiter-scroll-area="true" aria-label="Available training locations" className="grid grid-flow-col gap-2 overflow-x-auto overflow-y-hidden px-1 pb-4 pt-2 [scrollbar-width:none] snap-x snap-mandatory [&>*]:!w-full [&>*]:min-w-0 [&>*]:snap-start">
         {compactTrainingLocationOptions.map(option => <CompactSelectableCard key={option.id} ariaLabel={`Add ${option.title} location`} className="w-[104px] shrink-0" accent={option.accent} icon={getSelectorCardIcon(option.id)} label={option.title} selected={selected.includes(option.title)} onClick={() => { if (!selected.includes(option.title)) onAdd(option.title); }} tone={option.tone} />)}
       </div>
-    </div>
-    <div><p className="mb-2 text-xs font-bold uppercase tracking-wider text-cyan-100">Your locations <span className="text-slate-400">· {selected.length}</span></p>
-      <div data-profile-orbiter-scroll-area="true" className="flex gap-2 overflow-x-auto pb-2" aria-label="Selected training locations">
-        {selected.map(location => { const option = compactTrainingLocationOptions.find(item => item.title === location); return <button type="button" key={location} onClick={() => setEditing(location)} aria-label={`Edit ${location} location`} aria-haspopup="dialog" className="relative flex min-h-24 w-40 shrink-0 flex-col items-start gap-2 rounded-2xl border border-cyan-200/25 bg-cyan-300/10 p-3 text-left text-white">
-          <span className="flex w-full items-center gap-2 text-cyan-100">{getSelectorCardIcon(option?.id || "", <SelectorIcon name="building" />)}<span className="text-xs font-bold">{location}</span><Pencil className="ml-auto h-3.5 w-3.5" aria-hidden="true" /></span>
-          <span className="w-full break-words text-sm font-semibold">{names?.[location] || "Add location name"}</span>
+    </div> : <div id="profile-location-active-list">
+      <div key="saved" ref={locationRailRef} style={locationRailStyle} data-profile-orbiter-scroll-area="true" className="grid grid-flow-col items-stretch gap-2 overflow-x-auto overflow-y-hidden px-1 pb-4 pt-2 [scrollbar-width:none] snap-x snap-mandatory [&>*]:!w-full [&>*]:min-w-0 [&>*]:snap-start" aria-label="Selected training locations">
+        {selected.map(location => { const option = compactTrainingLocationOptions.find(item => item.title === location); const appearance = resolveTrainingLocationAppearance(appearances?.[location]); return <button type="button" key={location} style={{borderColor: `${appearance.color}55`, background: `linear-gradient(145deg,${appearance.color}20,#ffffff08 45%,#02061766)`, backdropFilter: "blur(12px)", boxShadow: `inset 0 1px 0 #ffffff33, inset 0 -1px 0 ${appearance.color}22, 0 8px 18px #02061744`}} onClick={() => { setEditing(location); setAppearanceOpen(false); }} aria-label={`Edit ${location} location`} aria-haspopup="dialog" className="group relative isolate flex min-h-36 w-40 shrink-0 flex-col items-center justify-center gap-2 overflow-hidden rounded-2xl border border-cyan-200/25 bg-slate-950/60 p-3 text-center text-white">
+          <span data-location-background-icon="true" aria-hidden="true" style={{color: appearance.color}} className="pointer-events-none absolute -right-3 top-1/2 -z-10 -translate-y-1/2 opacity-25 [&>svg]:h-24 [&>svg]:w-24">{appearance.icon ? <SelectorIcon name={appearance.icon} /> : getSelectorCardIcon(option?.id || "", <SelectorIcon name="building" />)}</span>
+          <span style={{color: appearance.color}} className="text-xs font-black uppercase">{location}</span><Pencil className="absolute right-2 top-2 h-3.5 w-3.5 text-cyan-200" aria-hidden="true" />
+          {names?.[location] && <span className="w-full break-words text-sm font-semibold">{names[location]}</span>}
+          {commuteMinutes?.[location] && <span className="text-[10px] font-semibold text-cyan-200">{commuteMinutes[location]} min one way</span>}
         </button>; })}
-        {!selected.length && <p className="py-2 text-sm text-slate-400">Choose a location above to add it here.</p>}
+        {!selected.length && <p className="py-2 text-sm text-slate-400">Choose Add a location to add your first location.</p>}
       </div>
-    </div>
+    </div>}
+    <nav className="flex justify-center gap-6" aria-label={`${locationView === "add" ? "Available" : "Your"} locations scrolling`}>
+      <button type="button" className={heroStyles.questionArrow} aria-label="Scroll locations left" onClick={() => locationRailRef.current?.scrollBy({left: -180, behavior: "smooth"})}><span aria-hidden="true" className="text-3xl font-black [text-shadow:0_3px_0_#075985]">‹</span></button>
+      <button type="button" className={heroStyles.questionArrow} aria-label="Scroll locations right" onClick={() => locationRailRef.current?.scrollBy({left: 180, behavior: "smooth"})}><span aria-hidden="true" className="text-3xl font-black [text-shadow:0_3px_0_#075985]">›</span></button>
+    </nav>
     {editing && typeof document !== "undefined" && createPortal(<dialog ref={dialogRef} className="profile-location-dialog" aria-label={`Edit ${editing} location`} onCancel={() => setEditing(null)} onClose={() => setEditing(null)}>
       <div className="space-y-5 p-5" onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()} onWheel={event => event.stopPropagation()}>
-        <header className="flex items-center justify-between gap-3"><h2 className="text-xl font-bold text-cyan-100">{editing} details</h2><button type="button" className="min-h-11 px-3 font-bold text-cyan-100" onClick={() => setEditing(null)}>Done</button></header>
+        <header className="flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><button type="button" aria-label="Choose location icon and color" aria-expanded={appearanceOpen} onClick={() => setAppearanceOpen(open => !open)} style={{color: editingAppearance.color}} className="relative grid h-12 w-12 shrink-0 place-items-center [&>svg]:h-9 [&>svg]:w-9">{editingAppearance.icon ? <SelectorIcon name={editingAppearance.icon} /> : getSelectorCardIcon(compactTrainingLocationOptions.find(option => option.title === editing)?.id || "", <SelectorIcon name="building" />)}<Pencil className="!absolute bottom-0 right-0 !h-3 !w-3" aria-hidden="true" /></button><h2 style={{color: editingAppearance.color}} className="text-xl font-bold">{editing} details</h2></div><button type="button" className="min-h-11 px-3 font-bold text-cyan-100" onClick={() => setEditing(null)}>Done</button></header>
+        {appearanceOpen && <section className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.025] p-3" aria-label="Location appearance">
+          <p className="text-xs font-bold text-slate-300">Choose an icon</p>
+          <div className="grid grid-cols-6 gap-1">{trainingLocationIconBank.map(icon => <button key={icon.id} type="button" aria-label={`Use ${icon.label} icon`} aria-pressed={editingAppearance.icon === icon.id} title={icon.label} onClick={() => onAppearance(editing, {...appearances?.[editing], icon: icon.id})} style={{color: editingAppearance.color}} className="grid min-h-11 place-items-center rounded-lg aria-pressed:bg-white/10 [&>svg]:h-7 [&>svg]:w-7"><SelectorIcon name={icon.id} /></button>)}</div>
+          <p className="text-xs font-bold text-slate-300">Location color</p>
+          <div className="flex flex-wrap gap-2">{trainingLocationColors.map(color => <button key={color.id} type="button" aria-label={`Use ${color.label} location color`} aria-pressed={(appearances?.[editing]?.color || "cyan") === color.id} title={color.label} onClick={() => onAppearance(editing, {...appearances?.[editing], color: color.id})} className="grid h-10 w-10 place-items-center rounded-full aria-pressed:ring-2 aria-pressed:ring-white"><span style={{background: color.color}} className="h-6 w-6 rounded-full" /></button>)}</div>
+        </section>}
         <Field label="Location name" value={names?.[editing] || ""} placeholder={editing === "Home" ? "e.g. Home gym" : "Location name"} onChange={value => onName(editing, value.slice(0, 120))} />
-        {editing === "Home" ? <div data-profile-readiness-question="true">{homeEquipment}</div> : <p className="text-sm text-slate-400">For planning, this location is assumed to have a well-stocked gym.</p>}
+        <label className="block text-xs font-black uppercase tracking-[0.12em] text-slate-400">
+          One-way commute
+          <span className="mt-2 flex items-center gap-2">
+            <span className="flex w-[6rem] items-stretch overflow-hidden rounded-2xl border border-white/10 bg-slate-950/58 focus-within:border-cyan-200/50">
+              <input type="text" inputMode="numeric" pattern="[0-9]{0,3}" maxLength={3} aria-label="One-way commute in minutes" value={commuteMinutes?.[editing] || ""} placeholder="15" onChange={event => { const value = event.target.value; if (/^\d{0,3}$/.test(value)) onCommute(editing, value); }} onKeyDown={event => { if (event.key === "ArrowUp" || event.key === "ArrowDown") { event.preventDefault(); onCommute(editing, String(Math.max(0, Math.min(999, Number(commuteMinutes?.[editing] || 0) + (event.key === "ArrowUp" ? 1 : -1))))); } }} className="min-h-[46px] min-w-0 flex-1 bg-transparent px-2 py-3 text-center text-sm font-bold tabular-nums text-white outline-none" />
+              <span className="flex w-7 shrink-0 flex-col border-l border-white/10">
+                <button type="button" aria-label="Increase commute minutes" className="flex flex-1 items-center justify-center text-xs text-cyan-100 hover:bg-white/10" onClick={() => onCommute(editing, String(Math.min(999, Number(commuteMinutes?.[editing] || 0) + 1)))}>▴</button>
+                <button type="button" aria-label="Decrease commute minutes" className="flex flex-1 items-center justify-center text-xs text-cyan-100 hover:bg-white/10" onClick={() => onCommute(editing, String(Math.max(0, Number(commuteMinutes?.[editing] || 0) - 1)))}>▾</button>
+              </span>
+            </span>
+            <span className="text-xs font-semibold normal-case tracking-normal text-slate-400">min one way</span>
+          </span>
+        </label>
+        {renderEquipment(editing)}
         <button type="button" className="min-h-11 text-sm font-semibold text-rose-200" onClick={() => { onRemove(editing); setEditing(null); }}>Remove location</button>
       </div>
     </dialog>, document.body)}
   </div>;
 }
 
-export type ProfileSupportSection = "weight" | "measurements" | "readiness" | "benchmarks" | "fatigue" | "notifications";
+export type ProfileSupportSection = "bodyScan" | "weight" | "measurements" | "readiness" | "benchmarks" | "fatigue" | "notifications";
 export default function ProfileExperience({ supportSection, onPendingChange }: { supportSection?: ProfileSupportSection; onPendingChange?: (pending: boolean) => void }) {
   const {
+    profile: sharedProfile,
     updateProfile,
   } = useProfile();
   const router = useRouter();
@@ -7097,15 +7560,11 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
         if (!orbiter) return;
 
         const rect = orbiter.getBoundingClientRect();
-        const topComfort = 104;
-        const bottomComfort = 112;
-        const lowerEdge = window.innerHeight - bottomComfort;
-        if (rect.top >= topComfort && rect.bottom <= lowerEdge) return;
-
-        const top =
-          rect.top < topComfort
-            ? rect.top + window.scrollY - topComfort
-            : rect.bottom + window.scrollY - lowerEdge;
+        // This full-height shell cannot satisfy separate top and bottom comfort
+        // margins. Use the same idle-header anchor on every navigation action.
+        const topComfort = 4.48 * parseFloat(getComputedStyle(document.documentElement).fontSize);
+        if (Math.abs(rect.top - topComfort) <= 1) return;
+        const top = rect.top + window.scrollY - topComfort;
 
         window.scrollTo({
           behavior,
@@ -7158,16 +7617,7 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
           behavior,
           top: 0,
         });
-        const orbiter = profileOrbiterRef.current;
-        if (orbiter) {
-          const top = orbiter.getBoundingClientRect().top + window.scrollY - 96;
-          window.scrollTo({
-            behavior,
-            top: Math.max(0, top),
-          });
-        } else {
-          scrollProfileOrbiterIntoView(behavior);
-        }
+        scrollProfileOrbiterIntoView(behavior);
         profileHeroRowRef.current?.scrollTo({ top: 0, behavior });
       });
     },
@@ -7180,7 +7630,6 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
       setActiveProfileOrbiterRow(0);
       setExpandedProfileOrbiterCard(null);
       scrollProfileHeroRowIntoView(behavior);
-      window.setTimeout(() => scrollProfileHeroRowIntoView("auto"), 90);
     },
     [scrollProfileHeroRowIntoView],
   );
@@ -7283,6 +7732,17 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
   const [savedSnapshot, setSavedSnapshot] = useState(
     JSON.stringify(defaultProfile),
   );
+  useEffect(() => {
+    const version = planningRecordVersion(planningKeys.profile);
+    if (loading || profileSaveBusyRef.current || version === profileVersionRef.current ||
+        profileGenerationRef.current !== planningAccountGeneration() ||
+        JSON.stringify(profileLatestRef.current) !== savedSnapshot || !Object.keys(sharedProfile).length) return;
+    const next = mergeProfile(sharedProfile as Partial<SoundFitnessProfile>);
+    profileVersionRef.current = version;
+    setProfile(next);
+    setSavedSnapshot(JSON.stringify(next));
+    setBirthdayDraft(getBirthdayParts(next.birthday));
+  }, [loading, savedSnapshot, sharedProfile]);
   const [profilePhotoMenuOpen, setProfilePhotoMenuOpen] = useState(false);
   const [isEditingIdentity, setIsEditingIdentity] = useState(false);
   const [identityNameDraft, setIdentityNameDraft] = useState("");
@@ -7514,8 +7974,7 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
       .slice(0, 24) ||
     "member";
   const profileRecord = asRecord(profile);
-  const memberSinceLabel = formatMemberSince(
-    readProfileText(
+  const memberSinceValue = readProfileText(
       profileRecord.memberSince,
       profileRecord.memberSinceAt,
       profileRecord.joinedAt,
@@ -7523,8 +7982,10 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
       profileRecord.createdAt,
       profileRecord.created_at,
       authFallback.memberSinceAt,
-    ),
-  );
+    );
+  const memberSinceLabel = formatMemberSince(memberSinceValue);
+  const memberSinceDate = memberSinceValue && !Number.isNaN(new Date(memberSinceValue).getTime()) ? new Date(memberSinceValue) : null;
+  const membershipIcon: SelectorIconName = /hybrid/i.test(profile.memberType) ? "power" : /online|remote/i.test(profile.memberType) ? "online" : /in.person|personal/i.test(profile.memberType) ? "trainer" : /group/i.test(profile.memberType) ? "users" : /app/i.test(profile.memberType) ? "panel-top" : "shield";
   const soundPointsValue = Number(
     profileRecord.soundPoints || profileRecord.points || 0,
   );
@@ -8093,7 +8554,7 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
       return {
         ...current,
         bodyFat: latestRecord.bodyFat || current.bodyFat,
-        bodyMetricHistory: [...currentHistory, ...importableRecords].slice(-36),
+        bodyMetricHistory: [...currentHistory, ...importableRecords],
         bodyScanImports: [...currentImports, ...importableRecords].slice(-50),
         bodyScanSource: latestRecord.provider || current.bodyScanSource,
         currentWeight: latestRecord.weight || current.currentWeight,
@@ -8908,12 +9369,12 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
           bodyMetricSnapshot.weightTrend !== latestBodyMetric.weightTrend),
     );
     const nextBodyMetricHistory = bodyMetricSnapshot && bodyMetricChanged
-      ? [...bodyMetricHistory, bodyMetricSnapshot].slice(-36)
+      ? [...bodyMetricHistory, bodyMetricSnapshot]
       : bodyMetricHistory;
     const nextProfile = {
       ...stored,
       ...profile,
-      trainingLocationEquipmentAssumptions: Object.fromEntries(trainingLocations.map(location => [location, location === "Home" ? "home-selection" as const : "well-stocked-gym" as const])),
+      trainingLocationEquipmentAssumptions: Object.fromEntries(trainingLocations.map(location => [location, profile.trainingLocationEquipment?.[location] ? "location-selection" as const : location === "Home" ? "home-selection" as const : "well-stocked-gym" as const])),
       adaptivePlanningFactors,
       adaptivePlanningNotes,
       age,
@@ -9142,6 +9603,8 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
 
   const renderHero = (summary?: ReactNode) => (
     <section data-profile-hero="true" className={`${heroStyles.hero} relative overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.22),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,146,60,0.18),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.94))] shadow-[0_34px_120px_rgba(0,0,0,0.58),inset_0_1px_0_rgba(255,255,255,0.14)]`}>
+      <Link href={ROUTES.dashboard.goals} className={heroStyles.proceedGoals}><SelectorIcon name="compass" className={heroStyles.proceedGoalsIcon} />Proceed to goals <span aria-hidden="true">›</span></Link>
+
       <div className="pointer-events-none absolute right-[-10%] top-[-30%] h-72 w-72 rounded-full bg-cyan-300/10 blur-3xl" />
       <div className={`${heroStyles.layout} relative z-10`}>
         <div className={`${heroStyles.main} min-w-0`}>
@@ -9152,7 +9615,7 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
             >
               <button
                 type="button"
-                className={`${heroStyles.photo} group relative cursor-pointer overflow-hidden rounded-full border border-cyan-100/24 bg-cyan-300/12 shadow-[0_0_44px_rgba(34,211,238,0.2)] outline-none transition hover:border-cyan-100/70 hover:shadow-[0_0_34px_rgba(34,211,238,0.48)] focus-visible:border-cyan-100 focus-visible:ring-2 focus-visible:ring-cyan-200/80 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950`}
+                className={heroStyles.photo}
                 aria-label="Edit profile photo"
                 aria-expanded={profilePhotoMenuOpen}
                 aria-haspopup="menu"
@@ -9170,10 +9633,7 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
                     {identityDisplayName.trim().slice(0, 2).toUpperCase() || "SF"}
                   </div>
                 )}
-                <span className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1 bg-slate-950/68 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-50 opacity-0 backdrop-blur-[2px] transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-                  <CameraIcon className="h-3.5 w-3.5" />
-                  Edit
-                </span>
+                <span className={heroStyles.photoEditBadge} aria-hidden="true"><CameraIcon className="h-3 w-3" /></span>
               </button>
               {profilePhotoMenuOpen && typeof document !== "undefined" ? createPortal(
                 <div
@@ -9223,7 +9683,7 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
               <div className={`${heroStyles.identityHeading} flex flex-wrap items-start justify-between`}>
                 <div className="min-w-0">
                   <p className={`${heroStyles.identityName} flex items-center gap-2 break-words text-3xl font-black uppercase tracking-wide text-white drop-shadow-[0_0_22px_rgba(34,211,238,0.18)] sm:text-4xl`}>
-                    <span className="min-w-0 break-words">{identityDisplayName}</span>
+                    <FitProfileIdentityName name={identityDisplayName} />
                     <button type="button" aria-label="Edit profile name" aria-haspopup="dialog"
                       onPointerDown={event => { event.stopPropagation(); profileOrbiterPointerMovedRef.current = false; }}
                       onPointerUp={event => event.stopPropagation()}
@@ -9232,8 +9692,9 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
                       title="Edit profile name"><Pencil aria-hidden="true" className="pointer-events-none h-4 w-4" /></button>
                   </p>
                   <p className={`${heroStyles.identityHandle} mt-1.5 text-sm font-black text-cyan-100`}>
-                    @{identityHandle}
+                    {`@${identityHandle}`}
                   </p>
+                  <PhysicalReadinessMeter preferences={profile.trainingRegressions} />
                 </div>
 
               </div>
@@ -9284,8 +9745,11 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
             </div>
           </div>
           <div className={`${heroStyles.plan} text-center`}>
-          <p className="mx-auto mt-2 max-w-3xl text-sm font-semibold leading-5 text-slate-300">
-            Your identity, health background, experience and preferences.
+          <p className={heroStyles.memberBasics} aria-label="Member basics">
+            <span><Cake aria-hidden="true" />{calculateAgeFromBirthday(profile.birthday) ? `${calculateAgeFromBirthday(profile.birthday)} yrs` : "Age not set"}</span>
+            <span className="capitalize"><PersonStanding aria-hidden="true" />{profile.gender || "Gender not set"}</span>
+            <span><Ruler aria-hidden="true" />{profile.height ? profile.appPersonalization.preferredUnitSystem === "kg" ? `${getHeightControlValue(profile.height, "cm")} cm` : `${Math.floor(Math.round(Number(getHeightControlValue(profile.height, "in"))) / 12)}′ ${Math.round(Number(getHeightControlValue(profile.height, "in"))) % 12}″` : "Height not set"}</span>
+            <span><Scale aria-hidden="true" />{profile.currentWeight ? `${profile.currentWeight} ${profile.appPersonalization.preferredUnitSystem === "kg" ? "kg" : "lb"}` : "Weight not set"}</span>
           </p>
 
           </div>
@@ -10188,6 +10652,26 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
     </div>
   );
 
+  const renderCompactWeightHistory = () => {
+    const unit = profile.appPersonalization.preferredUnitSystem === "kg" ? "kg" : "lb";
+    const entries = new Map<string, { date: string; weight: string; timestamp: number }>();
+    for (const entry of normalizeBodyMetricHistory(profile.bodyMetricHistory)) {
+      const date = new Date(entry.savedAt.length === 10 ? `${entry.savedAt}T12:00:00` : entry.savedAt);
+      if (!entry.weight.trim() || !Number.isFinite(date.getTime())) continue;
+      const label = date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+      entries.set(`${label}:${entry.weight}`, { date: label, weight: entry.weight, timestamp: date.getTime() });
+    }
+    if (!entries.size) return <p className="mt-1 text-xs text-slate-400">No weigh-ins recorded yet.</p>;
+    return <ul className="mt-1 max-h-32 overflow-y-auto overscroll-contain text-xs" data-dashboard-orbiter-local-scroll="true">
+      {Array.from(entries.entries()).sort(([, first], [, second]) => second.timestamp - first.timestamp).map(([key, entry]) => (
+        <li key={key} className="flex justify-between gap-3 border-b border-white/10 py-1.5">
+          <span className="text-slate-300">{entry.date}</span>
+          <strong className="tabular-nums text-white">{entry.weight} {unit}</strong>
+        </li>
+      ))}
+    </ul>;
+  };
+
   const renderVitalStatisticsControls = () => {
     const heightUnit =
       profile.appPersonalization.preferredUnitSystem === "kg" ? "cm" : "in";
@@ -10318,7 +10802,9 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
             ) : null}
           </div>
         </div>
+        <div className="grid min-w-0 gap-3">
         <MetricControl
+          bare
           compact
           color="steel"
           defaultValue={heightUnit === "cm" ? 173 : 68}
@@ -10337,11 +10823,34 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
           unit={heightUnit}
           value={getHeightControlValue(profile.height, heightUnit)}
         />
+        <MetricControl
+          bare
+          compact
+          color="cyan"
+          defaultValue={profile.appPersonalization.preferredUnitSystem === "kg" ? 82 : 180}
+          helper="Updates the same weight used by Support Signals."
+          helperMode="tooltip"
+          label="Current weight"
+          showManualInput={false}
+          showArrowControls
+          showSteppers={false}
+          min={profile.appPersonalization.preferredUnitSystem === "kg" ? 35 : 80}
+          max={profile.appPersonalization.preferredUnitSystem === "kg" ? 220 : 480}
+          unit={profile.appPersonalization.preferredUnitSystem === "kg" ? "kg" : "lb"}
+          step={0.5}
+          value={profile.currentWeight}
+          onChange={value => setProfileField("currentWeight", value)}
+        />
+        <section aria-label="Weight history" className="px-2">
+          <h3 className="text-sm font-bold text-cyan-100">Weight history</h3>
+          {renderCompactWeightHistory()}
+        </section>
+        </div>
       </div>
     );
   };
 
-  const renderBodyMetrics = (options: { embedded?: boolean } = {}) => {
+  const renderBodyMetrics = (options: { embedded?: boolean; scanOnly?: boolean } = {}) => {
     const weightUnit =
       profile.appPersonalization.preferredUnitSystem === "kg" ? "kg" : "lb";
     const bodySummaryItems = [
@@ -11052,6 +11561,8 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
         </section>
       );
     };
+
+    if (options.scanOnly) return renderBodyScanImportPanel();
 
     const bodyMetricsContent = (
       <>
@@ -11819,11 +12330,22 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
     );
   };
 
-  const renderTrainingLocationQuestions = () => <TrainingLocationPicker selected={profile.trainingLocations} names={profile.trainingLocationNames}
+  const renderTrainingLocationQuestions = () => <TrainingLocationPicker selected={profile.trainingLocations} names={profile.trainingLocationNames} commuteMinutes={profile.trainingLocationCommuteMinutes} appearances={profile.trainingLocationAppearance}
+    onAppearance={(location, appearance) => setProfile(current => ({...current, trainingLocationAppearance: {...current.trainingLocationAppearance, [location]: appearance}}))}
     onAdd={location => togglePreferenceSelection("trainingLocations", "trainingLocation", location)}
     onRemove={location => togglePreferenceSelection("trainingLocations", "trainingLocation", location)}
     onName={(location, name) => setProfile(current => ({ ...current, trainingLocationNames: { ...current.trainingLocationNames, [location]: name } }))}
-    homeEquipment={<CompactMultiSelectGrid title="Home Equipment" variant="bold" options={compactEquipmentOptions} selected={profile.availableEquipment} onToggle={toggleEquipmentSelection} />}
+    onCommute={(location, minutes) => setProfile(current => ({ ...current, trainingLocationCommuteMinutes: { ...current.trainingLocationCommuteMinutes, [location]: minutes } }))}
+    renderEquipment={location => <LocationEquipmentPicker key={location}
+      selected={profile.trainingLocationEquipment?.[location] ?? (location === "Home" ? profile.availableEquipment : [])}
+      notes={profile.trainingLocationEquipmentNotes?.[location] || {}}
+      onToggle={equipment => setProfile(current => {
+        const previous = current.trainingLocationEquipment?.[location] ?? (location === "Home" ? current.availableEquipment : []);
+        const next = toggleArrayValue(previous, equipment);
+        return { ...current, trainingLocationEquipment: { ...current.trainingLocationEquipment, [location]: next }, ...(location === "Home" ? {availableEquipment: next, equipment: next} : {}) };
+      })}
+      onNote={(equipment, note) => setProfile(current => ({ ...current, trainingLocationEquipmentNotes: { ...current.trainingLocationEquipmentNotes, [location]: { ...current.trainingLocationEquipmentNotes?.[location], [equipment]: note } } }))}
+    />}
   />;
 
   const renderPlanInputs = () => {
@@ -12027,13 +12549,13 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
       },
       "Beginner Friendly": {
         accent: "from-cyan-300/32 via-blue-500/15 to-slate-950",
-        icon: "sparkles",
+        icon: "sprout",
         label: "Beginner",
         tone: "cyan",
       },
       Calisthenics: {
         accent: "from-emerald-300/32 via-cyan-500/15 to-slate-950",
-        icon: "user",
+        icon: "calisthenics",
         label: "Bodyweight",
         tone: "bodyweight",
       },
@@ -12063,7 +12585,7 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
       },
       "Muscle Building": {
         accent: "from-red-300/32 via-orange-500/16 to-slate-950",
-        icon: "activity",
+        icon: "muscle",
         label: "Muscle",
         tone: "redOrange",
       },
@@ -12285,7 +12807,7 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
           </div>
 
           <div className="mt-5 rounded-[22px] border border-white/10 bg-white/[0.035] p-3">
-            <MuscleHeatMap bodyModel={profile.gender} />
+            <MuscleHeatMap bodyModel={getBodyModelFromProfile(profile)} />
           </div>
         </div>
 
@@ -12351,314 +12873,23 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
     );
   };
 
-  const renderSpecialCircumstances = () => {
-    const selectedCircumstances = profile.specialCircumstances;
-    const visibleSummaryCircumstances = selectedCircumstances.slice(0, 4);
-    const specialCircumstancesSummary = (
-      <div className="flex flex-wrap gap-2">
-        {visibleSummaryCircumstances.length ? (
-          <>
-            {visibleSummaryCircumstances.map((circumstance) => (
-              <span
-                key={circumstance.id}
-                className="rounded-full border border-orange-200/22 bg-orange-300/10 px-3 py-1.5 text-[11px] font-black text-orange-100"
-              >
-                {circumstance.label}
-              </span>
-            ))}
-            {selectedCircumstances.length > visibleSummaryCircumstances.length ? (
-              <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-black text-slate-300">
-                +{selectedCircumstances.length - visibleSummaryCircumstances.length} more
-              </span>
-            ) : null}
-          </>
-        ) : (
-          <span className="rounded-full border border-slate-200/14 bg-white/[0.04] px-3 py-1.5 text-[11px] font-black text-slate-300">
-            None Apply
-          </span>
-        )}
-      </div>
-    );
-    const specialCircumstancesScrollControls = (
-      <div className="flex gap-2">
-          <button
-            type="button"
-            aria-label="Scroll special circumstances left"
-            disabled={!specialCircumstanceScrollState.canScrollLeft}
-            onClick={() => scrollSpecialCircumstances("left")}
-            className={`grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/[0.045] text-base font-black text-slate-300 transition hover:border-orange-200/35 hover:bg-orange-300/10 hover:text-orange-100 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-white/10 disabled:hover:bg-white/[0.045] disabled:hover:text-slate-300 ${
-              specialCircumstanceScrollState.canScrollLeft
-                ? "shadow-[0_0_18px_rgba(251,146,60,0.08)]"
-                : ""
-            }`}
-          >
-            ←
-          </button>
-          <button
-            type="button"
-            aria-label="Scroll special circumstances right"
-            disabled={!specialCircumstanceScrollState.canScrollRight}
-            onClick={() => scrollSpecialCircumstances("right")}
-            className={`grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/[0.045] text-base font-black text-slate-300 transition hover:border-orange-200/35 hover:bg-orange-300/10 hover:text-orange-100 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-white/10 disabled:hover:bg-white/[0.045] disabled:hover:text-slate-300 ${
-              specialCircumstanceScrollState.canScrollRight
-                ? "shadow-[0_0_18px_rgba(251,146,60,0.08)]"
-                : ""
-            }`}
-          >
-            →
-          </button>
-      </div>
-    );
-
-    return (
-    <CollapsibleProfilePanel
-      completion={tabCompletions.circumstances}
-      expanded={profileSectionOpen.specialCircumstances}
-      headerAction={
-        profileSectionOpen.specialCircumstances
-          ? specialCircumstancesScrollControls
-          : null
-      }
-      onToggle={() => toggleProfileSection("specialCircumstances")}
-      summary={specialCircumstancesSummary}
-      title={`Special Circumstances - ${selectedCircumstances.length} Selected`}
-      subtitle="This helps personalize training recommendations. It is not medical diagnosis or treatment."
-    >
-      {/* TODO: Let these flags modify future recommendation rules: pregnancy-aware plans, injury substitutions, soreness/recovery bias, sleep/stress readiness, and travel equipment defaults. */}
-      <div className="max-w-full overflow-hidden rounded-[30px] pb-1">
-        <div
-          ref={specialCircumstancesSliderRef}
-          data-profile-circumstance-options="true"
-          onScroll={updateActiveSpecialCircumstanceFromScroll}
-          className="flex max-w-full snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain scroll-smooth px-1 pb-5 pt-1 [scrollbar-color:rgba(251,146,60,0.58)_rgba(15,23,42,0.78)] [scrollbar-width:thin] [touch-action:pan-x] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-orange-300/55 [&::-webkit-scrollbar-thumb]:shadow-[0_0_14px_rgba(251,146,60,0.35)] [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/70"
-        >
-        <button
-          ref={(node) => {
-            specialCircumstanceCardRefs.current[0] = node;
-          }}
-          type="button"
-          aria-pressed={selectedCircumstances.length === 0}
-          onClick={() => {
-            setActiveSpecialCircumstanceIndex(0);
-            setProfile((current) => ({
-              ...current,
-              specialCircumstances: [],
-            }));
-          }}
-          className={`group relative flex min-h-[220px] w-[min(68vw,250px)] max-w-[calc(100vw-3rem)] flex-none snap-center flex-col overflow-hidden rounded-[28px] border p-4 text-left transition duration-200 hover:-translate-y-1 sm:w-[260px] ${
-            selectedCircumstances.length === 0
-              ? "border-slate-100/32 bg-white/[0.075] text-white shadow-[0_0_24px_rgba(148,163,184,0.12)]"
-              : activeSpecialCircumstanceIndex === 0
-                ? "border-slate-200/22 bg-white/[0.055] text-slate-100"
-                : "border-white/10 bg-slate-950/44 text-slate-300 hover:border-slate-200/24 hover:bg-white/[0.055]"
-          }`}
-        >
-          <span className="absolute inset-x-0 top-0 h-20 bg-gradient-to-br from-slate-200/18 via-slate-400/8 to-transparent opacity-80 transition group-hover:opacity-100" />
-          <span className="absolute -right-8 -top-8 h-24 w-24 rounded-full border border-white/10 bg-white/[0.025]" />
-          <div className="relative flex items-start justify-between gap-3">
-            <span
-              className={`grid h-12 w-12 place-items-center rounded-[20px] border text-[10px] font-black uppercase tracking-[0.12em] shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] transition group-hover:scale-105 ${
-                selectedCircumstances.length === 0
-                  ? "border-slate-100/32 bg-white/[0.10] text-slate-50 shadow-[0_0_18px_rgba(148,163,184,0.12)]"
-                  : "border-white/10 bg-slate-950/54 text-slate-400"
-              }`}
-              aria-hidden="true"
-            >
-              <SelectorIcon name="circle-dot" className="h-8 w-8" />
-            </span>
-            <span
-              className={`rounded-full border px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.12em] ${
-                selectedCircumstances.length === 0
-                  ? "border-slate-100/30 bg-white/[0.12] text-slate-100"
-                  : "border-white/10 bg-white/[0.045] text-slate-500"
-              }`}
-            >
-              {selectedCircumstances.length === 0 ? "Active" : "Select"}
-            </span>
-          </div>
-          <p className="relative mt-4 text-base font-black leading-tight text-white">
-            None Apply
-          </p>
-          <p className="relative mt-2 text-xs font-semibold leading-5 text-slate-400">
-            No listed special circumstances currently apply.
-          </p>
-          <div
-            className={`relative mt-auto rounded-2xl border px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] transition ${
-              selectedCircumstances.length === 0
-                ? "border-slate-100/24 bg-white/[0.08] text-slate-100"
-                : "border-white/10 bg-white/[0.035] text-slate-500 group-hover:text-slate-200"
-            }`}
-          >
-            Clears selected context
-          </div>
-        </button>
-        {specialCircumstanceOptions.map((circumstance, index) => {
-          const cardIndex = index + 1;
-          const selectedItem = profile.specialCircumstances.find(
-            (item) => item.id === circumstance.id,
-          );
-          const selected = Boolean(selectedItem);
-          const centered = activeSpecialCircumstanceIndex === cardIndex;
-
-          return (
-            <button
-              key={circumstance.id}
-              ref={(node) => {
-                specialCircumstanceCardRefs.current[cardIndex] = node;
-              }}
-              type="button"
-              aria-pressed={selected}
-              onClick={() => {
-                setActiveSpecialCircumstanceIndex(cardIndex);
-                toggleSpecialCircumstance(circumstance);
-              }}
-              className={`group relative flex min-h-[220px] w-[min(72vw,280px)] max-w-[calc(100vw-3rem)] flex-none snap-center flex-col overflow-hidden rounded-[28px] border p-4 text-left transition duration-200 hover:-translate-y-1 sm:w-[300px] ${
-                selected
-                  ? "border-orange-200/45 bg-orange-300/12 text-white shadow-[0_0_34px_rgba(251,146,60,0.18)]"
-                  : centered
-                    ? "border-cyan-200/26 bg-cyan-300/8 text-slate-100 shadow-[0_0_26px_rgba(34,211,238,0.1)]"
-                  : "border-white/10 bg-slate-950/48 text-slate-300 hover:border-orange-200/25 hover:bg-orange-300/8 hover:shadow-[0_0_26px_rgba(251,146,60,0.08)]"
-              }`}
-            >
-              <span
-                className={`absolute inset-x-0 top-0 h-24 bg-gradient-to-br ${circumstance.visual} opacity-90 transition group-hover:opacity-100`}
-              />
-              <span className="absolute -right-8 -top-8 h-28 w-28 rounded-full border border-white/10 bg-white/[0.035]" />
-              <div className="relative flex items-start justify-between gap-3">
-                <span
-                  className={`grid h-14 w-14 place-items-center rounded-[22px] border text-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] transition group-hover:scale-105 ${
-                    selected
-                      ? "border-orange-100/40 bg-orange-300/18 shadow-[0_0_24px_rgba(251,146,60,0.18)]"
-                      : "border-white/10 bg-slate-950/54"
-                  }`}
-                  aria-hidden="true"
-                >
-                  {circumstance.icon}
-                </span>
-                <span
-                  className={`rounded-full border px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.12em] ${
-                    selected
-                      ? "border-orange-100/40 bg-orange-300 text-slate-950"
-                      : "border border-white/10 bg-white/[0.045] text-slate-500"
-                  }`}
-                >
-                  {selected ? "✓ Active" : "Add"}
-                </span>
-              </div>
-              <p className="relative mt-4 text-base font-black leading-tight text-white">
-                {circumstance.label}
-              </p>
-              <p className="relative mt-2 text-xs font-semibold leading-5 text-slate-400">
-                {circumstance.helper}
-              </p>
-              <div
-                className={`relative mt-auto rounded-2xl border px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] transition ${
-                  selected
-                    ? "border-orange-100/30 bg-orange-300/12 text-orange-100"
-                    : "border-white/10 bg-white/[0.035] text-slate-500 group-hover:text-orange-100"
-                }`}
-              >
-                {selectedItem
-                  ? `${selectedItem.status} • details below`
-                  : "tap to add context"}
-              </div>
-            </button>
-          );
-        })}
-        </div>
-      </div>
-
-      <div className="mt-4 max-w-full overflow-hidden">
-        {profile.specialCircumstances.length ? (
-          <div className="flex max-w-full gap-3 overflow-x-auto overscroll-x-contain pb-2 [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/50">
-          {profile.specialCircumstances.map((circumstance) => (
-            <div
-              key={circumstance.id}
-              className="w-[min(88vw,520px)] max-w-[calc(100vw-3rem)] flex-none rounded-[26px] border border-white/10 bg-white/[0.045] p-4"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-lg font-black text-white">
-                    {circumstance.label}
-                  </p>
-                  <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-                    Selected context for future coaching modifications.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setProfile((current) => ({
-                      ...current,
-                      specialCircumstances: current.specialCircumstances.filter(
-                        (item) => item.id !== circumstance.id,
-                      ),
-                    }))
-                  }
-                  className="rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-rose-200/35 hover:bg-rose-300/10 hover:text-rose-100"
-                >
-                  Remove
-                </button>
-              </div>
-
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <SelectField
-                  label="Status"
-                  onChange={(value) =>
-                    updateSpecialCircumstance(
-                      circumstance.id,
-                      "status",
-                      value as SpecialCircumstanceStatus,
-                    )
-                  }
-                  options={["active", "improving", "resolved", "monitoring"]}
-                  value={circumstance.status}
-                />
-                <Field
-                  label="Start Date"
-                  onChange={(value) =>
-                    updateSpecialCircumstance(circumstance.id, "startDate", value)
-                  }
-                  type="date"
-                  value={circumstance.startDate}
-                />
-                <div className="md:col-span-2">
-                  <TextAreaField
-                    label="Notes"
-                    onChange={(value) =>
-                      updateSpecialCircumstance(circumstance.id, "notes", value)
-                    }
-                    placeholder="Context, modifications, coach guidance, or constraints..."
-                    rows={3}
-                    value={circumstance.notes}
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
-          </div>
-        ) : (
-          <div className="rounded-[24px] border border-dashed border-white/12 bg-white/[0.03] p-5 text-sm font-semibold leading-6 text-slate-400">
-            None Apply is selected. Add a circumstance above if life, health,
-            sport, travel, or recovery context should modify coaching recommendations.
-          </div>
-        )}
-      </div>
-    </CollapsibleProfilePanel>
-    );
-  };
+  const renderSpecialCircumstances = () => <SpecialCircumstancePicker
+    selected={profile.specialCircumstances}
+    onToggle={toggleSpecialCircumstance}
+    onUpdate={updateSpecialCircumstance}
+  />;
 
   const renderNutrition = () => (
-    <div className="space-y-4 p-4" data-profile-dietary-restrictions="true">
+    <div className="space-y-4" data-profile-dietary-restrictions="true">
       <p className="text-sm font-semibold text-slate-300">Do you have any dietary restrictions?</p>
-      <div className="flex gap-3 overflow-x-auto pb-3" data-profile-orbiter-scroll-area="true" aria-label="Dietary restriction choices" onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()} onWheel={event => event.stopPropagation()}>
+      <ProfileSelectionRail label="Dietary restrictions">
         {[
           { label: "No restrictions", value: "No dietary restrictions", icon: "circle-dot" },
           { label: "Food allergies", value: "Food allergies", icon: "shield" },
-          { label: "Gluten-free", value: "Gluten-free", icon: "utensils" },
-          { label: "Dairy-free", value: "Dairy-free", icon: "utensils" },
+          { label: "Gluten-free", value: "Gluten-free", icon: "gluten-free" },
+          { label: "Dairy-free", value: "Dairy-free", icon: "dairy-free" },
           { label: "Vegetarian", value: "Vegetarian", icon: "salad" },
-          { label: "Vegan", value: "Vegan", icon: "trees" },
+          { label: "Vegan", value: "Vegan", icon: "leaf" },
           { label: "Religious / cultural", value: "Religious / cultural", icon: "heart-handshake" },
           { label: "Other", value: "Other dietary restrictions", icon: "more-horizontal" },
         ].map(option => <CompactSelectableCard key={option.value} className="w-28 shrink-0" accent="from-emerald-300/25 via-teal-500/10 to-slate-950" icon={<SelectorIcon name={option.icon as SelectorIconName} />} label={option.label} selected={profile.nutritionDirection.dietPreferences.includes(option.value)} onClick={() => {
@@ -12667,10 +12898,11 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
           const next = current.includes(option.value) ? current.filter(value => value !== option.value) : option.value === "No dietary restrictions" ? [...current.filter(value => !restrictionValues.includes(value)), option.value] : [...current.filter(value => value !== "No dietary restrictions"), option.value];
           updateNutrition("dietPreferences", next);
         }} />)}
-      </div>
+      </ProfileSelectionRail>
     </div>
   );
 
+  const renderFastingPeriods = () => <FastingPeriodPicker value={profile.nutritionDirection} onChange={nutritionDirection => setProfile(current => ({...current, nutritionDirection}))} />;
   const renderLifestyle = () => (
     <Panel
       eyebrow="Lifestyle Constraints"
@@ -12941,8 +13173,7 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
               </p>
             </div>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <AnimatedProfileSlider
-                color="orange"
+              <CircularProfileRating
                 helper={`${profile.workoutIntensityPreference}. Higher intensity changes session structure and progression pace.`}
                 label="Intensity Preference"
                 max={10}
@@ -13005,8 +13236,7 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
               />
             </div>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <AnimatedProfileSlider
-                color="cyan"
+              <CircularProfileRating
                 helper="How much conditioning should appear in default workouts."
                 label="Cardio Priority"
                 max={10}
@@ -13014,8 +13244,7 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
                 onChange={(value) => setProfileField("cardioPriority", value)}
                 value={profile.cardioPriority}
               />
-              <AnimatedProfileSlider
-                color="violet"
+              <CircularProfileRating
                 helper="How strongly mobility should be baked into warmups and accessories."
                 label="Mobility Priority"
                 max={10}
@@ -13331,46 +13560,22 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
       data-profile-summary-rail="true"
       role="region"
       aria-label="Profile summary cards"
-      tabIndex={0}
       onPointerDown={(event) => event.stopPropagation()}
-      onWheel={(event) => {
-        event.stopPropagation();
-        const delta =
-          Math.abs(event.deltaX) >= Math.abs(event.deltaY)
-            ? event.deltaX
-            : event.deltaY;
-        if (!delta) return;
-
-        event.preventDefault();
-        event.currentTarget.scrollBy({ left: delta, behavior: "auto" });
-      }}
-      onKeyDown={(event) => {
-        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-
-        event.preventDefault();
-        event.stopPropagation();
-        event.currentTarget.scrollBy({
-          left:
-            (event.key === "ArrowRight" ? 1 : -1) *
-            Math.max(160, event.currentTarget.clientWidth * 0.75),
-          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-            ? "auto"
-            : "smooth",
-        });
-      }}
     >
       {[
         ["Membership", profile.memberType || "Member"],
         ["Member Since", memberSinceLabel],
       ].map(([label, value], index) => {
         const isHighlighted = profileSummaryHighlight.activeIndex === index;
-        const chyronActive = isHighlighted && profileSummaryHighlight.overflowDistance > 1;
+        const chyronActive = false;
         return (
         <button
           key={label}
           type="button"
           aria-pressed={isHighlighted}
           data-profile-summary-highlighted={isHighlighted ? "true" : "false"}
+          data-profile-summary-label={label}
+          style={{"--summary-aura": label === "Membership" ? "#67e8f9" : memberSinceDate ? calendarMonthColor(memberSinceDate.getMonth()) : "#c4b5fd"} as CSSProperties}
           onClick={(event) => {
             const valueElement = event.currentTarget.querySelector<HTMLElement>(
               "[data-profile-summary-value='true']",
@@ -13392,11 +13597,7 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
                 : "smooth",
             });
           }}
-          className={`${profileOverviewMetricCardClass} p-3 text-left transition duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/70 ${
-            isHighlighted
-              ? "z-10 -translate-y-0.5 border-cyan-100/58 bg-cyan-300/16 shadow-[0_0_28px_rgba(34,211,238,0.34),0_18px_54px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.18)] ring-2 ring-cyan-200/32"
-              : "opacity-70 hover:opacity-100"
-          }`}
+          className={heroStyles.summaryCard}
         >
           <span
             aria-hidden="true"
@@ -13405,6 +13606,7 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
           <p className={`text-[10px] font-black uppercase tracking-[0.16em] ${isHighlighted ? "text-cyan-100" : "text-slate-500"}`}>
             {label}
           </p>
+          <span className={heroStyles.membershipTypeIcon} aria-hidden="true"><SelectorIcon name={label === "Membership" ? membershipIcon : "calendar-clock"} className="h-6 w-6" /></span>
           {<p
             className={`${heroStyles.summaryValue} mt-1.5 text-base font-black text-white`}
             data-chyron-active={chyronActive ? "true" : "false"}
@@ -13415,61 +13617,13 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
                 "--profile-summary-chyron-offset": `-${profileSummaryHighlight.overflowDistance}px`,
               } as CSSProperties : undefined}
             >
-              {value}
+              {label === "Member Since" && memberSinceDate ? <span className={heroStyles.memberSinceDate}><CalendarMonthHeading compact decorative month={memberSinceDate.getMonth()} year={memberSinceDate.getFullYear()} /></span> : value}
             </span>
           </p>}
         </button>
       )})}
     </div>
-    {profileSummaryScrollState.canScrollLeft ||
-    profileSummaryScrollState.canScrollRight ? (
-      <div
-        className={heroStyles.summaryControls}
-        onPointerDown={(event) => event.stopPropagation()}
-        onWheel={(event) => event.stopPropagation()}
-      >
-        <button
-          type="button"
-          aria-controls="profile-summary-rail"
-          aria-label="Scroll profile summary tabs left"
-          disabled={!profileSummaryScrollState.canScrollLeft}
-          onClick={() =>
-            profileSummaryRailRef.current?.scrollBy({
-              left: -Math.max(
-                160,
-                (profileSummaryRailRef.current?.clientWidth || 0) * 0.75,
-              ),
-              behavior: window.matchMedia("(prefers-reduced-motion: reduce)")
-                .matches
-                ? "auto"
-                : "smooth",
-            })
-          }
-        >
-          ‹
-        </button>
-        <button
-          type="button"
-          aria-controls="profile-summary-rail"
-          aria-label="Scroll profile summary tabs right"
-          disabled={!profileSummaryScrollState.canScrollRight}
-          onClick={() =>
-            profileSummaryRailRef.current?.scrollBy({
-              left: Math.max(
-                160,
-                (profileSummaryRailRef.current?.clientWidth || 0) * 0.75,
-              ),
-              behavior: window.matchMedia("(prefers-reduced-motion: reduce)")
-                .matches
-                ? "auto"
-                : "smooth",
-            })
-          }
-        >
-          ›
-        </button>
-      </div>
-    ) : null}
+
     </div>
   );
 
@@ -13823,6 +13977,14 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
         targetId: "nutrition-direction",
         tone: "border-emerald-200/24 bg-emerald-300/10 text-emerald-100",
       },
+      {
+        completion: profile.nutritionDirection.fastingStatus ? 100 : 0,
+        helper: "Fasting periods and optional schedule context.", icon: "clock",
+        label: "Fasting Periods", references: [],
+        stat: profile.nutritionDirection.fastingStatus || "Not answered",
+        tab: "nutrition", targetId: "nutrition-fasting",
+        tone: "border-emerald-200/24 bg-emerald-300/10 text-emerald-100",
+      },
     ];
     // Overview owns one card per actual answer, rather than a second pager
     // hidden inside each section. Reuse the same controlled inputs and saves.
@@ -13835,12 +13997,11 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
     const overviewQuestions = [
       { id: "gender", label: "Gender", icon: "user", value: profile.gender, content: vitalQuestions[0] },
       { id: "birthday", label: "Birthday / Age", icon: "calendar-clock", value: profile.birthday, content: vitalQuestions[1] },
-      { id: "height", label: "Height", icon: "ruler", value: profile.height, content: vitalQuestions[2] },
+      { id: "height", label: "Height & Weight", icon: "ruler", value: profile.height && profile.currentWeight, content: vitalQuestions[2] },
       { id: "work", label: "Work + Occupation", icon: "briefcase", value: profile.occupation && (profile.lifestyleConstraints.workHours?.length || profile.lifestyleConstraints.workSchedule) ? "complete" : "", content: <div className="profile-work-combined space-y-5"><Fragment key="occupation">{occupationQuestions[0]}</Fragment><Fragment key="work-schedule">{lifestyleQuestions[0]}</Fragment></div> },
       { id: "sleep", label: "Sleep Window", icon: "moon", value: profile.lifestyleConstraints.sleepHours?.length || profile.lifestyleConstraints.sleepWindow, content: lifestyleQuestions[1] },
       { id: "family", label: "Children + Family", icon: "baby", value: profile.lifestyleConstraints.childcareHours?.length, content: lifestyleQuestions[2] },
-      { id: "location", label: "Location", icon: "compass", value: profile.state && profile.city ? "complete" : "", content: <div className="grid gap-4 sm:grid-cols-2">{locationQuestions}</div> },
-      { id: "phone", label: "Phone", icon: "contact", value: profile.phone, content: contactQuestions[1] },
+      { id: "location", label: "Location + Phone", icon: "compass", value: profile.state && profile.city && profile.phone ? "complete" : "", content: <div className="space-y-4"><div className="grid gap-4 sm:grid-cols-2">{locationQuestions}</div>{contactQuestions[1]}</div> },
       { id: "emergency", label: "Emergency Contact", icon: "heart-handshake", value: profile.emergencyContactName && profile.emergencyContactPhone ? "complete" : "", content: <div className="grid gap-4 sm:grid-cols-2">{contactQuestions[2]}{contactQuestions[3]}</div> },
     ];
     const overviewCards: ProfileOrbiterCard[] = overviewQuestions.map(question => ({
@@ -13854,17 +14015,19 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
     const setupNodes = childNodes(childNodes(renderPlanInputs())[0]);
     const scheduleNodes = childNodes(setupNodes[1]);
     const questionProps = (node: ReactNode) => isValidElement<{ label?: string; title?: string; value?: unknown; selected?: unknown }>(node) ? node.props : {};
-    const circumstanceNodes = childNodes(renderSpecialCircumstances());
     const readinessFields = [...childNodes(experienceNodes[0]), experienceNodes[1]];
     const readinessQuestions = readinessFields.map((content, index) => {
       const props = questionProps(content);
-      return { id: `field-${index}`, label: props.label || props.title || "Training context", icon: "user", value: props.value ?? props.selected, content };
+      return { id: `field-${index}`, label: props.label || props.title || "Training context", icon: ["progression", "calendar-clock", "medal"][index] || "user", value: props.value ?? props.selected, content };
     });
     readinessQuestions.push(
       { id: "training-style", label: "Training Style", icon: "dumbbell", value: profile.trainingStyles, content: childNodes(renderTrainingStyle())[0] },
-      { id: "previous-coaching", label: "Previous Coaching", icon: "users", value: profile.previousCoaching, content: experienceNodes[3] },
+      { id: "previous-coaching", label: "Previous Coaching", icon: "users", value: profile.previousCoaching, content: <PreviousCoachingPicker selected={profile.previousCoaching} notes={profile.previousCoachingNotes || {}} onToggle={value => toggleProfileArray("previousCoaching", value)} onNote={(value, note) => setProfile(current => ({...current, previousCoachingNotes: {...current.previousCoachingNotes, [value]: note}}))} /> },
       { id: "training-locations", label: "Training Locations", icon: "building", value: profile.trainingLocations.length && profile.trainingLocations.every(location => profile.trainingLocationNames?.[location]?.trim()) ? "complete" : "", content: renderTrainingLocationQuestions() },
-      { id: "circumstances", label: "Special Circumstances", icon: "sparkles", value: profile.specialCircumstances.length ? profile.specialCircumstances : "None", content: <div className="profile-readiness-circumstances">{circumstanceNodes[0]}{profile.specialCircumstances.length > 0 ? circumstanceNodes[1] : null}</div> },
+      { id: "regressions", label: "Areas to go easy on", icon: "shield", value: profile.trainingRegressions?.noAreasOfConcern ? ["No areas of concern"] : profile.trainingRegressions?.areas || [], content: <TrainingRegressionsPicker bodyModel={getBodyModelFromProfile(profile)} value={profile.trainingRegressions || {areas: [], movements: [], adjustments: []}} onChange={value => setProfileField("trainingRegressions", value)} /> },
+      { id: "avoid-movements", label: "Movements to avoid", icon: "calisthenics", value: profile.trainingRegressions?.movements || [], content: <TrainingAdjustmentChoices kind="movements" selected={profile.trainingRegressions?.movements || []} onChange={movements => setProfile(current => ({...current, trainingRegressions: {...(current.trainingRegressions || {areas: [], movements: [], adjustments: []}), movements}}))} /> },
+      { id: "preferred-adjustments", label: "Preferred adjustments", icon: "settings", value: profile.trainingRegressions?.adjustments || [], content: <TrainingAdjustmentChoices kind="adjustments" selected={profile.trainingRegressions?.adjustments || []} onChange={adjustments => setProfile(current => ({...current, trainingRegressions: {...(current.trainingRegressions || {areas: [], movements: [], adjustments: []}), adjustments}}))} /> },
+      { id: "circumstances", label: "Special Circumstances", icon: "sparkles", value: profile.specialCircumstances.length ? profile.specialCircumstances : "None", content: renderSpecialCircumstances() },
     );
     const readinessCards: ProfileOrbiterCard[] = readinessQuestions.map(question => ({
       label: question.label, targetId: `readiness-question-${question.id}`, tab: "readiness", icon: question.icon as SelectorIconName,
@@ -13892,19 +14055,26 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
         "Strict plan": "clipboard-list", "Flexible plan": "shuffle", "Auto-adjust missed days": "calendar-clock", "Coach decides": "users",
         lbs: "scale", kg: "scale",
       };
-      const answer = props.options && props.onChange ? (
+      const answer = label === "Preferred Cardio Methods" ? <CardioMethodPicker selected={profile.cardioPreferences} details={profile.cardioMethodDetails || {}} defaultUnit={profile.appPersonalization.preferredUnitSystem === "kg" ? "km" : "mi"} onToggle={value => togglePreferenceSelection("cardioPreferences", "cardioPreference", value)} onDetail={(method, detail) => setProfile(current => ({...current, cardioMethodDetails: {...current.cardioMethodDetails, [method]: detail}}))} /> : props.options && props.onChange ? (
         <div className="space-y-3" data-profile-coach-choices="true">
           <p className="text-xs font-black uppercase tracking-wide text-violet-100">{label}</p>
           {props.helper && <p className="text-sm leading-relaxed text-slate-300">{props.helper}</p>}
-          <div role="group" aria-label={label} className="grid gap-2">
+          <ProfileSelectionRail label={label}>
             {props.options.map(option => <CompactSelectableCard key={option} ariaLabel={`${label}: ${option}`} accent="from-violet-300/25 via-indigo-500/10 to-slate-950" tone="purple" icon={<SelectorIcon name={choiceIcons[option] || "clipboard-list"} />} label={option} selected={props.value === option} onClick={() => props.onChange?.(option)} />)}
-          </div>
+          </ProfileSelectionRail>
         </div>
       ) : content;
       return { id: `coach-question-${index}`, label, content: answer, value: props.value ?? props.selected ?? props["aria-pressed"] };
     }).filter(question => ["Intensity Preference", "Coaching Tone", "Exercise Variety", "Strict vs Flexible", "Cardio Priority", "Mobility Priority", "Preferred Split", "Preferred Cardio Methods", "Preferred Unit System"].includes(question.label));
+    const coachQuestionIcons: Record<string, SelectorIconName> = {
+      "Intensity Preference": "intensity", "Coaching Tone": "heart-handshake",
+      "Exercise Variety": "shuffle", "Strict vs Flexible": "clipboard-list",
+      "Cardio Priority": "heart-pulse", "Mobility Priority": "stretch",
+      "Preferred Split": "split", "Preferred Cardio Methods": "runner",
+      "Preferred Unit System": "ruler",
+    };
     const coachCards: ProfileOrbiterCard[] = coachQuestions.map(question => ({
-      label: question.label, targetId: question.id, tab: "coachApp", icon: "clipboard-list",
+      label: question.label, targetId: question.id, tab: "coachApp", icon: coachQuestionIcons[question.label] || "settings",
       completion: isProfileFieldComplete(question.value) ? 100 : 0, expandsToFullCard: true,
       helper: "Your coaching and app preferences", references: [], stat: isProfileFieldComplete(question.value) ? "Completed" : "Not completed",
       tone: "border-violet-200/24 bg-violet-300/10 text-violet-100",
@@ -13947,7 +14117,9 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
         helper: row.helper,
         title: row.title,
       })),
+      { completion: 0, eyebrow: "Next", helper: "Set your direction and choose your goals.", title: "Proceed to goals" },
     ];
+    const goalsProceedRow = profileOrbiterRows.length - 1;
     const rawActiveProfileOrbiterRow =
       typeof activeProfileOrbiterRow === "number"
         ? activeProfileOrbiterRow
@@ -14004,7 +14176,10 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
       }));
       setActiveProfileOrbiterRow(rowIndex);
       setExpandedProfileOrbiterCard(null);
-      scrollProfileOrbiterViewportToRow(rowIndex);
+      if (rowIndex !== clampedActiveProfileOrbiterRow) {
+        scrollProfileOrbiterIntoView();
+        scrollProfileOrbiterViewportToRow(rowIndex);
+      }
     };
     const moveProfileSectionOrbit = (
       tabId: ProfileTab,
@@ -14032,11 +14207,14 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
       setProfileSectionOpen(current => selectedCard?.accordion ? { ...current, [selectedCard.accordion]: true } : current);
       setActiveProfileOrbiterRow(rowIndex);
       setExpandedProfileOrbiterCard(`${tabId}-${index}`);
-      scrollProfileOrbiterIntoView();
-      scrollProfileOrbiterViewportToRow(rowIndex);
+      if (rowIndex !== clampedActiveProfileOrbiterRow) {
+        scrollProfileOrbiterIntoView();
+        scrollProfileOrbiterViewportToRow(rowIndex);
+      }
     };
     const renderExpandedProfileOrbiterCard = (card: ProfileOrbiterCard) => {
       if (card.targetId === "nutrition-direction") return renderNutrition();
+      if (card.targetId === "nutrition-fasting") return renderFastingPeriods();
       const coachQuestion = coachQuestions.find(question => question.id === card.targetId);
       if (coachQuestion) return <div className={`${heroStyles.questionScroll} ${heroStyles.overviewQuestion} max-h-[min(52dvh,560px)] overflow-y-auto p-4`} data-profile-orbiter-scroll-area="true" aria-label={`${coachQuestion.label} question`}>{coachQuestion.content}</div>;
       const overviewQuestion = overviewQuestions.find(question => card.targetId === `overview-question-${question.id}`);
@@ -14093,7 +14271,9 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
     };
     const activeProfileOrbiterMeta =
       profileOrbiterRows[clampedActiveProfileOrbiterRow] || profileOrbiterRows[0];
-    const profileOrbiterLocked = Boolean(expandedProfileOrbiterCard);
+    // Questions are permanently inline now; selecting one must not change the
+    // viewport overflow mode or lock vertical row navigation.
+    const profileOrbiterLocked = false;
     const setProfileOrbiterRow = (row: number) => {
       const nextRow = Math.max(0, Math.min(profileOrbiterRows.length - 1, row));
       if (nextRow === 0) {
@@ -14209,6 +14389,11 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
       event: ReactPointerEvent<HTMLDivElement>,
     ) => {
       if (event.pointerType === "mouse" && event.button !== 0) return;
+      if (event.pointerType === "touch") {
+        profileOrbiterPointerStartRef.current = null;
+        profileOrbiterPointerMovedRef.current = false;
+        return;
+      }
       if (profileOrbiterLocked) {
         profileOrbiterPointerStartRef.current = null;
         profileOrbiterPointerMovedRef.current = false;
@@ -14287,16 +14472,17 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
       const isActive = row === clampedActiveProfileOrbiterRow;
 
       return {
-        filter: isActive ? "none" : "blur(4px)",
-        opacity: isActive ? 1 : 0,
+        // The scroll viewport already clips offscreen rows. Keep their content
+        // painted while travelling, rather than fading both ends to blank.
+        filter: "none",
+        opacity: 1,
         pointerEvents: isActive ? "auto" : "none",
         scrollSnapAlign: "center",
         scrollSnapStop: "always",
-        transform: isActive
-          ? "none"
-          : `translateY(${row < clampedActiveProfileOrbiterRow ? "-24px" : "24px"}) scale(0.98)`,
-        transition:
-          "opacity 320ms ease, transform 420ms cubic-bezier(0.2,0.85,0.25,1), filter 320ms ease",
+        // Scroll snapping measures these boxes even while inactive. Moving the
+        // box here makes the first question change correct the scroll by 24px.
+        transform: "none",
+        transition: "none",
         visibility: "visible",
         zIndex: isActive ? 40 : 20,
       };
@@ -15678,6 +15864,7 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
             </div>
           ) : null}
           <div
+            data-profile-question-title={activeIndicatorCard ? "true" : undefined}
             className={`relative z-10 w-full min-w-0 justify-self-center text-center ${
               expanded ? "sm:col-start-2" : ""
             }`}
@@ -15692,7 +15879,7 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
                 </p>
                 <h2
                   className="mt-0.5 text-xl font-black leading-tight drop-shadow-[0_0_14px_rgba(103,232,249,0.22)] sm:text-2xl"
-                  style={{ color: activeCardAccent.color }}
+                  style={{ "--profile-title-accent": activeCardAccent.color } as CSSProperties}
                 >
                   {activeIndicatorCard.label}
                 </h2>
@@ -15709,7 +15896,7 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
           </div>
           {showCardIndicator && indicator ? (
             <div className="relative z-10 flex w-full justify-center">
-              <div className="flex max-w-full flex-wrap items-center justify-center gap-1.5 px-2">
+              <div className={heroStyles.questionTabs}>
                 {indicator.cards.map((card, index) => {
                   const isActiveIndicator = indicator.activeIndex === index;
                   const cardAccent = getProfileCardAccent(card.tone);
@@ -15729,24 +15916,8 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
                         event.stopPropagation();
                         selectIndicatorCard(index);
                       }}
-                      className={`profile-row-card-indicator inline-flex shrink-0 items-center justify-center rounded-full border transition hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/55 ${
-                        isActiveIndicator
-                          ? "h-8 w-8"
-                          : "h-7 w-7 opacity-70 hover:opacity-100"
-                      }`}
-                      style={["overview", "readiness"].includes(indicator.tabId) ? {
-                        background: card.completion === 100 ? "rgba(45,212,191,0.18)" : "rgba(100,116,139,0.12)",
-                        borderColor: isActiveIndicator ? "rgba(255,255,255,0.85)" : card.completion === 100 ? "rgba(94,234,212,0.65)" : "rgba(148,163,184,0.22)",
-                        color: card.completion === 100 ? "#5eead4" : "#64748b",
-                        boxShadow: "none",
-                      } : {
-                        background: `rgba(${cardAccent.rgb},${isActiveIndicator ? 0.2 : 0.08})`,
-                        borderColor: `rgba(${cardAccent.rgb},${isActiveIndicator ? 0.72 : 0.3})`,
-                        boxShadow: isActiveIndicator
-                          ? `0 0 18px rgba(${cardAccent.rgb},0.46), inset 0 1px 0 rgba(255,255,255,0.24)`
-                          : `0 0 8px rgba(${cardAccent.rgb},0.12)`,
-                        color: cardAccent.color,
-                      }}
+                      className={heroStyles.questionTab}
+                      style={{ "--profile-question-accent": cardAccent.color } as CSSProperties}
                     >
                       <SelectorIcon
                         aria-hidden="true"
@@ -15770,29 +15941,31 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
         aria-label="Profile orbiter"
         className="relative left-1/2 w-screen -translate-x-1/2 overflow-hidden pt-0 scroll-mt-28"
       >
-        {clampedActiveProfileOrbiterRow === 0 || activeProfileCardRow ? null : (
+        {clampedActiveProfileOrbiterRow === 0 || clampedActiveProfileOrbiterRow === goalsProceedRow || activeProfileCardRow ? null : (
           renderProfileRowHeader(
             activeProfileOrbiterMeta,
             "absolute inset-x-0 top-2 mx-auto",
           )
         )}
         <SessionsCardNavigation labelPrefix="profile" showTitle={false} showHorizontalIndicators={false} disabled={false}
-          rows={profileOrbiterRows.map((row,index)=>({title:row.title,cards:index===0?[{title:"Your Profile",icon:"Profile"}]:(profileCardRows.find(item=>item.rowIndex===index)?.cards || []).map(card=>({title:card.label,icon:card.icon}))}))}
+          accentColor={clampedActiveProfileOrbiterRow === goalsProceedRow ? "#fcd34d" : undefined}
+          rows={profileOrbiterRows.map((row,index)=>({title:row.title,icon:["Profile","Overview","Tests","Nutrition","App","Goals"][index],cards:index===goalsProceedRow?[{title:"Proceed to goals",icon:"Goals"}]:index===0?[{title:"Your Profile",icon:"Profile"}]:(profileCardRows.find(item=>item.rowIndex===index)?.cards || []).map(card=>({title:card.label,icon:card.icon}))}))}
           row={clampedActiveProfileOrbiterRow} card={activeProfileCardRowIndex}
           onRow={setProfileOrbiterRow}
           onCard={index=>{if(activeProfileCardRow)setProfileSectionOrbitIndex(activeProfileCardRow.tab.id,index);}}
           onNavigate={direction=>{if(direction==="up"||direction==="down")scrollProfileOrbiterRow(direction==="up"?-1:1);else if(activeProfileCardRow)moveProfileSectionOrbit(activeProfileCardRow.tab.id,activeProfileCardRow.cards.length,direction==="left"?-1:1);}}
         />
 
-        <div
-          ref={profileOrbiterViewportRef}
+        <ProfileScrollViewport
+          viewportRef={profileOrbiterViewportRef}
           aria-label="Profile orbiter rows and cards"
-          className={`relative min-h-0 cursor-grab select-none overscroll-y-auto scroll-smooth snap-y snap-mandatory [scrollbar-width:none] active:cursor-grabbing [&::-webkit-scrollbar]:hidden ${
+          className={`relative min-h-0 cursor-grab select-none overscroll-y-contain overflow-x-hidden scroll-smooth snap-y snap-mandatory [scrollbar-width:none] active:cursor-grabbing [&::-webkit-scrollbar]:hidden ${
             profileOrbiterLocked ? "overflow-y-hidden" : "overflow-y-auto"
           }`}
           style={{
             height: "calc(100dvh - 4.48rem)",
             minHeight: 0,
+            overflowAnchor: "none",
           }}
           onClickCapture={(event) => {
             // A previous orbit drag must not swallow a later form-control click.
@@ -15813,7 +15986,8 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
           onPointerMove={moveProfileOrbiterDrag}
           onPointerUp={finishProfileOrbiterDrag}
           onScroll={syncProfileOrbiterRowFromScroll}
-          onWheel={(event) => {
+          onWheelNative={(event) => {
+            if (event.ctrlKey || event.metaKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
             if (
               shouldLetProfileOrbiterTargetScroll(
                 event.target,
@@ -15829,6 +16003,8 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
               return;
             }
 
+            event.preventDefault();
+            event.stopPropagation();
             const wheelDirection =
               event.deltaY > 12 ? 1 : event.deltaY < -12 ? -1 : 0;
             const nextRow =
@@ -15900,11 +16076,7 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
             const activeCardKey = activeCard
               ? `${cardRow.tab.id}-${activeCardIndex}`
               : null;
-            const hasExpandedActiveCard = Boolean(
-              activeCard?.expandsToFullCard && activeCardKey &&
-                (expandedProfileOrbiterCard === activeCardKey ||
-                  cardRow.rowIndex === clampedActiveProfileOrbiterRow),
-            );
+            const hasExpandedActiveCard = Boolean(activeCard?.expandsToFullCard && activeCardKey);
             const expandedActiveContent =
               hasExpandedActiveCard && activeCard
                 ? renderExpandedProfileOrbiterCard(activeCard)
@@ -15921,8 +16093,8 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
                   key={cardRow.tab.id}
                   id={`profile-orbiter-row-${cardRow.rowIndex}`}
                   data-profile-orbiter-row={cardRow.rowIndex}
-                  className="relative flex min-h-[calc(100dvh-84px)] snap-center flex-col items-center justify-center overflow-visible py-[clamp(24px,4.5dvh,52px)]"
-                  style={getProfileOrbiterRowStyle(cardRow.rowIndex)}
+                  className={`${heroStyles.questionRow} relative flex min-h-[calc(100dvh-84px)] snap-center flex-col items-center justify-center overflow-visible py-[clamp(24px,4.5dvh,52px)]`}
+                  style={{ ...getProfileOrbiterRowStyle(cardRow.rowIndex), "--profile-navigation-accent": cardRow.tab.id === "overview" ? "#67e8f9" : cardRow.tab.id === "coachApp" ? "#c4b5fd" : "#6ee7b7" } as CSSProperties}
                 >
                   <div className={`${heroStyles.expandedRowContent} ${heroStyles.expandedQuestionLayout}`}>
                     {renderProfileRowHeader(cardRow, "", true, true, {
@@ -15954,9 +16126,6 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
                         <svg aria-hidden="true" viewBox="0 0 32 32"><path d="M18 5 6 16l12 11v-7h9v-8h-9Z" transform="translate(0 3)" fill="#075985"/><path d="M18 5 6 16l12 11v-7h9v-8h-9Z" fill="currentColor" stroke="#e0f2fe" strokeWidth="0.7"/></svg>
                       </button>
                       <p className="min-w-0 text-center text-[10px] font-black uppercase tracking-[0.14em] text-slate-300">
-                        <span className="block leading-snug text-white">
-                          {activeCard.label}
-                        </span>
                         Question {activeCardIndex + 1} of {cardRow.cards.length}
                       </p>
                       <button
@@ -16000,11 +16169,11 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
                         if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.5) openProfileOrbiterFullCard(cardRow.tab.id, dx < 0 ? nextQuestionIndex : previousQuestionIndex);
                       }}
                       onPointerCancel={() => { overviewSwipeStart.current = null; }}
-                      className={`relative w-full max-w-[980px] rounded-[28px] border p-0 text-left shadow-[0_22px_58px_rgba(0,0,0,0.36)] outline-none backdrop-blur ring-2 ring-cyan-100/26 ${activeCard?.tone || ""} ${getCompletionTone(activeCard?.completion || 0).glow}`}
+                      className={`${heroStyles.answerArticle} relative w-full max-w-[980px] p-0 text-left outline-none`}
                       data-profile-flat-question={cardRow.tab.id === "overview" && ["overview-question-sleep", "overview-question-gender", "overview-question-family"].includes(activeCard.targetId) ? "true" : undefined}
-                      style={{ background: "rgba(2, 6, 23, 0.72)", touchAction: ["overview", "readiness", "coachApp"].includes(cardRow.tab.id) ? "pan-y" : undefined }}
+                      style={{ touchAction: ["overview", "readiness", "coachApp"].includes(cardRow.tab.id) ? "pan-y" : undefined }}
                     >
-                      {expandedActiveContent}
+                      <ProfileAnswerSurface title={activeCard.label}>{expandedActiveContent}</ProfileAnswerSurface>
                     </article>
                   </div>
                 </section>
@@ -16269,8 +16438,16 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
               </section>
             );
           })}
+          <section id={`profile-orbiter-row-${goalsProceedRow}`} data-profile-orbiter-row={goalsProceedRow} style={getProfileOrbiterRowStyle(goalsProceedRow)} className={`${heroStyles.questionRow} relative flex snap-center items-center justify-center px-4 py-10`}>
+            <div className={heroStyles.goalsProceedContent}>
+              <SelectorIcon name="compass" className={heroStyles.goalsProceedIcon} />
+              <h2 className="mt-4 text-2xl font-black text-amber-100 drop-shadow-[0_3px_1px_#78350f]">Your next step: goals</h2>
+              <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-slate-300">Choose what you want to work toward. You can return to update your profile anytime.</p>
+              <Link href={ROUTES.dashboard.goals} className={heroStyles.goalsProceedAction}>Proceed to goals <span aria-hidden="true">›</span></Link>
+            </div>
+          </section>
           </div>
-        </div>
+        </ProfileScrollViewport>
       </section>
     );
   };
@@ -16768,7 +16945,17 @@ export default function ProfileExperience({ supportSection, onPendingChange }: {
   };
 
   if (supportSection) {
-    const forms = { notifications: () => <SelectField label="Reminder Style" onChange={value => updateLifestyle("preferredReminderStyle", value)} options={["Simple reminder", "Detailed plan reminder", "Coach-style nudge", "Minimal", "No reminders"]} value={profile.lifestyleConstraints.preferredReminderStyle} />, fatigue: renderWorkFatigueContext, weight: () => renderBodyMetrics({ embedded: true }), measurements: renderMeasurements, readiness: renderReadinessSection, benchmarks: renderBenchmarks };
+    const forms = { notifications: () => <SelectField label="Reminder Style" onChange={value => updateLifestyle("preferredReminderStyle", value)} options={["Simple reminder", "Detailed plan reminder", "Coach-style nudge", "Minimal", "No reminders"]} value={profile.lifestyleConstraints.preferredReminderStyle} />, fatigue: renderWorkFatigueContext, weight: () => renderBodyMetrics({ embedded: true }), bodyScan: () => renderBodyMetrics({ scanOnly: true }), measurements: () => <div className="space-y-3">
+      <details className="group" open>
+        <summary className="cursor-pointer py-2 text-sm font-bold text-teal-100">Body composition results · enter or upload</summary>
+        <p className="mb-2 text-xs text-slate-300">InBody, bioelectrical impedance, and other body measurement reports.</p>
+        {renderBodyMetrics({ scanOnly: true })}
+      </details>
+      <details>
+        <summary className="cursor-pointer py-2 text-sm font-bold text-teal-100">Body measurements & photos</summary>
+        {renderMeasurements()}
+      </details>
+    </div>, readiness: renderReadinessSection, benchmarks: renderBenchmarks };
     return <div className="min-w-0 space-y-4" data-profile-support-section={supportSection}>
       <ProfileCloudStatus hasUnsavedChanges={!loading && (hasUnsavedChanges || isSavingProfile)} />
       {saveError && <div role="alert" className="text-sm text-rose-200">{saveError}<button type="button" className="ml-2 underline" onClick={() => { void saveProfile(); }}>Retry save</button><button type="button" className="ml-3 underline" onClick={() => {

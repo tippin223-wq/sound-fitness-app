@@ -1,6 +1,7 @@
 import { planningKeys, planningOwner, planningAccountGeneration, planningRecordVersion, readPlanning, writePlanningValues } from "./store";
 import { activityTimestamp, localDate, validDateOnly } from "./dates";
 import { validateGoalTargets } from "./goalNumbers";
+import { mergeGoalBank, validGoalBank, type GoalBankEntry } from "./goalBank";
 
 export const goalIds = ["Build Muscle", "Lose Fat", "Maintain", "Strength", "General Health", "Mobility", "Conditioning", "Recovery", "Performance"] as const;
 export type GoalId = typeof goalIds[number];
@@ -9,15 +10,31 @@ export type GoalState = {
   constraintGoal: string; goalDeadline: string; goalMilestones: string; goalPriorityRanking: string;
   currentWeight: string; goalWeight: string; targetWeeklySessions: string; targetWeeklySets: string;
   targetProtein: string; targetSteps: string; stepsGoal: string; targetSleep: string; waterGoal: string;
+  targetCalories?: string; targetCarbs?: string; targetFat?: string; targetFiber?: string;
   benchmarkGoal: string; goalMode: string; motivationFocus: string; planDirectionNotes: string;
   completedMilestones?: string[]; updatedAt?: string;
+  goalBank?: GoalBankEntry[];
+  goalTitle?: string;
+  goalCheckInFrequency?: string;
+sessionMinutes?: string;
+muscleGain?: string;
+fatLoss?: string;
+strengthGain?: string;
+mobilityGain?: string;
+conditioningGain?: string;
+benchTarget?: string;
+squatTarget?: string;
+deadliftTarget?: string;
+pullupTarget?: string;
 };
 const goalTextFields = [
   "primaryGoal", "secondaryGoal", "constraintGoal", "goalDeadline", "goalMilestones", "goalPriorityRanking",
   "currentWeight", "goalWeight", "targetWeeklySessions", "targetWeeklySets", "targetProtein", "targetSteps",
   "stepsGoal", "targetSleep", "waterGoal", "benchmarkGoal", "goalMode", "motivationFocus", "planDirectionNotes", "updatedAt",
+  "targetCalories", "targetCarbs", "targetFat", "targetFiber",
+  "goalTitle", "goalCheckInFrequency", "sessionMinutes", "muscleGain", "fatLoss", "strengthGain", "mobilityGain", "conditioningGain", "benchTarget", "squatTarget", "deadliftTarget", "pullupTarget",
 ] as const satisfies readonly (keyof GoalState)[];
-const goalFields = new Set<string>([...goalTextFields, "planDirections", "completedMilestones"]);
+const goalFields = new Set<string>([...goalTextFields, "planDirections", "completedMilestones", "goalBank"]);
 const goalAliases: Record<string, GoalId> = { Bulk: "Build Muscle", Cut: "Lose Fat", "Build Strength": "Strength", "Improve Mobility": "Mobility", "Athletic Performance": "Performance", "Return to Training": "Recovery" };
 export function normalizeGoalId(value: unknown): GoalId | undefined {
   if (typeof value !== "string") return;
@@ -35,7 +52,8 @@ function directionError(input: Partial<GoalState>): string | null {
   return null;
 }
 function metadataError(input: Partial<GoalState>): string | null {
-  const fields = ["constraintGoal", "goalDeadline", "goalMilestones", "goalPriorityRanking", "benchmarkGoal", "motivationFocus", "planDirectionNotes"] as const;
+  if (input.goalCheckInFrequency != null && !["", "weekly", "fortnightly", "monthly"].includes(input.goalCheckInFrequency)) return "Choose a supported goal check-in frequency.";
+  const fields = ["goalTitle", "constraintGoal", "goalDeadline", "goalMilestones", "goalPriorityRanking", "benchmarkGoal", "motivationFocus", "planDirectionNotes"] as const;
   if (fields.some(field => input[field] != null && typeof input[field] !== "string")) return "Review your goal notes, timeline, and milestones: these values must be text.";
   if (input.completedMilestones != null && (!Array.isArray(input.completedMilestones) || input.completedMilestones.some(value => typeof value !== "string" || !value.trim()) || new Set(input.completedMilestones).size !== input.completedMilestones.length)) return "Review completed goal milestones: use distinct, nonempty text values.";
   return null;
@@ -101,7 +119,7 @@ export function validateGoals(goals: GoalState, today = localDate()): string | n
   if (goals.goalDeadline && (!validDateOnly(goals.goalDeadline) || goals.goalDeadline < today)) return "Choose a valid goal deadline today or later.";
   return null;
 }
-export function saveGoalsRecord(goals: GoalState, projectedProfile?: Record<string, unknown>, editor?: { account: string | null; generation: number; version: string }): GoalState {
+export function saveGoalsRecord(goals: GoalState, projectedProfile?: Record<string, unknown>, editor?: { account: string | null; generation: number; version: string; allowDraft?: boolean }): GoalState {
   if (editor && (planningOwner() !== editor.account || planningAccountGeneration() !== editor.generation)) throw new Error("Your account changed. Reload Goals before saving.");
   if (editor && planningRecordVersion(planningKeys.goals) !== editor.version) throw new Error("Goals changed since you opened them. Your edits are still here. Copy them before reloading saved goals.");
   const directionsError = directionError(goals) || metadataError(goals);
@@ -109,12 +127,16 @@ export function saveGoalsRecord(goals: GoalState, projectedProfile?: Record<stri
   const targetError = validateGoalTargets(goals);
   if (targetError) throw new Error(targetError);
   const normalized = normalizeGoals(goals) as GoalState;
-  const error = validateGoals(normalized);
+  const error = editor?.allowDraft && !normalized.planDirections.length ? validateGoalTargets(normalized) : validateGoals(normalized);
   if (error) throw new Error(error);
   const original = readPlanning<unknown>(planningKeys.goals, null);
+  const previousBank = original && typeof original === "object" && "goalBank" in original ? original.goalBank : [];
+  const bank = goals.goalBank ?? previousBank;
+  if (!validGoalBank(bank)) throw new Error("Your goal bank needs review. Existing goals have been preserved.");
   const annotations = original && typeof original === "object" && !Array.isArray(original)
     ? Object.fromEntries(Object.entries(original).filter(([key]) => !goalFields.has(key))) : {};
-  const next = { ...annotations, ...normalized, updatedAt: new Date().toISOString() };
+  const updatedAt = new Date().toISOString();
+  const next = { ...annotations, ...normalized, goalBank: mergeGoalBank(bank, normalized, updatedAt), updatedAt };
   writePlanningValues(structuredClone({ [planningKeys.goals]: next, ...(projectedProfile ? { [planningKeys.profile]: projectedProfile } : {}) }));
   return next;
 }

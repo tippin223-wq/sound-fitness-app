@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { UserRound, ClipboardList, ChevronLeft, ChevronRight, Apple, Flag, Info, Trophy, Medal, Cake, Ruler, Scale, PersonStanding, CalendarCheck, CalendarDays, CalendarRange } from "lucide-react";
 import {
+
   type CSSProperties,
   type ReactNode,
   type KeyboardEvent as ReactKeyboardEvent,
   type WheelEvent as ReactWheelEvent,
   useEffect,
+  useCallback,
   useMemo,
   useRef,
   useState,
@@ -20,14 +23,23 @@ import styles from "./goals.module.css";
 import DashboardTabIcon from "@/components/dashboard/DashboardTabIcon";
 import { sessionRewardSummary, sessionRewardLabel } from "@/lib/planning/sessionRewards";
 import { readPlanning, planningKeys, planningOwner, planningAccountGeneration, planningRecordVersion, planningSnapshot, subscribePlanning } from "@/lib/planning/store";
-import { normalizeGoalId, normalizeGoals, savedGoalsIssue, saveGoalsRecord, goalSetupNextStep, type GoalState, type GoalId } from "@/lib/planning/goals";
+import { normalizeGoalId, normalizeGoals, savedGoalsIssue, saveGoalsRecord, type GoalState, type GoalId } from "@/lib/planning/goals";
+import { completeBankGoal, validGoalBank } from "@/lib/planning/goalBank";
+import profileStyles from "@/components/profile/ProfileHero.module.css";
+import PhysicalReadinessMeter from "@/components/profile/PhysicalReadinessMeter";
+import GoalsHeroInsights from "@/components/dashboard/GoalsHeroInsights";
+import GoalDateDots from "@/components/dashboard/GoalDateDots";
+
+import type { TrainingAreaPreferences } from "@/lib/trainingAreaCare";
 import { setsInWeek } from "@/lib/planning/logs";
 import { trainingJourneyState, readTrainingJourneyWorkoutLogs } from "@/lib/planning/trainingJourney";
 import { cloudHistorySnapshot, serverCloudHistory } from "@/lib/planning/availableLogs";
 import { checkInWeek } from "@/lib/planning/checkIns";
-import { localDate } from "@/lib/planning/dates";
+import { localDate, validDateOnly } from "@/lib/planning/dates";
+import { goalDateMilestones } from "@/lib/planning/goalDateMilestones";
+import { goalNumber } from "@/lib/planning/goalNumbers";
 import { usePlanningDay } from "@/lib/planning/usePlanningDay";
-import { planGoalsNeedReview, inspectWorkoutPlans } from "@/lib/localData/workoutPlanData";
+import { planGoalsNeedReview, inspectWorkoutPlans, createWorkoutPlan } from "@/lib/localData/workoutPlanData";
 import { ROUTES } from "@/lib/routes";
 
 type JsonObject = Record<string, unknown>;
@@ -583,7 +595,7 @@ function MetricSliderField({
             {label}
           </p>
           <p className="mt-2 text-3xl font-black text-white">
-            {numeric.toLocaleString()}{" "}
+            {value ? numeric.toLocaleString() : "Not set"}{" "}
             <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
               {suffix}
             </span>
@@ -610,6 +622,7 @@ function MetricSliderField({
       </div>
       <input
         type="range"
+        aria-label={label}
         min={min}
         max={max}
         step={step}
@@ -624,60 +637,11 @@ function MetricSliderField({
         <span>{min.toLocaleString()}</span>
         <span>{max.toLocaleString()}</span>
       </div>
-      <p className="mt-3 text-xs font-semibold leading-5 text-slate-400">{helper}</p>
+      {helper && <p className="mt-3 text-xs font-semibold leading-5 text-slate-400">{helper}</p>}
     </div>
   );
 }
 
-function DateField({
-  label,
-  onChange,
-  value,
-}: {
-  label: string;
-  onChange: (value: string) => void;
-  value: string;
-}) {
-  return (
-    <label className="block rounded-[24px] border border-white/10 bg-white/[0.045] p-4">
-      <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-        {label}
-      </span>
-      <input
-        type="date"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="mt-3 min-h-[48px] w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm font-black text-white outline-none transition focus:border-cyan-300"
-      />
-    </label>
-  );
-}
-
-function TextAreaField({
-  label,
-  onChange,
-  placeholder,
-  value,
-}: {
-  label: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  value: string;
-}) {
-  return (
-    <label className="block rounded-[24px] border border-white/10 bg-white/[0.045] p-4">
-      <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-        {label}
-      </span>
-      <textarea
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        className="mt-3 min-h-[112px] w-full resize-none bg-transparent text-sm font-semibold leading-6 text-white outline-none placeholder:text-slate-600"
-      />
-    </label>
-  );
-}
 
 function SelectField({
   label,
@@ -730,7 +694,8 @@ type GoalOrbiterIconName =
   | "compass"
   | "scale"
   | "signal"
-  | "stage";
+  | "stage"
+  | "nutrition";
 
 function GoalOrbiterIcon({
   name,
@@ -750,6 +715,7 @@ function GoalOrbiterIcon({
   };
 
   switch (name) {
+    case "nutrition": return <Apple className={className} aria-hidden="true" />;
     case "calendar":
       return (
         <svg {...iconProps}>
@@ -807,36 +773,6 @@ function GoalOrbiterIcon({
   }
 }
 
-function GoalsHeroRail({ label, children, pills = false }: { label: string; children: ReactNode; pills?: boolean }) {
-  const railRef = useRef<HTMLDivElement>(null);
-  const [edges, setEdges] = useState({ start: true, end: false });
-  useEffect(() => {
-    const rail = railRef.current;
-    if (!rail) return;
-    const update = () => {
-      const start = rail.scrollLeft <= 2;
-      const end = rail.scrollLeft + rail.clientWidth >= rail.scrollWidth - 2;
-      setEdges(current => current.start === start && current.end === end ? current : { start, end });
-    };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(rail);
-    for (const child of rail.children) observer.observe(child);
-    rail.addEventListener("scroll", update, { passive: true });
-    return () => { observer.disconnect(); rail.removeEventListener("scroll", update); };
-  }, [children]);
-  const move = (direction: number) => {
-    const rail = railRef.current;
-    rail?.scrollBy({ left: direction * Math.max(160, rail.clientWidth * 0.8), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
-  };
-  return <div className={styles.heroRailBlock}>
-    <div ref={railRef} role="region" aria-label={label} tabIndex={0} className={`${styles.heroRail} ${pills ? styles.heroPills : styles.heroSummaries}`} onWheel={event => { if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) event.stopPropagation(); }} onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()}>{children}</div>
-    <nav className={styles.heroRailArrows} aria-label={`${label} controls`}>
-      {([-1, 1] as const).map(direction => <button key={direction} type="button" aria-label={`${direction < 0 ? "Previous" : "Next"} ${label.toLowerCase()}`} disabled={direction < 0 ? edges.start : edges.end} onClick={() => move(direction)}><svg aria-hidden="true" viewBox="0 0 32 32" style={direction > 0 ? { transform: "scaleX(-1)" } : undefined}><path d="M18 5 6 16l12 11v-7h9v-8h-9Z" transform="translate(0 3)" fill="#075985"/><path d="M18 5 6 16l12 11v-7h9v-8h-9Z" fill="currentColor" stroke="#e0f2fe" strokeWidth=".7"/></svg></button>)}
-    </nav>
-  </div>;
-}
-
 export default function GoalsPage() {
   const { profile: memberIdentity } = useProfile();
   usePlanningDay();
@@ -853,13 +789,32 @@ export default function GoalsPage() {
     useState<"left" | "right">("right");
   const [activeGoalsOrbiterRow, setActiveGoalsOrbiterRow] = useState(0);
   const goalsViewportRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const viewport = goalsViewportRef.current;
+    if (!viewport) return;
+    let previousHeight = viewport.clientHeight;
+    const observer = new ResizeObserver(() => {
+      const height = viewport.clientHeight;
+      if (!height || height === previousHeight) return;
+      const row = Math.round(viewport.scrollTop / Math.max(1, previousHeight));
+      previousHeight = height;
+      viewport.scrollTo({ top: row * height, behavior: "instant" });
+      setActiveGoalsOrbiterRow(row);
+    });
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, []);
   const [activeGoalOrbiterIndex, setActiveGoalOrbiterIndex] = useState(0);
-  const [planDirectionOpen, setPlanDirectionOpen] = useState(true);
+  const [hoveredDirectionInfo, setHoveredDirectionInfo] = useState<GoalId | null>(null);
+  const [pinnedDirectionInfo, setPinnedDirectionInfo] = useState<GoalId | null>(null);
+  const [planNotice, setPlanNotice] = useState("");
+  const [highlightedDirection, setHighlightedDirection] = useState(0);
   const [planDirectionMessage, setPlanDirectionMessage] = useState("");
   const [planDirectionScrolling, setPlanDirectionScrolling] = useState(false);
   const [masterJourneyExpanded, setMasterJourneyExpanded] = useState(false);
   const [openMasterJourney, setOpenMasterJourney] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState("");
+  const [goalCelebration, setGoalCelebration] = useState("");
   const [savedSnapshot, setSavedSnapshot] = useState("");
   const goalsVersionRef = useRef(planningRecordVersion(planningKeys.goals));
   const accountRef = useRef(planningOwner());
@@ -945,24 +900,6 @@ export default function GoalsPage() {
     Number(goals.goalWeight || 0) && Number(goals.currentWeight || 0)
       ? Number(goals.goalWeight) - Number(goals.currentWeight)
       : 0;
-  const goalCompletionItems = [
-    goals.planDirections,
-    goals.goalWeight,
-    goals.stepsGoal || goals.targetSteps,
-    goals.waterGoal,
-    goals.goalMode,
-    goals.goalPriorityRanking,
-    goals.goalDeadline,
-    goals.goalMilestones,
-    goals.motivationFocus || goals.planDirectionNotes,
-    goals.targetWeeklySessions,
-    goals.benchmarkGoal,
-  ];
-  const goalSetupCompletion = Math.round(
-    (goalCompletionItems.filter((item) => String(item || "").trim()).length /
-      goalCompletionItems.length) *
-      100,
-  );
   const milestoneCount = goals.goalMilestones
     .split(/\n|,/)
     .map((item) => item.trim())
@@ -978,7 +915,6 @@ export default function GoalsPage() {
         year: "numeric",
       }).format(deadlineDate)
       : goals.goalDeadline || "Timeline open";
-  const recommendedNextStep = goalSetupNextStep(goals, unsavedGoalChanges || Boolean(savedGoalIssue));
   const goalPrioritySelectOptions =
     goals.goalPriorityRanking &&
     !goalPriorityOptions.includes(
@@ -989,6 +925,17 @@ export default function GoalsPage() {
   const displayName = profile.displayName.trim() || "Member";
   const memberName = getString(memberIdentity, ["displayName", "fullName", "name"], displayName);
   const memberPhoto = getString(memberIdentity, ["profileImage", "avatarUrl"], "");
+  const memberHandle = getString(memberIdentity, ["username", "handle"], memberName.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 24)).replace(/^@+/, "");
+  const memberBirthday = getString(memberIdentity, ["birthday"], "");
+  const birthDate = memberBirthday ? new Date(`${memberBirthday}T00:00:00`) : null;
+  const today = new Date();
+  const birthdayPending = birthDate && (today.getMonth() < birthDate.getMonth() || (today.getMonth() === birthDate.getMonth() && today.getDate() < birthDate.getDate()));
+  const memberAge = birthDate && Number.isFinite(birthDate.getTime()) ? today.getFullYear() - birthDate.getFullYear() - (birthdayPending ? 1 : 0) : null;
+  const memberGender = getString(memberIdentity, ["gender"], "");
+  const rawMemberHeight = getString(memberIdentity, ["height"], "");
+  const metricHeight = asRecord(memberIdentity.appPersonalization).preferredUnitSystem === "kg";
+  const numericHeight = /^\d+(\.\d+)?$/.test(rawMemberHeight) ? Number(rawMemberHeight) : null;
+  const memberHeight = numericHeight !== null ? metricHeight ? `${numericHeight} cm` : `${Math.floor(Math.round(numericHeight) / 12)}′ ${Math.round(numericHeight) % 12}″` : rawMemberHeight;
   const firstName = displayName.split(/\s+/)[0] || "Member";
   const goalRewards = sessionRewardSummary(readPlanning(planningKeys.profile, {}), []);
   const soundPoints = goalRewards.soundPoints;
@@ -1074,7 +1021,7 @@ export default function GoalsPage() {
         : (currentIndex + 1) % goalsHeaderLinks.length,
     );
   };
-  const goalsOrbiterRows = ["Goals Overview","Direction + Stage","Choose Your Direction","Goal Priorities","Body + Daily Targets","Timeline + Milestones","Goal-to-Plan Guidance","Training Journey"].map(label=>({label}));
+  const goalsOrbiterRows = ["Goals Overview","Your Goals","Goal Bank","Plan Bank","Proceed to training plans"].map(label=>({label}));
   const activeGoalsOrbiterRowIndex = Math.max(
     0,
     Math.min(activeGoalsOrbiterRow, goalsOrbiterRows.length - 1),
@@ -1288,39 +1235,41 @@ export default function GoalsPage() {
 
   const renderGoalsHeroRow = () => (
     <section aria-label="Goals hero row" data-goals-orbiter-row="0" className={styles.hero}>
-      <div className={styles.heroPageTitle}><h1>Goals</h1></div>
+      <nav className={styles.heroPageNavigation} aria-label="Profile setup pages">
+        <Link href={ROUTES.dashboard.profile} className={styles.heroProfileLink}><ChevronLeft aria-hidden="true" /><UserRound aria-hidden="true" /><span>Back to profile</span></Link>
+        <Link href={ROUTES.dashboard.trainingPlans} className={styles.heroPlansLink}><span>Training plans</span><ClipboardList aria-hidden="true" /><ChevronRight aria-hidden="true" /></Link>
+      </nav>
       <header className={styles.heroIdentityHeader}>
       <Link href={ROUTES.dashboard.profile} className={styles.heroIdentity} aria-label={`Open ${memberName}'s profile`}>
           <span className={styles.heroPhoto}><span aria-hidden="true">{memberName.charAt(0).toUpperCase()}</span>{memberPhoto && <img src={memberPhoto} alt="" onError={event => { event.currentTarget.style.visibility = "hidden"; }} />}</span>
-          <span className={styles.heroIdentityText}><span className={styles.heroAccountLabel}>Member profile</span><span className={styles.heroMemberName}>{memberName}</span></span>
+          <span className={styles.heroIdentityText}><span className={styles.heroMemberName}>{memberName}</span>{memberHandle && <span className={styles.heroMemberHandle}>@{memberHandle}</span>}</span>
       </Link>
+        <div className={styles.heroPhysicalReadiness}><PhysicalReadinessMeter preferences={memberIdentity.trainingRegressions as TrainingAreaPreferences | undefined} /></div>
       </header>
-      <p className={styles.heroIntro}>Choose the outcomes your training system should build toward.</p>
-      <GoalsHeroRail label="Goal highlights" pills>
-        <span className="border-cyan-300/25 bg-cyan-300/10 text-cyan-100">Primary: {activeDirection}</span>
-        {secondaryDirection && <span className="border-fuchsia-300/25 bg-fuchsia-300/10 text-fuchsia-100">Secondary: {secondaryDirection}</span>}
-        <span className="border-violet-300/25 bg-violet-300/10 text-violet-100">Plan directions {selectedDirections.length}/2</span>
-        <span className="border-amber-300/25 bg-amber-300/10 text-amber-100">Mode: {goals.goalMode}</span>
-        <span className="border-emerald-300/25 bg-emerald-300/10 text-emerald-100">{goals.targetWeeklySessions || 0} sessions / wk</span>
-        <span className="border-sky-300/25 bg-sky-300/10 text-sky-100">Timeline: {goalDeadlineLabel}</span>
-        <span className="border-fuchsia-300/25 bg-fuchsia-300/10 text-fuchsia-100">Goal setup {goalSetupCompletion}%</span>
-      </GoalsHeroRail>
-      <div id="recommended-goal-step" className={styles.heroNextStep}><p>Recommended Next Goal Step</p><strong>{recommendedNextStep}</strong></div>
-      <GoalsHeroRail label="Goal summaries">
-        {[
-          ["Timeline", goalDeadlineLabel],
-          ["Goal Progress", `${goalSetupCompletion}% complete`],
-          ["Milestones", milestoneCount ? `${milestoneCount} milestone${milestoneCount === 1 ? "" : "s"} noted` : "Add milestones"],
-          ["Member", `${displayName} / ${profile.trainingAge}`],
-          ["Weight Target", weightDelta ? `${weightDelta > 0 ? "Gain" : "Lose"} ${Math.abs(weightDelta).toLocaleString()} lb` : "Add body metrics"],
-          ["Weekly Momentum", `${weeklySets} / ${weeklyTarget} sets / ${completion}%`],
-          ["Favorites", `${favoriteCount} saved exercise targets`],
-        ].map(([label,value]) => <div key={label}><p>{label}</p><strong>{value}</strong></div>)}
-      </GoalsHeroRail>
+      <p className={styles.heroMemberBasics} aria-label="Member basics">
+        <span><Cake aria-hidden="true" />{memberAge !== null && memberAge >= 0 && memberAge <= 120 ? `${memberAge} yrs` : "Age not set"}</span>
+        <span><PersonStanding aria-hidden="true" />{memberGender || "Gender not set"}</span>
+        <span><Ruler aria-hidden="true" />{memberHeight || "Height not set"}</span>
+        <span><Scale aria-hidden="true" />{getString(memberIdentity, ["currentWeight", "weight"], "") ? `${getString(memberIdentity, ["currentWeight", "weight"], "")} ${metricHeight ? "kg" : "lb"}` : "Weight not set"}</span>
+      </p>
+
+      <GoalsHeroInsights goals={goals} onQuestion={index => {setActiveGoalOrbiterIndex(index); setGoalsOrbiterRow(1);}} />
     </section>
   );
 
-  const renderGoalOrbiterRow = () => {
+  const requireSequentialGoalEditing = false;
+  const hasPositiveTarget = (value: unknown) => (goalNumber(value) ?? 0) > 0;
+  const questionRequirements = [
+    { complete: Boolean(goals.goalTitle?.trim() && validDateOnly(goals.goalDeadline) && goals.goalDeadline >= localDate(today)), prompt: "Name your goal and choose a target date." },
+    { complete: selectedDirections.length > 0, prompt: "Select a first choice for your goal direction." },
+    { complete: Boolean(goals.goalCheckInFrequency), prompt: "Choose your check-in frequency." },
+    { complete: hasPositiveTarget(goals.goalWeight), prompt: "Set your goal weight." },
+    { complete: [goals.targetWeeklySessions, goals.sessionMinutes, goals.targetWeeklySets, goals.targetSleep].every(hasPositiveTarget), prompt: "Set weekly sessions, time per session, weekly sets, and target sleep." },
+    { complete: [goals.stepsGoal, goals.waterGoal, goals.benchTarget, goals.squatTarget, goals.deadliftTarget, goals.pullupTarget].some(hasPositiveTarget), prompt: "Set at least one daily or strength target." },
+    { complete: [goals.targetCalories, goals.targetProtein, goals.targetCarbs, goals.targetFat, goals.targetFiber].some(hasPositiveTarget), prompt: "Set at least one nutrition target." },
+  ];
+
+  const renderGoalOrbiterRow = (questions: Record<string, ReactNode>) => {
     const goalDirectionCompletion = calculateCompletion([
       selectedDirections,
       goals.primaryGoal,
@@ -1328,18 +1277,8 @@ export default function GoalsPage() {
       goals.goalMode,
       goals.goalPriorityRanking,
     ]);
-    const goalStageCompletion = calculateCompletion([
-      goals.goalDeadline,
-      goals.goalMilestones,
-      goals.goalPriorityRanking,
-      goals.motivationFocus || goals.planDirectionNotes,
-    ]);
-    const bodyTargetCompletion = calculateCompletion([
-      goals.currentWeight,
-      goals.goalWeight,
-      goals.stepsGoal || goals.targetSteps,
-      goals.waterGoal,
-    ]);
+    const goalStageCompletion = calculateCompletion([goals.goalCheckInFrequency]);
+    const bodyTargetCompletion = calculateCompletion([goals.currentWeight, goals.goalWeight]);
     const weeklyTargetCompletion = calculateCompletion([
       goals.targetWeeklySessions,
       goals.targetWeeklySets,
@@ -1352,13 +1291,7 @@ export default function GoalsPage() {
       goals.benchmarkGoal,
       goals.goalMilestones,
     ]);
-    const goalStageStatus = goals.goalDeadline
-      ? "Timeline set"
-      : goals.goalMilestones.trim()
-        ? "Milestones set"
-        : goals.goalPriorityRanking
-          ? "Priority set"
-          : "Stage open";
+    const goalStageStatus = goals.goalCheckInFrequency || "Choose a frequency";
     const goalOrbiterCards: Array<{
       completion: number;
       helper: string;
@@ -1370,6 +1303,13 @@ export default function GoalsPage() {
       tone: string;
       wash: string;
     }> = [
+      {
+        completion: calculateCompletion([goals.goalTitle, goals.goalDeadline]),
+        helper: "Name this goal and choose when you want to review it.", icon: "calendar",
+        label: "Your Goal & Timeline", references: [], stat: goals.goalDeadline || "Choose a review date",
+        targetId: "goal-preface", tone: "border-amber-200/30 bg-amber-300/10 text-amber-50",
+        wash: "from-amber-300/26 via-orange-300/12 to-transparent",
+      },
       {
         completion: goalDirectionCompletion,
         helper: "Primary and secondary training priorities that steer programming.",
@@ -1387,12 +1327,12 @@ export default function GoalsPage() {
       },
       {
         completion: goalStageCompletion,
-        helper: "Timeline, milestones, priority ranking, and motivation for this phase.",
+        helper: "Choose how often to review progress toward this goal.",
         icon: "stage",
-        label: "Goal Stage",
+        label: "Check-in Frequency",
         references: [
           `Timeline: ${goalDeadlineLabel}`,
-          milestoneCount ? `${milestoneCount} milestones noted` : "Milestones open",
+          goals.goalCheckInFrequency || "Frequency open",
           goals.goalPriorityRanking || "Priority open",
         ],
         stat: goalStageStatus,
@@ -1402,13 +1342,13 @@ export default function GoalsPage() {
       },
       {
         completion: bodyTargetCompletion,
-        helper: "Current weight, goal weight, steps, and hydration targets.",
+        helper: "Current weight and goal weight.",
         icon: "scale",
         label: "Body Target",
         references: [
           goals.currentWeight ? `Current ${goals.currentWeight} lb` : "Current weight open",
           goals.goalWeight ? `Goal ${goals.goalWeight} lb` : "Goal weight open",
-          goals.stepsGoal || goals.targetSteps ? `${goals.stepsGoal || goals.targetSteps} steps` : "Steps open",
+
         ],
         stat: weightDelta ? `${weightDelta > 0 ? "Gain" : "Lose"} ${Math.abs(weightDelta)} lb` : "Target open",
         targetId: "goal-targets",
@@ -1417,9 +1357,9 @@ export default function GoalsPage() {
       },
       {
         completion: weeklyTargetCompletion,
-        helper: "Weekly sessions, sets, protein, and sleep targets for the plan.",
+        helper: "Weekly sessions, session length, estimated sets, and sleep.",
         icon: "calendar",
-        label: "Weekly Targets",
+        label: "Training & Recovery",
         references: [
           `${goals.targetWeeklySessions || 0} sessions/week`,
           `${goals.targetWeeklySets || 0} sets/week`,
@@ -1431,10 +1371,26 @@ export default function GoalsPage() {
         wash: "from-sky-300/24 via-violet-300/12 to-transparent",
       },
       {
+        completion: calculateCompletion([goals.stepsGoal, goals.waterGoal, goals.benchTarget, goals.squatTarget, goals.deadliftTarget, goals.pullupTarget]),
+        helper: "Choose daily activity and compound lift targets.",
+        icon: "signal", label: "Daily & Strength Targets", references: [],
+        stat: "Set daily and lift targets", targetId: "daily-strength-targets",
+        tone: "border-amber-200/30 bg-amber-300/10 text-amber-50",
+        wash: "from-amber-300/26 via-orange-300/12 to-transparent",
+      },
+      {
+        completion: calculateCompletion([goals.targetProtein, goals.waterGoal, goals.targetCalories, goals.targetCarbs, goals.targetFat, goals.targetFiber]),
+        helper: "Set your own daily nutrition targets and review them with your plan.",
+        icon: "nutrition", label: "Nutrition Goals", references: [],
+        stat: goals.targetProtein ? `${goals.targetProtein} g protein / day` : "Set daily targets",
+        targetId: "nutrition-goals", tone: "border-emerald-200/28 bg-emerald-300/10 text-emerald-50",
+        wash: "from-emerald-300/24 via-teal-300/12 to-transparent",
+      },
+      {
         completion: signalCompletion,
         helper: "Weekly volume, saved exercises, benchmarks, and milestones.",
         icon: "signal",
-        label: "Progress Signals",
+        label: "Goal-to-Plan Summary",
         references: [
           `${weeklySets} weekly sets`,
           `${favoriteCount} saved exercise targets`,
@@ -1450,32 +1406,15 @@ export default function GoalsPage() {
       ((activeGoalOrbiterIndex % goalOrbiterCards.length) +
         goalOrbiterCards.length) %
       goalOrbiterCards.length;
-    const activeCard = goalOrbiterCards[activeIndex];
-    const moveGoalOrbiter = (direction: -1 | 1) => {
-      setActiveGoalOrbiterIndex(
-        (current) =>
-          (current + direction + goalOrbiterCards.length) %
-          goalOrbiterCards.length,
-      );
-    };
-    const openGoalOrbiterTarget=(targetId:string)=>{const rows:Record<string,number>={"goal-direction":2,"goal-stack":3,"goal-targets":4,"weekly-targets":4,"goal-stage":5,"goal-signals":6};if(targetId==="goal-direction")setPlanDirectionOpen(true);setGoalsOrbiterRow(rows[targetId]??0);};
-
+    const missingQuestion = requireSequentialGoalEditing
+      ? questionRequirements.findIndex((requirement, index) => index < activeIndex && !requirement.complete)
+      : -1;
     return (
-      <section className="relative mx-auto w-full max-w-[1180px] overflow-hidden rounded-[34px] border border-cyan-100/16 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_86%_10%,rgba(251,191,36,0.14),transparent_32%),rgba(2,6,23,0.72)] p-4 shadow-[0_26px_90px_rgba(0,0,0,0.48),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl sm:p-5">
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-8 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-100/60 to-amber-100/45"
-        />
-        <div className="relative z-10 flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-100/75">
-              Goal Orbiter Row
-            </p>
-            <h2 className="mt-1 text-2xl font-black text-white">
-              Direction + Stage
-            </h2>
-          </div>
-          <div className="flex items-center gap-2">
+      <section className={styles.goalOrbitSurface}>
+        <div className={styles.goalOrbitHeader}>
+          <p className={styles.goalRowEyebrow}>Your goals</p>
+          <h2 className={styles.goalQuestionTitle}>{goalOrbiterCards[activeIndex].label}</h2>
+          <nav className={styles.goalOrbitIndicators} aria-label="Goal category indicators">
             {goalOrbiterCards.map((card, index) => (
               <button
                 key={card.label}
@@ -1483,163 +1422,30 @@ export default function GoalsPage() {
                 aria-label={`Show ${card.label}`}
                 aria-pressed={activeIndex === index}
                 onClick={() => setActiveGoalOrbiterIndex(index)}
-                className={`h-2 rounded-full transition ${
-                  activeIndex === index
-                    ? "w-8 bg-cyan-200 shadow-[0_0_16px_rgba(103,232,249,0.56)]"
-                    : "w-2 bg-slate-500/60 hover:bg-amber-200/80"
-                }`}
-              />
+                title={card.label}
+              ><GoalOrbiterIcon name={card.icon} className="h-5 w-5" /></button>
             ))}
-          </div>
+          </nav>
+          <nav className={styles.goalQuestionArrows} aria-label="Goal question navigation">
+            <button type="button" aria-label="Previous goal question" onClick={() => setActiveGoalOrbiterIndex((activeIndex - 1 + goalOrbiterCards.length) % goalOrbiterCards.length)}><ChevronLeft aria-hidden="true" /></button>
+            <span>Question {activeIndex + 1} of {goalOrbiterCards.length}</span>
+            <button type="button" aria-label="Next goal question" onClick={() => setActiveGoalOrbiterIndex((activeIndex + 1) % goalOrbiterCards.length)}><ChevronRight aria-hidden="true" /></button>
+          </nav>
         </div>
 
-        <div className="relative mt-5 h-[420px] overflow-hidden [perspective:1000px] sm:h-[390px]">
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute left-1/2 top-1/2 h-[220px] w-[min(86vw,780px)] -translate-x-1/2 -translate-y-1/2 rounded-[48px] bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.14),rgba(251,191,36,0.09)_48%,transparent_76%)] blur-xl"
-          />
-          <button
-            type="button"
-            aria-label="Show previous goal card"
-            onClick={() => moveGoalOrbiter(-1)}
-            className="absolute left-1 top-1/2 z-40 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-2xl border border-cyan-200/18 bg-slate-950/72 text-lg font-black text-cyan-100 shadow-[0_18px_52px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:border-cyan-200/42 hover:bg-cyan-300/12 sm:left-4"
-          >
-            &lt;
-          </button>
-          <button
-            type="button"
-            aria-label="Show next goal card"
-            onClick={() => moveGoalOrbiter(1)}
-            className="absolute right-1 top-1/2 z-40 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-2xl border border-amber-200/18 bg-slate-950/72 text-lg font-black text-amber-100 shadow-[0_18px_52px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:border-amber-200/42 hover:bg-amber-300/12 sm:right-4"
-          >
-            &gt;
-          </button>
-          {goalOrbiterCards.map((card, index) => {
-            let distance = index - activeIndex;
-            if (distance > goalOrbiterCards.length / 2) {
-              distance -= goalOrbiterCards.length;
-            }
-            if (distance < -goalOrbiterCards.length / 2) {
-              distance += goalOrbiterCards.length;
-            }
-
-            const absDistance = Math.abs(distance);
-            const clampedDistance = Math.max(-2, Math.min(2, distance));
-            const isActive = distance === 0;
-            const orbitXSlots = [0, 270, 430];
-            const x =
-              Math.sign(clampedDistance) *
-              orbitXSlots[Math.min(absDistance, orbitXSlots.length - 1)];
-            const y = absDistance * 18 + (absDistance > 1 ? 10 : 0);
-            const scale = isActive ? 1 : absDistance === 1 ? 0.78 : 0.58;
-            const opacity = isActive ? 1 : absDistance === 1 ? 0.74 : 0.36;
-            const depth = isActive ? 68 : 28 - absDistance * 12;
-
-            return (
-              <article
-                key={card.label}
-                aria-current={isActive ? "page" : undefined}
-                aria-label={`${isActive ? "Active" : "Show"} ${card.label}`}
-                onClick={() => {
-                  if (!isActive) {
-                    setActiveGoalOrbiterIndex(index);
-                    return;
-                  }
-
-                  openGoalOrbiterTarget(card.targetId);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter" && event.key !== " ") return;
-
-                  event.preventDefault();
-                  if (!isActive) {
-                    setActiveGoalOrbiterIndex(index);
-                    return;
-                  }
-
-                  openGoalOrbiterTarget(card.targetId);
-                }}
-                role="button"
-                tabIndex={0}
-                className={`absolute left-1/2 top-1/2 overflow-hidden rounded-[30px] border text-left shadow-[0_22px_64px_rgba(0,0,0,0.42)] outline-none backdrop-blur-xl transition-[transform,opacity,border-color,background-color,box-shadow,width,padding] duration-[520ms] ease-[cubic-bezier(0.2,0.85,0.25,1)] hover:border-white/28 focus-visible:ring-2 focus-visible:ring-cyan-100/50 ${
-                  isActive
-                    ? "w-[min(82vw,420px)] p-5 ring-2 ring-cyan-100/24"
-                    : "w-[220px] cursor-pointer p-4"
-                } ${card.tone}`}
-                style={{
-                  opacity,
-                  transform: `translate(-50%, -50%) translateX(${x}px) translateY(${y}px) rotateY(${clampedDistance * -18}deg) translateZ(${depth}px) scale(${scale})`,
-                  zIndex: 30 - absDistance,
-                }}
-              >
-                <span
-                  aria-hidden="true"
-                  className={`pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r ${card.wash} opacity-90`}
-                />
-                <span
-                  aria-hidden="true"
-                  className={`pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(255,255,255,0.10),transparent_42%),radial-gradient(circle_at_20%_0%,rgba(255,255,255,0.10),transparent_34%)]`}
-                />
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 items-start gap-3">
-                    <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-white/12 bg-slate-950/48 text-current shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-                      <GoalOrbiterIcon
-                        name={card.icon}
-                        className={isActive ? "h-6 w-6" : "h-5 w-5"}
-                      />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-black uppercase tracking-[0.12em] text-white">
-                        {card.label}
-                      </p>
-                      <p className="mt-1 truncate text-[10px] font-black uppercase tracking-[0.12em] text-current/80">
-                        {card.stat}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="rounded-full border border-white/12 bg-slate-950/46 px-2.5 py-1 text-[10px] font-black text-white">
-                    {card.completion}%
-                  </span>
-                </div>
-                <p
-                  className={`mt-4 font-semibold text-slate-300 ${
-                    isActive ? "line-clamp-3 text-sm leading-6" : "line-clamp-2 text-xs leading-5"
-                  }`}
-                >
-                  {card.helper}
-                </p>
-                {isActive ? (
-                  <>
-                    <div className="mt-4 grid gap-2 rounded-2xl border border-white/10 bg-slate-950/34 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-                      {card.references.map((reference) => (
-                        <span
-                          key={reference}
-                          className="truncate rounded-xl border border-white/10 bg-slate-950/42 px-3 py-2 text-[10px] font-black text-slate-100"
-                        >
-                          {reference}
-                        </span>
-                      ))}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        openGoalOrbiterTarget(card.targetId);
-                      }}
-                      className="mt-4 block w-full rounded-2xl border border-cyan-200/22 bg-cyan-300/12 px-3 py-3 text-center text-[9px] font-black uppercase tracking-[0.14em] text-cyan-50 transition hover:border-cyan-200/42 hover:bg-cyan-300/18"
-                    >
-                      Open {card.label}
-                    </button>
-                  </>
-                ) : null}
-              </article>
-            );
-          })}
+        <div className={styles.goalOrbitStage}>
+          <article key={activeIndex} className={styles.goalOrbitCard} aria-current="page" aria-label={`Active ${goalOrbiterCards[activeIndex].label}`}>
+            <div className={styles.goalQuestionContent} onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()}>
+              {missingQuestion >= 0 && <div className="mx-2 mb-3 rounded-lg border border-amber-200/25 p-3 text-sm text-amber-100">
+                <p>Complete question {missingQuestion + 1} to unlock editing. {questionRequirements[missingQuestion].prompt}</p>
+                <button type="button" className="mt-2 min-h-8 font-bold underline" onClick={() => setActiveGoalOrbiterIndex(missingQuestion)}>Go to question {missingQuestion + 1}</button>
+              </div>}
+              <fieldset disabled={missingQuestion >= 0} className="m-0 min-w-0 border-0 p-0 disabled:opacity-55">
+                {questions[goalOrbiterCards[activeIndex].targetId]}
+              </fieldset>
+            </div>
+          </article>
         </div>
-
-        <p className="relative z-10 mx-auto mt-1 max-w-3xl text-center text-xs font-semibold leading-5 text-slate-400">
-          {activeCard.label} is active. Swipe, tap a side card, or use the arrows to rotate the goal row.
-        </p>
       </section>
     );
   };
@@ -1653,11 +1459,6 @@ export default function GoalsPage() {
       if (key === "secondaryGoal") return { ...current, ...normalizeGoals({ ...current, planDirections: [current.primaryGoal, ...(value && value !== current.primaryGoal ? [value as GoalId] : [])] }) };
       return { ...current, [key]: value };
     });
-    setSavedMessage("");
-  };
-
-  const updateStepsGoal = (value: string) => {
-    setGoals((current) => ({ ...current, stepsGoal: value, targetSteps: value }));
     setSavedMessage("");
   };
 
@@ -1675,16 +1476,12 @@ export default function GoalsPage() {
     const slider = planDirectionSliderRef.current;
     if (!slider) return;
 
-    const scrollAmount = Math.max(260, slider.clientWidth * 0.78);
-    markPlanDirectionScrolling();
-    window.setTimeout(() => {
-      slider.scrollBy({
-        behavior: "smooth",
-        left: direction === "left" ? -scrollAmount : scrollAmount,
-      });
-    }, 40);
+    const cards = Array.from(slider.children) as HTMLElement[];
+    const next = (highlightedDirection + (direction === "left" ? -1 : 1) + cards.length) % cards.length;
+    setHighlightedDirection(next);
+    const card = cards[next];
+    if (card) slider.scrollTo({left: card.offsetLeft - slider.offsetLeft - (slider.clientWidth - card.offsetWidth) / 2, behavior: "smooth"});
   };
-
   const togglePlanDirection = (direction: GoalId) => {
     setGoals((current) => {
       const currentDirections = normalizePlanDirections(
@@ -1720,7 +1517,16 @@ export default function GoalsPage() {
     });
   };
 
-  const saveGoals = () => {
+  const swapGoalDirections = () => {
+    setGoals(current => {
+      const [first, second] = normalizePlanDirections(current.planDirections, current.goalMode);
+      if (!first || !second) return current;
+      return { ...current, planDirections: [second, first], primaryGoal: second, secondaryGoal: first, goalMode: second };
+    });
+    setSavedMessage("");
+  };
+
+  const saveGoals = useCallback(() => {
     const nextDirections = normalizePlanDirections(goals.planDirections, goals.goalMode);
     const stepsGoal = goals.stepsGoal || goals.targetSteps;
     const nextGoals = {
@@ -1752,503 +1558,57 @@ export default function GoalsPage() {
     };
 
     let savedGoals: GoalState;
-    try { savedGoals = saveGoalsRecord(nextGoals, nextProfile, { account: accountRef.current, generation: generationRef.current, version: goalsVersionRef.current }); } catch (error) { setSavedMessage(error instanceof Error ? error.message : "Goals could not be saved."); return; }
+    try { savedGoals = saveGoalsRecord(nextGoals, nextProfile, { account: accountRef.current, generation: generationRef.current, version: goalsVersionRef.current, allowDraft: true }); } catch (error) { setSavedMessage(error instanceof Error ? error.message : "Goals could not be saved."); return; }
     goalsVersionRef.current = planningRecordVersion(planningKeys.goals);
       accountRef.current = planningOwner(); generationRef.current = planningAccountGeneration();
+    const previousBank = savedSnapshot ? (JSON.parse(savedSnapshot) as GoalState).goalBank || [] : [];
+    const newlyCompleted = savedGoals.goalBank?.find(entry => entry.completedAt && !previousBank.some(previous => previous.id === entry.id && previous.completedAt));
+    if (newlyCompleted) setGoalCelebration(`${newlyCompleted.title} complete — well done!`);
     setGoals(savedGoals);
     setSavedSnapshot(JSON.stringify(savedGoals));
     setProfile(getProfileSnapshot());
-    setSavedMessage("Goals saved locally. Cloud sync status appears above.");
+    setSavedMessage("");
+    return savedGoals;
+  }, [goals, savedSnapshot]);
+
+  useEffect(() => {
+    if (savedSnapshot && (JSON.stringify(goals) !== savedSnapshot || (goals.updatedAt && (goals.goalBank === undefined || (goals.planDirections.length > 0 && validGoalBank(goals.goalBank) && goals.goalBank.some(entry => entry.key !== "overall-goal")))))) saveGoals();
+  }, [goals, savedSnapshot, saveGoals]);
+
+  const directionMetrics: Partial<Record<GoalId, { key: keyof GoalState; label: string; max: number }>> = {
+    "Build Muscle": { key: "muscleGain", label: "Muscle to gain (lb)", max: 500 },
+    "Lose Fat": { key: "fatLoss", label: "Fat to lose (lb)", max: 500 },
+    Strength: { key: "strengthGain", label: "Strength gain on a key lift (lb)", max: 1500 },
+    Mobility: { key: "mobilityGain", label: "Range of motion to gain (°)", max: 180 },
+    Conditioning: { key: "conditioningGain", label: "Continuous activity target (min)", max: 1440 },
   };
-
-  const renderMasterTrainingJourney = () => {
-    const planRecovery = inspectWorkoutPlans();
-    const training = trainingJourneyState({ goals: readPlanning(planningKeys.goals, {}), plans: planRecovery.plans.filter(plan => !planGoalsNeedReview(plan)), logs: readTrainingJourneyWorkoutLogs() });
-
-    const journeyRows: Array<{
-      accent: string;
-      completion: number;
-      description: string;
-      id: string;
-      steps: Array<{
-        href: string;
-        label: string;
-        status: string;
-      }>;
-      title: string;
-    }> = [
-      {
-        accent: "from-cyan-300 to-blue-400",
-        completion: training.completion,
-        description: "Build sessions from profile, goals, libraries, and plans.",
-        id: "training",
-        title: "Training Journey",
-        steps: [
-          { href: ROUTES.dashboard.profile, label: "Profile", status: "Foundation" },
-          { href: ROUTES.dashboard.goals, label: "Goals", status: "Direction" },
-          { href: ROUTES.dashboard.sessions, label: "Sessions", status: "Start" },
-          { href: ROUTES.dashboard.exerciseLibrary, label: "Exercise Library", status: "Tools" },
-          { href: ROUTES.dashboard.goals, label: "Goal Planning", status: "Goals" },
-          { href: ROUTES.dashboard.trainingPlans, label: "My Plan", status: "Organize" },
-          { href: ROUTES.dashboard.phases, label: "Periodized Plan", status: "Phase" },
-          { href: ROUTES.dashboard.calendar, label: "Calendar", status: "Schedule" },
-          { href: ROUTES.dashboard.progress, label: "Progress", status: "Reflect" },
-        ],
-      },
-      {
-        accent: "from-emerald-300 to-teal-400",
-        completion: 0,
-        description: "Turn fuel decisions into meals, menus, and weekly nutrition plans.",
-        id: "fuel",
-        title: "Fuel Journey",
-        steps: [
-          { href: ROUTES.dashboard.profile, label: "Profile", status: "Foundation" },
-          { href: "/nutrition/goals", label: "Goals", status: "Fuel goal" },
-          { href: ROUTES.nutritionPortal.home, label: "Fuel Dashboard", status: "Today" },
-          { href: ROUTES.nutritionPortal.grocery, label: "Shopping / My Fridge", status: "Stock" },
-          { href: ROUTES.nutritionPortal.library, label: "Kitchen", status: "Library" },
-          { href: ROUTES.nutritionPortal.meals, label: "My Menu", status: "Meals" },
-          { href: "/nutrition/meal-plan", label: "My Plan", status: "Week" },
-          { href: "/nutrition/progress", label: "Progress", status: "Track" },
-        ],
-      },
-      {
-        accent: "from-orange-300 to-amber-300",
-        completion: 0,
-        description: "Develop conditioning, athletic metrics, and performance trends.",
-        id: "performance",
-        title: "Performance Pathway",
-        steps: [
-          { href: "/performance", label: "Baseline", status: "Check" },
-          { href: "/performance", label: "Cardio", status: "Engine" },
-          { href: "/performance", label: "Conditioning", status: "Capacity" },
-          { href: "/performance", label: "Metrics", status: "Measure" },
-          { href: "/performance", label: "Athletic Tests", status: "Test" },
-          { href: ROUTES.dashboard.progress, label: "Progress", status: "Track" },
-        ],
-      },
-      {
-        accent: "from-violet-300 to-cyan-300",
-        completion: 0,
-        description: "Connect readiness, mobility, pain/soreness, and recovery planning.",
-        id: "recovery",
-        title: "Recovery Roadmap",
-        steps: [
-          { href: ROUTES.dashboard.profile, label: "Readiness", status: "Profile" },
-          { href: ROUTES.dashboard.mobilityLibrary, label: "Mobility", status: "Move" },
-          { href: ROUTES.dashboard.painTracking, label: "Pain/Soreness", status: "Log" },
-          { href: ROUTES.dashboard.profile, label: "Sleep/Stress", status: "Signals" },
-          { href: "/recovery", label: "Recovery Plan", status: "Recover" },
-          { href: ROUTES.dashboard.progress, label: "Progress", status: "Track" },
-        ],
-      },
-    ];
-
-    const foundationItems = [
-      {
-        href: ROUTES.dashboard.profile,
-        label: "Profile",
-        status: "Foundation",
-      },
-      {
-        href: ROUTES.dashboard.goals,
-        label: "Goals",
-        status: "Direction",
-      },
-    ];
-
-    const getJourneySummary = (row: (typeof journeyRows)[number]) => {
-      const currentIndex = row.id === "training" ? Math.max(0, row.steps.findIndex(step => step.label === training.next)) : 0;
-      const currentStep = row.steps[currentIndex]?.label || row.steps[0]?.label || "Profile";
-      const nextAction = row.id === "training" ? training.next : "Explore modules";
-
-      return { currentIndex, currentStep, nextAction };
-    };
-
-    const overallJourneyCompletion = training.completion;
-    const currentJourney =
-      journeyRows.find((row) => row.id === openMasterJourney) ||
-      journeyRows.find((row) => row.completion < 100) ||
-      journeyRows[0];
-    const currentJourneySummary = getJourneySummary(currentJourney);
-
-    return (
-      <section className="overflow-hidden rounded-[30px] border border-white/10 bg-slate-950/58 shadow-2xl">
-        {planRecovery.issue && <aside role="alert" className="m-5 rounded-2xl border border-amber-300/30 p-4 text-sm text-amber-200">
-          <p>{planRecovery.issue}</p><p className="mt-2">Saved plan milestones need review. Your Goals and workout records remain saved.</p>
-          <Link href="/dashboard/calendar" className="mt-3 block underline">Review and export original plans in Calendar</Link>
-        </aside>}
-        <button
-          type="button"
-          aria-expanded={masterJourneyExpanded}
-          onClick={() => setMasterJourneyExpanded((current) => !current)}
-          className="group w-full p-5 text-left transition hover:bg-white/[0.035] sm:p-6"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-200/70">
-                Master Journey
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-3">
-                <h2 className="text-2xl font-black text-white">
-                  Master Training Journey
-                </h2>
-                <span className="rounded-full border border-cyan-200/28 bg-cyan-300/12 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100">
-                  {overallJourneyCompletion}% training foundations
-                </span>
-              </div>
-              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-400">
-                Training foundations track saved goals, a saved week, an assigned workout, and a recorded completion. Other journeys are navigation; their completion is not tracked here.
-              </p>
-              <div className="mt-3 flex max-w-full flex-wrap gap-2">
-                <span className="rounded-full border border-emerald-200/20 bg-emerald-300/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-emerald-100">
-                  {overallJourneyCompletion}% Training Foundations
-                </span>
-                <span className="rounded-full border border-cyan-200/20 bg-cyan-300/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-cyan-100">
-                  Current: {currentJourney.title}
-                </span>
-                <span className="rounded-full border border-orange-200/18 bg-orange-300/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-orange-100">
-                  Next: {currentJourneySummary.nextAction}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex shrink-0 items-center gap-3">
-              <span className="hidden h-2 w-24 rounded-full bg-gradient-to-r from-cyan-300 via-emerald-300 to-orange-300 shadow-[0_0_20px_rgba(34,211,238,0.16)] sm:block">
-                <span
-                  className="block h-full rounded-full bg-white/35 transition-[width] duration-500"
-                  style={{ width: `${overallJourneyCompletion}%` }}
-                />
-              </span>
-              <span
-                className={`grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-white/[0.045] text-lg font-black text-slate-300 transition group-hover:border-cyan-200/35 group-hover:text-cyan-100 ${
-                  masterJourneyExpanded ? "rotate-90" : ""
-                }`}
-              >
-                &gt;
-              </span>
-            </div>
-          </div>
-        </button>
-
-        <div
-          className={`grid transition-all duration-300 ease-out ${
-            masterJourneyExpanded
-              ? "grid-rows-[1fr] opacity-100"
-              : "grid-rows-[0fr] opacity-0"
-          }`}
-        >
-          <div className="overflow-hidden">
-            <div className="border-t border-white/10 p-5 sm:p-6">
-              <div className="mx-auto grid max-w-2xl gap-3 sm:grid-cols-2">
-                {foundationItems.map((item, index) => (
-                  <Link
-                    key={item.label}
-                    href={item.href}
-                    className="group relative rounded-[26px] border border-cyan-200/22 bg-[radial-gradient(circle_at_20%_0%,rgba(34,211,238,0.18),transparent_44%),rgba(15,23,42,0.68)] p-4 text-center shadow-[0_0_28px_rgba(34,211,238,0.08)] transition hover:-translate-y-1 hover:border-cyan-200/42 hover:bg-cyan-300/10"
-                  >
-                    {index === 0 ? (
-                      <span className="pointer-events-none absolute -right-5 top-1/2 hidden h-px w-10 bg-gradient-to-r from-cyan-300/60 to-orange-300/60 sm:block" />
-                    ) : null}
-                    <span className="mx-auto grid h-10 w-10 place-items-center rounded-2xl border border-cyan-100/25 bg-cyan-300/14 text-sm font-black text-cyan-100">
-                      {index + 1}
-                    </span>
-                    <p className="mt-3 text-lg font-black text-white">{item.label}</p>
-                    <p className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
-                      {item.status}
-                    </p>
-                    <span className="mt-3 inline-flex rounded-full border border-cyan-100/25 bg-cyan-300/12 px-3 py-1 text-xs font-black text-cyan-100">
-                      Start here
-                    </span>
-                  </Link>
-                ))}
-              </div>
-
-              <div className="my-5 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-
-              <div className="space-y-5">
-                {journeyRows.map((row) => {
-                  const isOpen = openMasterJourney === row.id;
-                  const { currentIndex, currentStep, nextAction } =
-                    getJourneySummary(row);
-
-                  return (
-                    <section
-                      key={row.id}
-                      className="overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
-                    >
-                      <button
-                        type="button"
-                        aria-expanded={isOpen}
-                        onClick={() =>
-                          setOpenMasterJourney((current) =>
-                            current === row.id ? null : row.id,
-                          )
-                        }
-                        className="group w-full p-4 text-left transition hover:bg-white/[0.035]"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-4">
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-3">
-                              <p className="text-lg font-black text-white">{row.title}</p>
-                              <span className="rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-slate-300">
-                                {row.id === "training" ? `${row.completion}% training foundations` : "Explore modules"}
-                              </span>
-                            </div>
-                            <p className="mt-1 text-xs font-semibold leading-5 text-slate-400">
-                              {row.description}
-                            </p>
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              <span className="rounded-full border border-cyan-200/20 bg-cyan-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-cyan-100">
-                                Current: {currentStep}
-                              </span>
-                              <span className="rounded-full border border-orange-200/18 bg-orange-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-orange-100">
-                                Next: {nextAction}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-3">
-                            <span
-                              className={`hidden h-2 w-24 rounded-full bg-gradient-to-r ${row.accent} shadow-[0_0_18px_rgba(34,211,238,0.14)] sm:block`}
-                            />
-                            <span
-                              className={`grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/[0.045] text-lg font-black text-slate-300 transition group-hover:border-cyan-200/35 group-hover:text-cyan-100 ${
-                                isOpen ? "rotate-90" : ""
-                              }`}
-                            >
-                              &gt;
-                            </span>
-                          </div>
-                        </div>
-                      </button>
-
-                      <div
-                        className={`grid transition-all duration-300 ease-out ${
-                          isOpen
-                            ? "grid-rows-[1fr] opacity-100"
-                            : "grid-rows-[0fr] opacity-0"
-                        }`}
-                      >
-                        <div className="overflow-hidden">
-                          <div className="border-t border-white/10 p-4 pt-5">
-                            <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                              {row.steps.map((step, index) => {
-                                const evidence = row.id === "training" && (
-                                  (step.label === "Goals" || step.label === "Goal Planning") && training.recorded.goals ? "Saved goals"
-                                  : step.label === "My Plan" && training.recorded.plan ? "Saved week"
-                                  : step.label === "Sessions" && training.recorded.workout ? "Workout recorded" : "");
-                                const stepState = evidence || (row.id === "training" && index === currentIndex ? "Next step" : "Explore");
-                                const isActive = stepState === "Next step";
-                                const isComplete = Boolean(evidence);
-
-                                return (
-                                  <div
-                                    key={`${row.title}-${step.label}`}
-                                    className="flex shrink-0 snap-start items-center gap-3"
-                                  >
-                                    <Link
-                                      href={step.href}
-                                      className={`group min-h-[128px] w-[190px] rounded-[24px] border p-4 transition hover:-translate-y-1 active:scale-[0.98] ${
-                                        isActive
-                                          ? "border-cyan-200/45 bg-cyan-300/14 shadow-[0_0_28px_rgba(34,211,238,0.16)]"
-                                          : isComplete
-                                            ? "border-emerald-200/35 bg-emerald-300/10 shadow-[0_0_22px_rgba(52,211,153,0.12)]"
-                                            : "border-white/10 bg-white/[0.045] hover:border-cyan-200/30 hover:bg-cyan-300/10"
-                                      }`}
-                                    >
-                                      <div className="flex items-center justify-between gap-3">
-                                        <span
-                                          className={`grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br ${row.accent} text-xs font-black text-slate-950`}
-                                        >
-                                          {index + 1}
-                                        </span>
-                                        <span className="rounded-full border border-white/10 bg-slate-950/58 px-2 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-slate-400 group-hover:text-cyan-100">
-                                          {stepState}
-                                        </span>
-                                      </div>
-                                      <p className="mt-4 text-sm font-black leading-tight text-white">
-                                        {step.label}
-                                      </p>
-                                      <p className="mt-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
-                                        {step.status}
-                                      </p>
-                                    </Link>
-                                    {index < row.steps.length - 1 ? (
-                                      <span className="h-px w-10 shrink-0 bg-gradient-to-r from-white/18 to-cyan-300/30" />
-                                    ) : null}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </section>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-    );
-  };
-
+  const activeDirectionInfo = goalCards.find(goal => goal.id === (hoveredDirectionInfo ?? pinnedDirectionInfo));
   const directionContent=(<section
           id="goal-direction"
           className="scroll-mt-28 overflow-hidden rounded-[30px] border border-white/10 bg-slate-950/58 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-xl"
-        >
-          <button
-            type="button"
-            onClick={() => setPlanDirectionOpen((current) => !current)}
-            className="flex w-full flex-col gap-3 p-4 text-left transition hover:bg-white/[0.025] sm:flex-row sm:items-center sm:justify-between"
-            aria-expanded={planDirectionOpen}
-          >
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-200">
-                Plan Direction
-              </p>
-              <h2 className="mt-2 text-xl font-black text-white sm:text-2xl">
-                {goalSetupCompletion}% · {primaryDirection ? `Primary: ${primaryDirection}` : "No direction selected"}
-                {secondaryDirection ? ` · Secondary: ${secondaryDirection}` : ""}
-              </h2>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {primaryDirection ? (
-                <span className={`rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] ${planDirectionVisualStyles[primaryDirection].accent}`}>
-                  Primary
-                </span>
-              ) : null}
-              {secondaryDirection ? (
-                <span className={`rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] ${planDirectionVisualStyles[secondaryDirection].accent}`}>
-                  Secondary
-                </span>
-              ) : null}
-              <span className="rounded-full border border-white/10 bg-white/[0.045] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-slate-300">
-                {selectedDirections.length}/2 selected
-              </span>
-              <span
-                className={`grid h-9 w-9 place-items-center rounded-2xl border border-white/10 bg-slate-950/60 text-lg font-black text-cyan-100 transition ${planDirectionOpen ? "rotate-180" : ""}`}
-                aria-hidden="true"
-              >
-                v
-              </span>
-            </div>
-          </button>
-
-          {planDirectionOpen ? (
-            <div className="border-t border-white/10 p-4">
-              <p className="text-sm text-slate-300">Your saved priorities guide manual planning. Suggestions never change scheduled workouts automatically.</p>
-              <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <p className="rounded-2xl border border-cyan-200/16 bg-cyan-300/8 px-4 py-3 text-xs font-semibold leading-5 text-cyan-50">
-                  {planDirectionMessage ||
-                    "Choose up to 2 priorities. The first selected card is Primary; the second is Secondary."}
-                </p>
-                <button
-                  type="button"
-                  onClick={saveGoals}
-                  className="min-h-[44px] rounded-2xl bg-cyan-300 px-5 py-3 text-xs font-black uppercase tracking-[0.12em] text-slate-950 shadow-[0_0_26px_rgba(34,211,238,0.24)] transition hover:bg-cyan-200"
-                >
-                  Save Goals
-                </button>
-              </div>
-
-              <div className="mb-4 rounded-[24px] border border-white/10 bg-white/[0.035] p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-100/80">
-                    Selected Direction Insights
-                  </p>
-                  <span className="rounded-full border border-white/10 bg-slate-950/48 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
-                    {selectedDirections.length}/2 selected
-                  </span>
-                </div>
-                {selectedDirections.length ? (
-                  <>
-                    <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                      {selectedDirections.map((direction, index) => {
-                        const style = planDirectionVisualStyles[direction];
-                        return (
-                          <div
-                            key={direction}
-                            className="relative overflow-hidden rounded-[22px] border border-white/10 bg-slate-950/48 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
-                          >
-                            <span
-                              aria-hidden="true"
-                              className={`pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r ${style.wash} opacity-80`}
-                            />
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className={`rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] ${style.accent}`}>
-                                {index === 0 ? "Primary" : "Secondary"}
-                              </span>
-                              <p className="text-sm font-black text-white">{direction}</p>
-                            </div>
-                            <p className="mt-3 text-xs font-semibold leading-5 text-slate-300">
-                              {planDirectionInsights[direction]}
-                            </p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="mt-3 rounded-2xl border border-emerald-200/14 bg-emerald-300/8 p-3">
-                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100/80">
-                        Combo Insight
-                      </p>
-                      <p className="mt-2 text-xs font-semibold leading-5 text-slate-200">
-                        {getPlanDirectionComboInsight(selectedDirections)}
-                      </p>
-                    </div>
-                  </>
-                ) : (
-                  <p className="mt-3 rounded-2xl border border-dashed border-white/12 bg-slate-950/36 p-3 text-xs font-semibold leading-5 text-slate-400">
-                    Choose up to 2 plan directions to unlock personalized programming insights.
-                  </p>
-                )}
-              </div>
-
-              <div className="mb-3 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  aria-label="Scroll Plan Direction left"
-                  onClick={() => scrollPlanDirection("left")}
-                  className="grid h-10 w-10 place-items-center rounded-2xl border border-cyan-200/18 bg-cyan-300/8 text-lg font-black text-cyan-100 transition hover:border-cyan-200/45 hover:bg-cyan-300/16"
-                >
-                  &lt;
-                </button>
-                <button
-                  type="button"
-                  aria-label="Scroll Plan Direction right"
-                  onClick={() => scrollPlanDirection("right")}
-                  className="grid h-10 w-10 place-items-center rounded-2xl border border-fuchsia-200/18 bg-fuchsia-300/8 text-lg font-black text-fuchsia-100 transition hover:border-fuchsia-200/45 hover:bg-fuchsia-300/16"
-                >
-                  &gt;
-                </button>
-              </div>
-
+        >{(
+            <div className="relative border-t border-white/10 p-4" onKeyDown={event => { if (event.key === "Escape") { setHoveredDirectionInfo(null); setPinnedDirectionInfo(null); } }}>
               <div
                 ref={planDirectionSliderRef}
                 onScroll={markPlanDirectionScrolling}
                 style={planDirectionScrollbarStyle}
-                className={`flex max-w-full snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-visible overscroll-x-contain scroll-smooth pb-5 pr-4 [scrollbar-color:var(--plan-scroll-via)_rgba(15,23,42,0.74)] [scrollbar-width:auto] [touch-action:pan-x] [&::-webkit-scrollbar]:h-3 [&::-webkit-scrollbar]:transition-all [&::-webkit-scrollbar]:duration-300 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-[3px] [&::-webkit-scrollbar-thumb]:border-slate-950/80 [&::-webkit-scrollbar-thumb]:bg-[linear-gradient(90deg,var(--plan-scroll-from),var(--plan-scroll-via),var(--plan-scroll-to))] [&::-webkit-scrollbar-thumb]:shadow-[0_0_18px_var(--plan-scroll-glow)] [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:border [&::-webkit-scrollbar-track]:border-white/10 [&::-webkit-scrollbar-track]:bg-slate-950/72 hover:[&::-webkit-scrollbar]:h-4 ${
-                  planDirectionScrolling
-                    ? "[&::-webkit-scrollbar]:h-4 [&::-webkit-scrollbar-thumb]:shadow-[0_0_34px_var(--plan-scroll-glow)] [&::-webkit-scrollbar-thumb]:animate-pulse"
-                    : ""
-                }`}
+                className={styles.directionSelectionRail}
               >
                 {goalCards
                   .filter((goal) => goal.id !== "Maintain")
-                  .map((goal) => {
+                  .map((goal, optionIndex) => {
                     const selectedIndex = selectedDirections.indexOf(goal.id);
                     const isActive = selectedIndex >= 0;
                     const style = planDirectionVisualStyles[goal.id];
 
                     return (
+                      <div key={goal.id} className="relative w-[230px] shrink-0 snap-center sm:w-[248px]">
                       <button
-                        key={goal.id}
                         type="button"
                         aria-pressed={isActive}
-                        onClick={() => togglePlanDirection(goal.id)}
-                        className={`group relative flex min-h-[156px] w-[230px] shrink-0 snap-center flex-col overflow-hidden rounded-[24px] border p-3.5 text-left transition duration-300 hover:-translate-y-1 active:scale-[0.99] sm:w-[248px] ${
+                        onClick={() => { setHighlightedDirection(optionIndex); togglePlanDirection(goal.id); }}
+                        data-highlighted={highlightedDirection === optionIndex}
+                        className={`group relative flex min-h-[82px] w-full items-center gap-3 pr-12 overflow-hidden rounded-[24px] border p-3.5 text-left transition duration-300 hover:-translate-y-1 active:scale-[0.99] ${
                           isActive
                             ? `${style.ring} ${selectedIndex === 0 ? "ring-2 ring-white/18" : "ring-1 ring-white/10 opacity-95"}`
                             : `border-white/10 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.055),transparent_34%),rgba(15,23,42,0.58)] shadow-[inset_0_1px_0_rgba(255,255,255,0.07)] ${style.card}`
@@ -2264,194 +1624,248 @@ export default function GoalsPage() {
                         >
                           {style.icon}
                         </span>
-                        <div className="relative mt-auto pt-5">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-base font-black leading-tight text-white">
-                              {goal.id}
-                            </p>
-                            <span
-                              className="grid h-7 w-7 place-items-center rounded-full border border-white/10 bg-slate-950/70 text-[10px] font-black text-slate-300"
-                              title={`${goal.purpose} ${goal.planEffect}`}
-                            >
-                              i
-                            </span>
-                          </div>
-                          <p className="mt-2 text-xs font-semibold leading-5 text-slate-400">
-                            {goal.planEffect}
-                          </p>
-                          <span className={`mt-3 inline-flex rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.11em] ${isActive ? style.accent : "border-white/10 bg-white/[0.04] text-slate-400"}`}>
-                            {selectedIndex === 0 ? "Primary" : selectedIndex === 1 ? "Secondary" : "Select"}
-                          </span>
-                        </div>
+                        <span className="text-base font-black leading-tight text-white">{goal.id}</span>
                       </button>
+                      <button
+                        type="button"
+                        aria-label={`About ${goal.id}`}
+                        aria-expanded={activeDirectionInfo?.id === goal.id}
+                        aria-controls="goal-direction-info"
+                        className="absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full text-amber-200 hover:bg-white/10 focus-visible:outline focus-visible:outline-amber-200"
+                        onPointerEnter={event => { if (event.pointerType === "mouse") setHoveredDirectionInfo(goal.id); }}
+                        onPointerLeave={() => setHoveredDirectionInfo(null)}
+                        onClick={() => {
+                          setHoveredDirectionInfo(null);
+                          setPinnedDirectionInfo(current => current === goal.id ? null : goal.id);
+                        }}
+                      >
+                        <Info className="size-5" aria-hidden="true" />
+                      </button>
+                      </div>
                     );
                   })}
               </div>
-            </div>
-          ) : null}
-        </section>);
-const priorityContent=(<section
-            id="goal-stack"
-            className="scroll-mt-28 rounded-[30px] border border-white/10 bg-slate-950/58 p-5 shadow-2xl"
-          >
-            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-200">
-              Goal Stack
-            </p>
-            <div className="mt-5 grid gap-4">
-              <SelectField label="Primary Goal" value={goals.primaryGoal} options={goalOptions} onChange={(value) => updateGoal("primaryGoal", value as GoalId)} />
-              <SelectField label="Secondary Goal" value={goals.secondaryGoal} options={["", ...goalOptions.filter(id => id !== goals.primaryGoal)]} onChange={(value) => updateGoal("secondaryGoal", value as GoalId)} />
-              <label className="block">
-                <span className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">
-                  Constraint Goal
-                </span>
-                <input
-                  value={goals.constraintGoal}
-                  onChange={(event) => updateGoal("constraintGoal", event.target.value)}
-                  className="mt-2 min-h-[48px] w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-bold text-white outline-none transition focus:border-cyan-300"
-                />
-              </label>
-              <SelectField label="Goal Mode" value={goals.goalMode} options={goalOptions} onChange={(value) => updateGoal("goalMode", value)} />
-              <SelectField label="Goal Priorities" value={goals.goalPriorityRanking} options={goalPrioritySelectOptions} onChange={(value) => updateGoal("goalPriorityRanking", value)} />
-            </div>
-          </section>);
-const targetContent=(<section
-            id="goal-targets"
-            className="scroll-mt-28 rounded-[30px] border border-white/10 bg-slate-950/58 p-5 shadow-2xl"
-          >
-            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-200">
-              Body Goals
-            </p>
-            <div className="mt-5 grid gap-3 lg:grid-cols-[0.8fr_1.2fr]">
-              <TranslationCard
-                label="Current Weight"
-                value={goals.currentWeight ? `${goals.currentWeight} lb from Profile` : "Set current weight in Profile"}
-              />
-              <MetricSliderField
-                accent="rgb(52,211,153)"
-                defaultValue={175}
-                helper="Goal weight keeps body-direction recommendations grounded."
-                label="Goal Weight"
-                max={480}
-                min={80}
-                onChange={(value) => updateGoal("goalWeight", value)}
-                suffix="lb"
-                value={goals.goalWeight}
-              />
-            </div>
-
-            <div className="mt-5 rounded-[24px] border border-white/10 bg-white/[0.025] p-4">
-              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-200">
-                Daily Targets
-              </p>
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <MetricSliderField
-                  accent="rgb(196,181,253)"
-                  defaultValue={8000}
-                  helper="Daily movement target for goal pacing and consistency."
-                  label="Steps Goal"
-                  max={25000}
-                  min={1000}
-                  onChange={updateStepsGoal}
-                  step={500}
-                  suffix="steps"
-                  value={goals.stepsGoal || goals.targetSteps}
-                />
-                <MetricSliderField
-                  accent="rgb(125,211,252)"
-                  defaultValue={96}
-                  helper="Hydration target for recovery and daily target tracking."
-                  label="Water Goal"
-                  max={180}
-                  min={20}
-                  onChange={(value) => updateGoal("waterGoal", value)}
-                  step={4}
-                  suffix="oz"
-                  value={goals.waterGoal}
-                />
+              <div id="goal-direction-info" hidden={!activeDirectionInfo} className="absolute inset-x-2 top-20 z-30 rounded-xl border border-amber-200/30 bg-slate-950 p-3 text-sm leading-relaxed text-slate-200 shadow-xl">
+                {activeDirectionInfo && <><strong className="text-amber-200">{activeDirectionInfo.id}</strong><p>{activeDirectionInfo.purpose} {activeDirectionInfo.planEffect}</p></>}
+              </div>
+              <nav className={styles.goalQuestionArrows} aria-label="Highlight goal direction options">
+                <button type="button" aria-label="Highlight previous goal direction" onClick={() => scrollPlanDirection("left")}><ChevronLeft aria-hidden="true" /></button>
+                <button type="button" aria-label="Highlight next goal direction" onClick={() => scrollPlanDirection("right")}><ChevronRight aria-hidden="true" /></button>
+              </nav>
+              <div className="mt-3" aria-label="Selected goal directions">
+                <h3 className="text-xs font-bold text-amber-200">Selected directions</h3>
+                <ol className="mt-2 grid grid-cols-2 gap-2">
+                    {["First choice", "Second choice"].map((rank, index) => {
+                      const direction = selectedDirections[index];
+                      const metric = direction ? directionMetrics[direction] : undefined;
+                      return <li key={rank} className="min-w-0 rounded-lg border border-white/10 p-2">
+                        <span className={styles.directionRank}>{index === 0 ? <Trophy aria-hidden="true" /> : <Medal aria-hidden="true" />}{rank}</span>
+                        {direction ? (
+                        <button
+                          type="button"
+                          aria-label={`Remove ${direction}`}
+                          className={`flex w-full items-center justify-between gap-1 rounded-lg border px-2 py-3 text-xs font-bold ${planDirectionVisualStyles[direction].accent}`}
+                          onClick={() => togglePlanDirection(direction)}
+                        >
+                          <span aria-hidden="true">{planDirectionVisualStyles[direction].icon}</span> {direction} <span aria-hidden="true">×</span>
+                        </button>
+                        ) : <span className="text-xs text-slate-400">{index === 0 ? "Choose a direction" : "Optional"}</span>}
+                        {metric && <label className="mt-2 block text-xs text-amber-100">
+                          {metric.label}
+                          <input className="mt-1 block w-full rounded border border-white/15 bg-slate-950 p-2" type="number" min={0} max={metric.max} step="any" value={String(goals[metric.key] ?? "")} onChange={event => updateGoal(metric.key, event.target.value)} />
+                        </label>}
+                      </li>;
+                    })}
+                </ol>
+                {selectedDirections.length === 2 && <button type="button" className="mt-2 min-h-8 text-xs font-bold text-amber-200 underline underline-offset-4" onClick={swapGoalDirections}>Swap first and second choice</button>}
               </div>
             </div>
-
-            <div
-              id="weekly-targets"
-              className="mt-5 scroll-mt-28 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
-            >
-              <Field label="Weekly Sessions" value={goals.targetWeeklySessions} suffix="/ wk" onChange={(value) => updateGoal("targetWeeklySessions", value)} />
-              <Field label="Weekly Sets" value={goals.targetWeeklySets} suffix="sets" onChange={(value) => updateGoal("targetWeeklySets", value)} />
-              <Field label="Protein Target" value={goals.targetProtein} suffix="g" onChange={(value) => updateGoal("targetProtein", value)} />
-              <Field label="Sleep Target" value={goals.targetSleep} suffix="hrs" onChange={(value) => updateGoal("targetSleep", value)} />
-              <label className="block rounded-[24px] border border-white/10 bg-white/[0.045] p-4 sm:col-span-2">
-                <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                  Benchmark Goal
-                </span>
-                <textarea
-                  value={goals.benchmarkGoal}
-                  onChange={(event) => updateGoal("benchmarkGoal", event.target.value)}
-                  className="mt-3 min-h-[92px] w-full resize-none bg-transparent text-sm font-semibold leading-6 text-white outline-none placeholder:text-slate-600"
-                />
-              </label>
-            </div>
-          </section>);
-const milestoneContent=(<section
-          id="goal-stage"
-          className="scroll-mt-28 rounded-[30px] border border-white/10 bg-slate-950/58 p-5 shadow-2xl"
-        >
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-200">
-                Goal Timeline & Motivation
-              </p>
-              <h2 className="mt-2 text-2xl font-black">Milestones, focus, and progress live here.</h2>
-            </div>
-            <div className="min-w-[220px] rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-              <div className="flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
-                <span>Goal Progress</span>
-                <span className="text-cyan-100">{goalSetupCompletion}%</span>
-              </div>
-              <div className="mt-3 h-2 rounded-full bg-slate-900">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-cyan-300 via-emerald-300 to-amber-300"
-                  style={{ width: `${Math.min(goalSetupCompletion, 100)}%` }}
-                />
-              </div>
-            </div>
-          </div>
-          <div className="mt-5 grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
-            <div className="grid gap-4">
-              <DateField label="Goal Timeline" value={goals.goalDeadline} onChange={(value) => updateGoal("goalDeadline", value)} />
-              <TranslationCard label="Timeline Summary" value={`${goalDeadlineLabel} - ${milestoneCount ? `${milestoneCount} milestone${milestoneCount === 1 ? "" : "s"}` : "milestones not set"}`} />
-              <TranslationCard label="Recommended Next Goal Step" value={recommendedNextStep} />
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <TextAreaField label="Goal Milestones" value={goals.goalMilestones} onChange={(value) => updateGoal("goalMilestones", value)} placeholder="Example: First 4-week consistency streak, strength benchmark, measurement checkpoint..." />
-              {goals.goalMilestones.split(/\n|,/).map(item => item.trim()).filter(Boolean).map(item => <label key={item} className="flex gap-2 text-sm text-slate-200"><input type="checkbox" checked={(goals.completedMilestones || []).includes(item)} onChange={event => updateGoal("completedMilestones", event.target.checked ? [...new Set([...(goals.completedMilestones || []), item])] : (goals.completedMilestones || []).filter(value => value !== item))} />{item}</label>)}
-
-              <TextAreaField label="Motivation / Focus" value={goals.motivationFocus} onChange={(value) => updateGoal("motivationFocus", value)} placeholder="What should the coach and app keep you focused on?" />
-              <div className="md:col-span-2">
-                <TextAreaField label="Plan Direction Notes" value={goals.planDirectionNotes} onChange={(value) => updateGoal("planDirectionNotes", value)} placeholder="Extra guidance for plan generation, tradeoffs, or goal context." />
-              </div>
-            </div>
-          </div>
-        </section>);
+          )}</section>);
+const profileWeight = goalNumber(getString(memberIdentity, ["currentWeight", "weight"], "")) ?? goalNumber(goals.currentWeight);
+const currentWeightLb = profileWeight === null ? null : profileWeight * (metricHeight ? 2.2046226218 : 1);
+const displayedGoalWeight = goalNumber(goals.goalWeight) ?? currentWeightLb;
+const displayUnit = metricHeight ? "kg" : "lb";
+const toDisplayWeight = (pounds: number) => Number((pounds / (metricHeight ? 2.2046226218 : 1)).toFixed(1));
+const targetDays = validDateOnly(goals.goalDeadline) ? Math.round((Date.parse(goals.goalDeadline) - Date.parse(localDate(today))) / 86400000) : 0;
+const muscleTarget = selectedDirections.includes("Build Muscle") ? goalNumber(goals.muscleGain) ?? 0 : 0;
+const fatTarget = selectedDirections.includes("Lose Fat") ? goalNumber(goals.fatLoss) ?? 0 : 0;
+const hasCompositionTargets = muscleTarget > 0 || fatTarget > 0;
+const starterChange = targetDays >= 14 ? (selectedDirections.includes("Lose Fat") ? -1 : selectedDirections.includes("Build Muscle") ? 1 : 0) : 0;
+const suggestedWeight = currentWeightLb === null ? null : Math.max(1, currentWeightLb + (hasCompositionTargets ? muscleTarget - fatTarget : starterChange));
+const setWeightTarget = (pounds: number) => {
+  setGoals(current => ({...current, currentWeight: currentWeightLb === null ? current.currentWeight : String(Number(currentWeightLb.toFixed(2))), goalWeight: String(Number(Math.max(1, Math.min(1500, pounds)).toFixed(2)))}));
+  setSavedMessage("");
+};
+const targetContent = <section className="grid gap-4" aria-label="Body weight target">
+  <p className="text-center text-sm text-slate-300">Current weight <strong className="text-white">{currentWeightLb === null ? "Not recorded" : `${toDisplayWeight(currentWeightLb)} ${displayUnit}`}</strong></p>
+  {displayedGoalWeight === null ? <Link href={ROUTES.dashboard.profile} className="text-center text-amber-200 underline">Add your current weight in Profile</Link> : <>
+    <label className="text-center text-sm font-bold text-amber-100" htmlFor="goal-weight-slider">Goal weight <strong className="block text-3xl">{toDisplayWeight(displayedGoalWeight)} {displayUnit}</strong></label>
+    <div className="flex items-center gap-3">
+      <button type="button" aria-label="Decrease goal weight" className={styles.weightTargetAdjust} onClick={() => setWeightTarget(displayedGoalWeight - (metricHeight ? 1.1023113109 : .5))}>−</button>
+      <input id="goal-weight-slider" type="range" className="min-w-0 flex-1 accent-amber-300" min={Math.max(1, Math.min(displayedGoalWeight, (currentWeightLb ?? displayedGoalWeight) - 15))} max={Math.min(1500, Math.max(displayedGoalWeight, (currentWeightLb ?? displayedGoalWeight) + 15))} step={metricHeight ? 1.1023113109 : .5} value={displayedGoalWeight} onChange={event => setWeightTarget(Number(event.target.value))} />
+      <button type="button" aria-label="Increase goal weight" className={styles.weightTargetAdjust} onClick={() => setWeightTarget(displayedGoalWeight + (metricHeight ? 1.1023113109 : .5))}>+</button>
+    </div>
+    {!goals.goalWeight && <button type="button" className="text-sm font-bold text-amber-200 underline" onClick={() => setWeightTarget(displayedGoalWeight)}>Use current weight as target</button>}
+    {suggestedWeight !== null && <div className="text-center text-xs text-slate-300">
+      <p>{hasCompositionTargets ? "Your muscle-gain and fat-loss amounts give this net weight target." : selectedDirections.includes("Build Muscle") && selectedDirections.includes("Lose Fat") ? "Use a small scale change while tracking muscle and fat separately." : selectedDirections.includes("Build Muscle") ? "Start with a small weight increase and review your progress at check-ins." : selectedDirections.includes("Lose Fat") ? "Start with a small weight decrease and review your progress at check-ins." : "Keep a stable target or adjust it to suit your goal."}</p>
+      {targetDays > 0 && <p className="mt-1">{targetDays} days to your target date.</p>}
+      <button type="button" className="mt-2 min-h-9 font-bold text-amber-200 underline" onClick={() => setWeightTarget(suggestedWeight)}>Use {toDisplayWeight(suggestedWeight)} {displayUnit} {hasCompositionTargets ? "target" : "starting target"}</button>
+    </div>}
+  </>}
+</section>;
+const selector = (key: keyof GoalState, label: string, suffix: string, min: number, max: number, step: number, initial: number) =>
+  <MetricSliderField key={key} label={label} suffix={suffix} min={min} max={max} step={step} defaultValue={initial} value={String(goals[key] ?? "")} helper="" onChange={value => updateGoal(key, value)} />;
+const estimatedSets = Math.max(1, Math.min(500, Math.floor(Number(goals.targetWeeklySessions) * Number(goals.sessionMinutes || 45) / 4) || 1));
+const weeklyContent = <div className="grid gap-3 sm:grid-cols-2">
+  {selector("targetWeeklySessions", "Weekly sessions", "/ week", 1, 7, 1, 3)}
+  {selector("sessionMinutes", "Time per session", "min", 5, 240, 5, 45)}
+  <div className="p-2 text-sm text-amber-100">
+    <p>About {estimatedSets} sets per week</p>
+    <small>Estimate based on four minutes per set, including rest.</small>
+    <button type="button" className="block min-h-9 underline" onClick={() => updateGoal("targetWeeklySets", String(estimatedSets))}>Use this sets target</button>
+  </div>
+  {selector("targetSleep", "Target sleep", "hrs", 1, 24, .5, 8)}
+</div>;
+const dailyStrengthContent = <div className="grid gap-3 sm:grid-cols-2">
+  {selector("stepsGoal", "Daily steps", "steps", 1, 100000, 1, 8000)}
+  {selector("waterGoal", "Daily water", "oz", 1, 500, 1, 64)}
+  {([
+    ["benchTarget", "Bench press", "lb"],
+    ["squatTarget", "Squat", "lb"],
+    ["deadliftTarget", "Deadlift", "lb"],
+    ["pullupTarget", "Pull-ups", "reps"],
+  ] as const).map(([key, label, suffix]) => <Field key={key} label={label} suffix={suffix} value={goals[key] || ""} onChange={value => updateGoal(key, value)} />)}
+</div>;
+const goalDurationDays = validDateOnly(goals.goalDeadline)
+  ? Math.round((Date.parse(goals.goalDeadline) - Date.parse(localDate(today))) / 86400000)
+  : 0;
+const monthlyCheckInDate = goalDateMilestones(today, 1)[1].date;
+const monthlyCheckInDays = Math.round((Date.parse(monthlyCheckInDate) - Date.parse(localDate(today))) / 86400000);
+const checkInChoices = [
+  { value: "weekly", label: "Every week", days: 7, Icon: CalendarCheck, CalendarDays, CalendarRange },
+  { value: "fortnightly", label: "Every two weeks", days: 14, Icon: CalendarDays },
+  { value: "monthly", label: "Every month", days: monthlyCheckInDays, Icon: CalendarRange },
+];
+const recommendedCheckIn = [...checkInChoices].reverse().find(choice => choice.days < goalDurationDays);
+const milestoneContent = <section id="goal-stage" aria-label="Goal check-ins">
+  <h3 className="text-center text-xl font-black text-amber-100">How often would you like to check in?</h3>
+  <div className={styles.checkInChoices}>
+    {checkInChoices.map(({value, label, days, Icon}) => <button
+      key={value}
+      type="button"
+      aria-pressed={goals.goalCheckInFrequency === value}
+      className={styles.checkInChoice}
+      onClick={() => updateGoal("goalCheckInFrequency", value)}
+    >
+      <Icon aria-hidden="true" />
+      <strong>{label}</strong>
+      <span>{recommendedCheckIn?.value === value ? "Recommended" : days >= goalDurationDays && goalDurationDays > 0 ? "On or after your target date" : "Review your progress"}</span>
+    </button>)}
+  </div>
+  <p className="mt-3 text-center text-xs text-slate-300">
+    {goalDurationDays > 7
+      ? `${goalDurationDays} days until your target. ${recommendedCheckIn?.label || "Choose a frequency"} gives you time to adjust before then.`
+      : goalDurationDays > 0 ? "Your target is less than a week away. Review your progress on your target date."
+        : "Choose a target date to see a recommended frequency."}
+  </p>
+</section>;
+const savePlanDraft = () => {
+  if (!savedSnapshot || accountRef.current !== planningOwner() || generationRef.current !== planningAccountGeneration()) { setPlanNotice("Reload Goals for your current account before saving a plan."); return; }
+  if (JSON.stringify(goals) !== savedSnapshot && !saveGoals()) return;
+  try {
+    createWorkoutPlan({title: goals.goalTitle?.trim() || "Goal-based training plan"});
+    setPlanNotice("Draft saved to Plan Bank.");
+  } catch (error) {
+    setPlanNotice(error instanceof Error ? error.message : "Could not save the draft plan.");
+  }
+};
 const guidanceContent=(<section
           id="goal-signals"
           className="scroll-mt-28 rounded-[30px] border border-white/10 bg-slate-950/58 p-5 shadow-2xl"
         >
           <p className="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-200">
-            Goal-to-Plan Translation
+            Plan settings
           </p>
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className={styles.planSummaryRail}>
             <TranslationCard label="Exercise Library Filters" value={`${selectedGoalCard.libraryFocus} · prioritize ${activeDirection.toLowerCase()} matches`} />
             <TranslationCard label="Builder Defaults" value={`${selectedGoalCard.intensity} intensity with ${selectedGoalCard.volume.toLowerCase()} volume`} />
-            <TranslationCard label="My Plan Split" value={`${goals.targetWeeklySessions || 4} sessions weekly · ${goals.constraintGoal}`} />
+            <TranslationCard label="My Plan Split" value={`${goals.targetWeeklySessions || "—"} sessions weekly · ${goals.sessionMinutes || "—"} min per session · ${goals.targetWeeklySets || "—"} sets weekly`} />
             <TranslationCard label="Phases" value={selectedGoalCard.phaseType} />
             <TranslationCard label="Recovery Warnings" value={activeDirection === "Recovery" ? "Lower heat threshold and mobility-first substitutions." : "Warn when volume exceeds the weekly target."} />
             <TranslationCard label="Nutrition Direction" value={goals.goalMode === "Cut" || activeDirection === "Lose Fat" ? "Protein consistency, steps, and moderate deficit support." : "Fuel performance and recovery around training."} />
           </div>
         </section>);
-const journeyContent=(renderMasterTrainingJourney());
-const shellContent=[renderGoalsHeroRow(),renderGoalOrbiterRow(),directionContent,priorityContent,targetContent,milestoneContent,guidanceContent,journeyContent];
+
+const nutritionContent = <section aria-label="Daily nutrition targets">
+  <p className="mb-3 text-sm text-slate-300">
+    {goals.currentWeight ? `Current weight ${goals.currentWeight} lb` : "Add current weight in Profile"}
+    {goals.goalWeight && ` · Goal weight ${goals.goalWeight} lb`}
+    {primaryDirection && ` · ${primaryDirection}`}.
+    {primaryDirection === "Build Muscle" || primaryDirection === "Strength"
+      ? " Start with a protein target you can consistently meet."
+      : primaryDirection === "Conditioning" || primaryDirection === "Performance"
+        ? " Set a carb target that fits your training sessions."
+        : " Set targets you can follow and review alongside your weight trend."}
+  </p>
+  <div className="grid gap-3 sm:grid-cols-2">
+    {selector("targetCalories", "Calories / day", "cal", 1, 20000, 1, 2000)}
+    {selector("targetProtein", "Protein / day", "g", 1, 500, 1, 100)}
+    {selector("targetCarbs", "Carbs / day", "g", 0, 2000, 1, 200)}
+    {selector("targetFat", "Fat / day", "g", 0, 1000, 1, 60)}
+    {selector("targetFiber", "Fiber / day", "g", 0, 200, 1, 25)}
+  </div>
+</section>;
+const prefaceContent = <section className={styles.goalPreface} aria-label="Goal name and timeline">
+  <h3 className={styles.createGoalHeading}>Create a goal</h3>
+  <label><span className={styles.goalNameHeading}><Flag aria-hidden="true" />Give your goal a name</span><input value={goals.goalTitle || ""} placeholder="e.g. My next strength milestone" maxLength={160} onChange={event => updateGoal("goalTitle", event.target.value)} /></label>
+  <GoalDateDots value={goals.goalDeadline} onChange={value => updateGoal("goalDeadline", value)} today={today} />
+</section>;
+const bankEntries = validGoalBank(goals.goalBank) ? goals.goalBank : [];
+const goalBankContent = <section className={styles.goalBank} aria-label="Goal Bank">
+  <header className={styles.goalBankHeader}><p className={styles.goalRowEyebrow}>Your progress log</p><h2 className={styles.goalQuestionTitle}>Goal Bank</h2></header>
+  {goalCelebration && <p key={goalCelebration} className={styles.goalCelebration} role="status">✦ {goalCelebration} ✦</p>}
+  {!bankEntries.length ? <div className={styles.emptyGoalBank}><Trophy aria-hidden="true" /><p>Add a goal to start tracking your progress.</p><button type="button" onClick={() => {setActiveGoalOrbiterIndex(0); setGoalsOrbiterRow(1);}}>Add a goal</button></div> : <div className={styles.goalBankList}>
+    {([false, true] as const).map(completed => <section key={String(completed)} aria-label={completed ? "Completed goals" : "Active goals"}>
+      <h3>{completed ? "Completed" : "Working toward"}</h3>
+      {bankEntries.filter(entry => Boolean(entry.completedAt) === completed).map(entry => <article key={entry.id} className={styles.goalBankItem}>
+        <div><h4>{entry.title}</h4><p>{entry.target} {entry.unit}</p><small>{entry.completedAt ? `Completed ${new Date(entry.completedAt).toLocaleDateString(undefined, {month: "short", day: "numeric", year: "numeric"})}` : entry.reviewDate ? `Review ${entry.reviewDate}` : `Started ${new Date(entry.createdAt).toLocaleDateString(undefined, {month: "short", day: "numeric", year: "numeric"})}`}</small></div>
+        {completed ? <span className={styles.goalCompletedMark} aria-label="Completed">✓</span> : <div className={styles.goalBankActions}>
+          <button type="button" aria-label={`Review ${entry.title} goal`} onClick={() => {
+            const question = entry.key === "direction" ? 0 : entry.key === "goalMilestones" ? 1 : ["goalWeight", "stepsGoal"].includes(entry.key) ? 2 : ["targetWeeklySessions", "targetWeeklySets", "targetSleep", "benchmarkGoal"].includes(entry.key) ? 3 : 4;
+            setActiveGoalOrbiterIndex(entry.key === "overall-goal" ? 0 : question + 1); setGoalsOrbiterRow(1);
+          }}>Review</button>
+          <button type="button" aria-label={`Mark ${entry.title} goal complete`} onClick={() => setGoals(current => ({...current, goalBank: completeBankGoal(current.goalBank || [], entry.id, new Date().toISOString())}))}>Mark complete</button>
+        </div>}
+      </article>)}
+    </section>)}
+  </div>}
+</section>;
+const planBank = inspectWorkoutPlans();
+const shellContent=[renderGoalsHeroRow(),renderGoalOrbiterRow({
+  "goal-preface": prefaceContent,
+  "goal-direction": directionContent,
+  "goal-stage": milestoneContent,
+  "goal-targets": targetContent,
+  "weekly-targets": weeklyContent,
+  "daily-strength-targets": dailyStrengthContent,
+  "nutrition-goals": nutritionContent,
+  "goal-signals": <div>{guidanceContent}<button type="button" className={styles.goalQuestionSave} onClick={savePlanDraft}>Save draft plan</button><p role="status" className="mt-2 text-sm text-amber-100">{planNotice}</p></div>,
+}),goalBankContent,
+  <section className={styles.goalBank} aria-label="Plan Bank">
+    <h2 className={styles.goalQuestionTitle}>Plan Bank</h2>
+    {planBank.issue ? <p role="status">{planBank.issue}</p> : planBank.plans.length ? <div className={styles.goalBankList}>{planBank.plans.map(plan =>
+      <article key={plan.id} className={styles.goalBankItem}><div><h4>{plan.title}</h4><p>{plan.weekStartDate} · {plan.status}</p></div><Link href={ROUTES.dashboard.myPlan}>Open plans</Link></article>
+    )}</div> : <div className={styles.emptyGoalBank}><ClipboardList aria-hidden="true" /><p>Save a draft from Goal-to-Plan Summary to add it here.</p></div>}
+  </section>,
+  <div key="proceed-to-plans" className={`${profileStyles.goalsProceedContent} ${styles.plansProceed}`}>
+    <ClipboardList aria-hidden="true" className={profileStyles.goalsProceedIcon} />
+    <h2>Your next step: training plans</h2>
+    <p>Review your plans and choose how to put your goals into action. You can return to update your goals anytime.</p>
+    <Link href={ROUTES.dashboard.trainingPlans} className={profileStyles.goalsProceedAction}>Proceed to training plans <span aria-hidden="true">›</span></Link>
+  </div>
+];
 return <DashboardExperience headerOnly headerOnlyViewport><section className={styles.shell} data-save-message={savedMessage ? "true" : undefined} aria-label="Goals orbital command center">
-<SessionsCardNavigation accentColor="#fbbf24" labelPrefix="goals" showTitle={false} rows={goalsOrbiterRows.map((row,index)=>({title:row.label,cards:index===1?["Goal Direction","Goal Stage","Body Target","Weekly Targets","Progress Signals"].map(title=>({title,icon:"goals"})):[{title:row.label,icon:"goals"}]}))} row={activeGoalsOrbiterRowIndex} card={activeGoalsOrbiterRowIndex===1?activeGoalOrbiterIndex:0} onRow={setGoalsOrbiterRow} onCard={setActiveGoalOrbiterIndex} onNavigate={direction=>{if(direction==="up"||direction==="down")moveGoalsOrbiterRow(direction==="up"?-1:1);else if(activeGoalsOrbiterRowIndex===1)setActiveGoalOrbiterIndex(current=>(current+(direction==="left"?-1:1)+5)%5);}} />
+<SessionsCardNavigation accentColor="#fbbf24" labelPrefix="goals" showTitle={false} showHorizontalIndicators={false} rows={goalsOrbiterRows.map((row,index)=>({title:row.label,cards:index===1?["Your Goal & Timeline","Goal Direction","Check-in Frequency","Body Target","Training & Recovery","Daily & Strength Targets","Nutrition Goals","Goal-to-Plan Summary"].map(title=>({title,icon:"goals"})):[{title:row.label,icon:"goals"}]}))} row={activeGoalsOrbiterRowIndex} card={activeGoalsOrbiterRowIndex===1?activeGoalOrbiterIndex:0} onRow={setGoalsOrbiterRow} onCard={setActiveGoalOrbiterIndex} onNavigate={direction=>{if(direction==="up"||direction==="down")moveGoalsOrbiterRow(direction==="up"?-1:1);else if(activeGoalsOrbiterRowIndex===1)setActiveGoalOrbiterIndex(current=>(current+(direction==="left"?-1:1)+8)%8);}} />
 <div ref={goalsViewportRef} className={styles.viewport} aria-label="Goals rows" tabIndex={0} onKeyDown={handleGoalsOrbiterKeyDown} onScroll={event=>{const el=event.currentTarget;setActiveGoalsOrbiterRow(Math.max(0,Math.min(goalsOrbiterRows.length-1,Math.round(el.scrollTop/el.clientHeight))));}}>
 {shellContent.map((content,index)=><section key={goalsOrbiterRows[index].label} data-goals-shell-row={index} aria-label={goalsOrbiterRows[index].label} className={styles.row}><div className={index===0?styles.heroFrame:styles.rowFrame}><div className={styles.content} data-goals-row-scroll="true"><div className={styles.contentInner}>{content}</div></div></div></section>)}
 </div><div className={styles.status} aria-live="polite">

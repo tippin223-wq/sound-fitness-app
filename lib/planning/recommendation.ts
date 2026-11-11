@@ -1,12 +1,14 @@
 import { normalizeGoals, type GoalState } from "./goals";
 import { validDateOnly } from "./dates";
 import { goalNumber } from "./goalNumbers";
+import { trainingAreaCareContext, type TrainingAreaPreferences } from "../trainingAreaCare";
 export type RecommendationProfile = {
   birthday?: string; age?: string; trainingAge?: string; experienceLevel?: string;
   preferredDays?: string[]; sessionLength?: string; availableEquipment?: string[]; equipment?: string[];
   preferredSplits?: string[]; preferredSplit?: string; split?: string;
   bodyStatus?: { painLevel?: number; sorenessLevel?: number; hoursSlept?: string; averageSleepHours?: string };
   injuries?: Array<{ painLevel?: number }>;
+  trainingRegressions?: TrainingAreaPreferences;
 };
 export type PlanRecommendation = {
   title: string; split: string; phase: string; primaryFocus: string; secondaryFocus: string;
@@ -119,6 +121,11 @@ export function recommendPlan(profile: RecommendationProfile, goals: Partial<Goa
   const reasons = [goals.planDirections?.length ? `${goal} is your saved primary goal${goals.secondaryGoal ? `, supported by ${goals.secondaryGoal}` : ""}.` : "No supported primary goal is available. This is a General Health preview; save your Goals before creating a plan.", validSessions ? `${sessions} weekly sessions matches your saved availability target.` : "Your weekly session target is unavailable or invalid. This preview uses 3 sessions; save valid Goals before creating a plan.", experience ? `${experience} training experience informs the suggested split; age alone does not limit training frequency.` : "Training experience is unknown. This is a general starting structure; review your experience in Profile before applying it."];
   if (experienceReport.conflicting) reasons.push(`Profile training experience answers differ. This preview uses ${experience}; review both answers before applying the plan.`);
   const splitPreferences = profileSplitPreferences(profile);
+  const areaCare = trainingAreaCareContext(profile.trainingRegressions);
+  if (areaCare.length) {
+    reasons.push(`Your reported training precautions: ${areaCare.join(" ")}`);
+    reasons.push("Review exercise selection against these area-specific restrictions; a care score is a preference, not medical clearance.");
+  }
   if (!splitPreferences.length) reasons.push("No training split preference is recorded. Review the suggested structure before applying it.");
   else {
     const matchesPreference = splitPreferences.some(preference => preference.toLowerCase() === split.toLowerCase());
@@ -157,7 +164,7 @@ export function recommendPlan(profile: RecommendationProfile, goals: Partial<Goa
     let focus = split === "Upper / Lower" ? (slot % 2 ? "Lower Body" : "Upper Body") : split === "Push / Pull / Legs" ? ["Push", "Pull", "Legs"][slot % 3] : primaryFocus;
     if (slot >= 3 && (beginner || lowRecovery)) focus = "Mobility / Easy Conditioning";
     if (age !== null && age >= 65 && slot === sessions - 1) focus += " + Balance";
-    return { day, training: slot >= 0, focus: slot >= 0 ? focus : "Rest", notes: slot >= 0 ? (goals.secondaryGoal ? `Supporting goal: ${goals.secondaryGoal}. ` : "") + (lowRecovery ? "Review current readiness before selecting workout demand." : "Assign a saved workout and review its planned sets.") : "Recovery day" };
+    return { day, training: slot >= 0, focus: slot >= 0 ? focus : "Rest", notes: slot >= 0 ? (goals.secondaryGoal ? `Supporting goal: ${goals.secondaryGoal}. ` : "") + (lowRecovery ? "Review current readiness before selecting workout demand." : "Assign a saved workout and review its planned sets.") + (areaCare.length ? ` Training precautions: ${areaCare.join(" ")}` : "") : "Recovery day" };
   });
   return { title: `${goal}${goals.secondaryGoal ? " + " + goals.secondaryGoal : ""} · ${split}`, split, phase: experience === null || beginner || lowRecovery ? "Foundation" : "Build", primaryFocus, secondaryFocus,
     progression: "Double Progression", notes: reasons.join(" "), sessions, age, days, reasons };

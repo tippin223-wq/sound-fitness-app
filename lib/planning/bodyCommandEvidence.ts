@@ -37,6 +37,7 @@ export function readBodyCommandEvidence(now = new Date(), values: Readonly<Recor
   const weight = typeof profile.currentWeight === "string" || typeof profile.currentWeight === "number" ? String(profile.currentWeight) : "";
   const measurements = profile.measurements as { progressPhotos?: unknown[] } | undefined;
   const weightUnit = (profile.appPersonalization as { preferredUnitSystem?: string } | undefined)?.preferredUnitSystem === "kg" ? "kg" : "lb";
+  const scanCount = Array.isArray(profile.bodyScanImports) ? profile.bodyScanImports.length : 0;
   const photoCount = Array.isArray(measurements?.progressPhotos) ? measurements.progressPhotos.length : 0;
   const currentSignal = (kind: "sleep" | "stress" | "soreness" | "fatigue") => day?.[kind] ?? (kind !== "fatigue" && health.latestCheckIn?.date === today ? health.latestCheckIn[kind] : null);
   const dailyInputs = (["sleep", "stress", "soreness", "fatigue"] as const).map(kind => {
@@ -51,9 +52,10 @@ export function readBodyCommandEvidence(now = new Date(), values: Readonly<Recor
   const measurementCount = measurements ? Object.entries(measurements).filter(([key,value]) => !["unit", "lastUpdated", "progressPhotos", "notes"].includes(key) && (typeof value === "number" || typeof value === "string") && String(value).trim()).length : 0;
   return {
     readiness: { value: readiness === null ? "—/100" : `${readiness}/100`, detail: readiness === null ? "Record signals" : "Today’s estimate", description: "Readiness combines today’s recorded sleep, stress, soreness and fatigue. Missing inputs are excluded; this is a wellness summary, not a medical assessment.", recorded: readiness !== null },
-    measurements: { value: String(measurementCount), detail: "View measurements", description: "Review and update your body measurements and progress photos.", recorded: measurementCount > 0 },
+    measurements: { value: String(measurementCount), detail: "Measurements & scans", description: "Enter measurements or upload body composition results, including InBody and other bioelectrical impedance scans.", recorded: measurementCount > 0 || scanCount > 0 },
     benchmarks: { value: String(benchmarkCount), detail: "View benchmarks", description: "Browse your saved exercise benchmarks and record a new baseline.", recorded: benchmarkCount > 0 },
     caffeine: { value: supportValid ? `${caffeineRows.length ? caffeineTotal.toLocaleString("en-US") : "—"} mg` : "— mg", detail: supportValid ? "Log caffeine" : "Review records", description: !supportValid ? "Review saved support records" : caffeineRows.length ? `${caffeineTotal} mg caffeine logged today across ${caffeineRows.length} entries. Open to add intake or review history.` : "No caffeine recorded today. Log intake in milligrams (mg).", recorded: caffeineRows.length > 0 },
+    bodyScan: { value: String(scanCount), detail: scanCount ? "View scans" : "Add scan", description: "Record or import InBody and other body composition results.", recorded: scanCount > 0 },
     bloodPressure: { value: pressure ? `${pressure.value}/${pressure.diastolic}` : "—/—", detail: pressure ? `${pressure.date} · mmHg` : "Record · mmHg", description: "Record systolic and diastolic blood pressure together, in mmHg.", recorded: Boolean(pressure) },
     protein: macro("protein"), carbs: macro("carbs"), fat: macro("fat"),
     meals: { value: String(nutrition.mealCount), detail: "Log food", description: `${nutrition.mealCount} meals logged today. Open Nutrition to review meals or log food.`, recorded: nutrition.mealCount > 0 },

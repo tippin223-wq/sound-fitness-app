@@ -72,6 +72,40 @@
   .heroRailArrows button { height: 30px; }
 }
 
+.contentInner > .goalOrbitSurface { position: relative; width: 100%; max-width: 1180px; margin-inline: auto; padding: 6px 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; backdrop-filter: none; }
+.goalOrbitHeader { position: relative; padding-right: 194px; }
+.goalOrbitIndicators { position: absolute; right: 0; top: 10px; display: flex; align-items: center; gap: 3px; }
+.goalOrbitIndicators button { display: grid; place-items: center; width: 34px; height: 38px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: #8f805f; cursor: pointer; transition: color 150ms ease, border-color 150ms ease, filter 150ms ease; }
+.goalOrbitIndicators button[aria-pressed='true'] { color: #fde68a; border-bottom-color: #fbbf24; filter: drop-shadow(0 0 7px #fbbf2455); }
+.goalOrbitIndicators button:hover { color: #fef3c7; }
+.goalOrbitIndicators button:focus-visible { outline: 2px solid #fde68a; outline-offset: 2px; border-radius: 4px; }
+.goalOrbitStage { position: relative; display: grid; place-items: center; width: 100%; margin-top: 20px; padding-block: 30px; overflow: visible; perspective: 1000px; }
+.goalOrbitCard { position: relative; grid-area: 1 / 1; min-width: 0; }
+.content:has(> .contentInner > .goalOrbitSurface) { overflow-x: hidden; }
+.goalQuestionContent { margin-top: 16px; max-height: min(54dvh,640px); overflow-y: auto; overscroll-behavior-y: contain; scrollbar-width: thin; scrollbar-color: #a78543 transparent; }
+.goalQuestionContent > section { border: 0; border-radius: 0; padding: 0; background: transparent; box-shadow: none; backdrop-filter: none; }
+.goalQuestionContent > section > div:first-child { padding-top: 0; border-top: 0; }
+.goalQuestionSave { display: block; margin-top: 16px; width: 100%; min-height: 44px; border: 1px solid #fbbf2466; border-radius: 12px; background: #fbbf241c; color: #fef3c7; font-size: 12px; font-weight: 800; }
+.goalQuestionSave:focus-visible { outline: 2px solid #fde68a; outline-offset: 3px; }
+.goalOrbitCard[aria-current='page'] { width: min(calc(100% - 16px),880px); }
+.contentInner > .goalOrbitSurface > .goalOrbitHeader { min-height: 76px; padding: 0; }
+.content:has(> .contentInner > .goalOrbitSurface) { overflow: hidden; scrollbar-width: none; }
+.content:has(> .contentInner > .goalOrbitSurface) > .contentInner { height: 100%; min-height: 0; }
+.contentInner > .goalOrbitSurface { display: grid; grid-template-rows: 76px minmax(0,1fr); height: 100%; min-height: 0; padding-block: 0; }
+.goalOrbitStage { grid-template-rows: minmax(0,1fr); height: 100%; min-height: 0; margin-top: 0; padding-block: 12px; }
+.goalOrbitCard[aria-current='page'] { display: flex; flex-direction: column; max-height: 100%; min-height: 0; }
+.goalQuestionSave { flex-shrink: 0; }
+.goalQuestionContent { flex: 1 1 auto; min-height: 0; max-height: none; margin-top: 12px; scrollbar-width: none; }
+.goalQuestionContent::-webkit-scrollbar,
+.content:has(> .contentInner > .goalOrbitSurface)::-webkit-scrollbar { display: none; }
+.goalQuestionContent :global(.grid), .goalQuestionContent :global(.grid) > * { min-width: 0; }
+.goalQuestionContent [id='weekly-targets'] { grid-template-columns: repeat(auto-fit,minmax(min(100%,220px),1fr)); }
+.goalQuestionContent :is(input,select,textarea) { min-width: 0; max-width: 100%; }
+@media (max-width: 600px) {
+  .contentInner > .goalOrbitSurface > .goalOrbitHeader { min-height: 76px; padding: 0; }
+  .goalOrbitIndicators { top: 4px; }
+}
+
 /* The hero follows its content, with page title first and member directly below. */
 .heroFrame { flex: 0 1 auto; height: auto; max-height: 100%; }
 .heroFrame .content { flex: 0 1 auto; }
@@ -87,3 +121,295 @@
   .heroFrame .contentInner > .hero > .heroIdentityHeader { min-height: 38px; }
   .heroPageTitle h1 { font-size: 28px; }
 }
+.heroPageNavigation { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; min-height: 40px; width: 100%; }
+.heroPageNavigation a { display: inline-flex; align-items: center; gap: 5px; min-height: 40px; font-size: clamp(11px, 1.3vw, 13px); font-weight: 750; line-height: 1.3; text-decoration: none; }
+.heroProfileLink { color: #7dd3fc; --page-glow: #38bdf870; }
+.heroPlansLink { color: #67e8f9; --page-glow: #22d3ee70; }
+.heroPageNavigation a svg { width: 20px; height: 20px; flex-shrink: 0; filter: drop-shadow(0 2px 1px #0008); }
+.heroPageNavigation a svg:first-child:last-of-type { width: 18px; }
+.heroPageNavigation a:last-child { text-align: right; justify-content: flex-end; }
+.heroPageNavigation a:hover { text-shadow: 0 0 12px var(--page-glow); filter: brightness(1.15); }
+.heroPageNavigation a:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.heroFrame .contentInner > .hero > .heroPageNavigation { min-height: 64px; padding-left: 64px; gap: 8px; }
+.heroPageNavigation a { min-width: 0; gap: 4px; font-size: clamp(10px, 1.3vw, 13px); }
+.heroPageNavigation a svg { width: 16px; height: 16px; }
+@media (max-width: 380px) {
+  .heroPageNavigation a { flex: 1; }
+  .heroPageNavigation a svg { width: 14px; height: 14px; }
+}
+
+/* Keep the question controls fixed above the answer, as on Profile. */
+.contentInner > .goalOrbitSurface { grid-template-rows: 126px minmax(0,1fr); }
+.contentInner > .goalOrbitSurface > .goalOrbitHeader { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 0; padding: 0 8px 0 72px; }
+.goalQuestionTitle { margin: 0; color: #fde68a; font-size: clamp(18px, 3vw, 26px); font-weight: 900; line-height: 1.2; text-align: center; text-shadow: 0 1px #b45309, 0 3px #451a03, 0 6px 16px #0008; }
+.goalOrbitHeader .goalOrbitIndicators { position: relative; top: auto; right: auto; justify-content: center; flex-shrink: 0; }
+.goalOrbitIndicators::before { content: ''; position: absolute; inset: -4px -16px; z-index: -1; background: radial-gradient(ellipse,#fbbf2424,transparent 72%); pointer-events: none; }
+.goalQuestionArrows { display: flex; align-items: center; justify-content: center; gap: 24px; height: 36px; color: #fcd34d; }
+.goalQuestionArrows > span { font-size: 10px; color: #b9a578; }
+.goalQuestionArrows button { display: grid; place-items: center; width: 40px; height: 36px; border: 0; padding: 0; background: transparent; color: inherit; }
+.goalQuestionArrows svg { width: 30px; height: 30px; filter: drop-shadow(0 2px 0 #92400e) drop-shadow(0 3px 3px #0009); }
+.goalQuestionArrows button:hover { color: #fef3c7; }
+.goalQuestionArrows button:active { transform: translateY(2px); }
+.goalQuestionArrows button:focus-visible { outline: 2px solid #fde68a; outline-offset: 2px; }
+.goalOrbitCard[aria-current='page'] > .goalQuestionContent { display: block; margin-top: 0; }
+
+/* Answers sit directly on the Goals surface, without an outer question card. */
+.goalOrbitCard[aria-current='page'] { border: 0; border-radius: 0; background: transparent; box-shadow: none; backdrop-filter: none; padding: 4px 8px; }
+.goalOrbitCard[aria-current='page'] > span { display: none; }
+.directionSelectionRail { padding: 12px 8px 20px; scroll-padding-inline: 8px; }
+.row:has(.goalOrbitSurface) { padding-inline: 0; }
+.content:has(> .contentInner > .goalOrbitSurface) { max-width: none; }
+.goalOrbitCard[aria-current='page'] { width: 100%; padding-inline: 0; }
+.goalOrbitStage { align-items: start; padding-top: 8px; }
+.content:has(> .contentInner > .goalOrbitSurface) > .contentInner { justify-content: flex-start; min-height: 0; }
+.goalOrbitStage { box-sizing: border-box; align-content: start; }
+.goalOrbitCard[aria-current='page'] { align-self: start; }
+.goalQuestionContent [id='goal-direction'] { overflow: visible; }
+.goalQuestionContent [id='goal-direction'] > div { padding: 0; border: 0; }
+:global(main):has(.shell) :global(.dashboard-header-vortex-shell) {
+  background: radial-gradient(ellipse at 20% 0%, #fbbf2438, transparent 58%), linear-gradient(135deg, #302510, #181208 70%, #100d08) !important;
+}
+:global(html body main):has(.shell) :global(.dashboard-header-vortex-shell[data-header-focus='header']:not(.dashboard-header-vortex-shell--timed-out)) {
+  background-color: #181208 !important;
+  background-image: radial-gradient(ellipse at 20% 0%, #fbbf2438, transparent 58%), linear-gradient(135deg, #302510, #181208 70%, #100d08) !important;
+}
+
+.goalRowEyebrow { margin: 0; font-size: 9px; line-height: 1.2; font-weight: 800; text-transform: uppercase; letter-spacing: .16em; color: #d4a953; text-align: center; }
+.goalQuestionArrows > span { text-transform: uppercase; font-weight: 800; letter-spacing: .1em; }
+.goalBank { display: flex; flex-direction: column; min-height: 0; max-height: 100%; padding: 10px 12px; border: 0; background: transparent; }
+.contentInner > .goalBank > .goalBankHeader { padding: 0 0 10px 72px; min-height: 70px; display: flex; flex-direction: column; justify-content: center; gap: 5px; }
+.goalBankList { overflow-y: auto; min-height: 0; scrollbar-width: thin; scrollbar-color: #b58c3c transparent; }
+.goalBankList h3 { margin: 12px 0 6px; color: #e9cc89; font-size: 12px; font-weight: 800; }
+.goalBankItem { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid #fbbf241f; }
+.goalBankItem > div { min-width: 0; }
+.goalBankItem h4 { margin: 0; color: #fef3c7; font-size: 14px; font-weight: 800; }
+.goalBankItem p { margin: 4px 0; font-size: 13px; overflow-wrap: anywhere; white-space: pre-line; }
+.goalBankItem small { color: #a89d84; font-size: 10px; }
+.goalBankItem button { flex-shrink: 0; min-height: 40px; padding: 6px 10px; border-radius: 8px; background: #fbbf241a; color: #fde68a; font-size: 11px; font-weight: 800; }
+.goalBankItem button:focus-visible { outline: 2px solid #fde68a; outline-offset: 2px; }
+.goalCompletedMark { color: #6ee7b7; font-size: 24px; }
+.goalBankEmpty { padding: 16px; color: #b9ad95; font-size: 13px; text-align: center; }
+.goalCelebration { padding: 12px; color: #fde68a; text-align: center; font-weight: 800; text-shadow: 0 0 18px #fbbf2460; animation: goalCelebration 700ms ease-out; }
+@keyframes goalCelebration { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .goalCelebration { animation: none; } }
+
+.goalBankActions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+
+.plansProceed { margin-inline: auto; }
+.plansProceed::before { background: radial-gradient(ellipse at 50% 40%,#22d3ee38,#0891b219 38%,#0891b208 58%,transparent 76%); }
+.plansProceed > svg { color: #a5f3fc; filter: drop-shadow(-1px -1px 0 #ecfeff) drop-shadow(1px 2px 0 #0891b2) drop-shadow(1px 2px 0 #155e75) drop-shadow(1px 2px 0 #083344) drop-shadow(0 12px 10px #02061799) drop-shadow(0 0 20px #22d3ee66); }
+.plansProceed h2 { margin-top: 16px; font-size: 24px; font-weight: 900; color: #cffafe; text-shadow: 0 3px 1px #155e75; }
+.plansProceed p { max-width: 384px; margin: 12px auto 0; font-size: 14px; line-height: 1.7; color: #cbd5e1; }
+.plansProceed a { color: #cffafe; text-shadow: 0 2px 0 #155e75,0 4px 5px #020617; }
+.plansProceed a::before { background: radial-gradient(ellipse,#22d3ee4d,#0891b218 45%,transparent 75%); }
+
+.directionSelectionRail { display: flex; position: relative; max-width: 100%; gap: 12px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; touch-action: pan-x; }
+.directionSelectionRail::-webkit-scrollbar { display: none; }
+.directionSelectionRail > button[data-highlighted='true'] { outline: 2px solid #fde68a; outline-offset: 3px; }
+.goalPreface { display: grid; gap: 16px; }
+.goalPreface > label { display: grid; gap: 8px; }
+.goalPreface > label > span { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #fde68a; letter-spacing: .08em; }
+.goalPreface textarea { width: 100%; padding: 12px; border: 1px solid #fbbf2433; border-radius: 12px; background: #02061755; color: white; font-size: 14px; resize: vertical; }
+
+.goalPreface > label > input { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid #fbbf2433; border-radius: 12px; background: #02061755; color: white; font-size: 14px; }
+
+.heroMemberHandle { display: block; margin-top: 3px; color: #bae6fd; font-size: 12px; font-weight: 750; overflow-wrap: anywhere; }
+.heroMemberBasics { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; color: #cbd5e1; font-size: 12px; font-weight: 600; }
+.heroMemberBasics > span { text-transform: capitalize; }
+.heroMemberBasics > span[aria-hidden] { opacity: .35; }
+
+.heroFrame .contentInner > .hero > .heroIdentityHeader { display: grid; grid-template-columns: minmax(0,1fr) 116px; align-items: center; gap: 10px; }
+.heroIdentityText { min-width: 0; }
+.heroMemberName { overflow-wrap: anywhere; }
+.heroPhysicalReadiness > div { display: grid; grid-template-columns: 40px minmax(0,1fr); grid-template-rows: auto auto; column-gap: 5px; row-gap: 0; width: 116px; text-align: left; }
+.heroPhysicalReadiness > div > div { grid-column: 1; grid-row: 1 / 3; width: 40px; height: 40px; padding: 3px; }
+.heroPhysicalReadiness > div > div > span { font-size: 12px; }
+.heroPhysicalReadiness > div > span:first-child { grid-column: 2; grid-row: 1; align-self: end; }
+.heroPhysicalReadiness > div > span:last-child { grid-column: 2; grid-row: 2; align-self: start; }
+
+/* The Goals hero shares Profile's open composition. */
+.heroFrame { flex: 1; border: 0; border-radius: 0; background: transparent; box-shadow: none; overflow: hidden; }
+.heroFrame .content { flex: 1; min-height: 0; overflow: hidden; }
+.heroFrame .contentInner { height: 100%; min-height: 0; justify-content: flex-start; }
+.heroFrame .contentInner > .hero { height: 100%; min-height: 0; flex: 1; gap: 8px; padding-bottom: 4px; background: transparent; }
+.heroInsights { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; width: 100%; }
+.heroInsightTabs { display: flex; justify-content: center; align-items: stretch; gap: 20px; flex-shrink: 0; min-height: 38px; }
+.heroInsightTabs button { border: 0; border-bottom: 2px solid transparent; background: transparent; padding: 6px 2px; font-size: 12px; font-weight: 800; color: #95866a; }
+.heroInsightTabs button[aria-selected='true'] { border-bottom-color: #fbbf24; color: #fde68a; text-shadow: 0 1px 1px #78350f; }
+.heroInsightTabs button:focus-visible { outline: 2px solid #fde68a; outline-offset: 2px; }
+.heroInsightRail { position: relative; display: flex; flex: 1; min-height: 0; width: 100%; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: #b58c3c #ffffff0a; cursor: grab; }
+.heroInsightRail[data-dragging='true'] { scroll-snap-type: none; cursor: grabbing; user-select: none; }
+.heroInsightPanel { flex: 0 0 100%; min-width: 0; height: 100%; box-sizing: border-box; padding: 10px 4px; overflow-y: auto; overflow-x: hidden; scroll-snap-align: start; overscroll-behavior-y: contain; scrollbar-width: thin; scrollbar-color: #b58c3c transparent; }
+.heroRecommendationList { display: grid; gap: 12px; }
+.heroRecommendationList article { padding: 0 0 10px; border-bottom: 1px solid #fbbf2422; }
+.heroRecommendationList h3 { margin: 0; color: #fde68a; font-size: 14px; font-weight: 800; }
+.heroRecommendationList p { margin: 5px 0; font-size: 12px; line-height: 1.5; color: #cbd5e1; }
+.heroRecommendationList :is(a,button) { display: inline-block; min-height: 30px; padding: 5px 0; border: 0; background: transparent; font-size: 11px; font-weight: 750; color: #fcd34d; }
+.heroSummaryStatus { margin: 0 0 10px; color: #b9aa88; font-size: 10px; }
+.heroSummaryList { display: grid; gap: 10px; margin: 0; }
+.heroSummaryList > div { min-width: 0; padding-bottom: 8px; border-bottom: 1px solid #fbbf241c; }
+.heroSummaryList dt { color: #b9aa88; font-size: 10px; text-transform: uppercase; font-weight: 700; }
+.heroSummaryList dd { margin: 3px 0 0; color: #fef3c7; font-size: 13px; white-space: pre-line; overflow-wrap: anywhere; }
+@media (min-width: 760px) { .heroRecommendationList, .heroSummaryList { grid-template-columns: repeat(2,minmax(0,1fr)); column-gap: 24px; } }
+
+.recommendationPanel { overflow-y: hidden; padding-inline: 0; }
+.recommendationDeck { display: flex; flex-direction: column; height: 100%; min-height: 0; gap: 8px; }
+.recommendationRail { position: relative; display: flex; gap: 12px; flex: 1; min-height: 0; padding: 8px 12px; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scroll-padding-inline: 12px; scrollbar-width: thin; scrollbar-color: #d4a953 #ffffff08; cursor: grab; }
+.recommendationRail[data-dragging='true'] { scroll-snap-type: none; cursor: grabbing; user-select: none; }
+.recommendationRail { padding-inline: max(12px, calc((100% - 520px) / 2)); scroll-padding-inline: max(12px, calc((100% - 520px) / 2)); }
+.recommendationCard { position: relative; display: flex; flex-direction: column; gap: 10px; box-sizing: border-box; flex: 0 0 calc(100% - 0px); min-width: 0; max-width: 520px; padding: 16px; scroll-snap-align: center; overflow-y: auto; border: 0; border-bottom: 3px solid #fbbf2424; border-radius: 14px 14px 0 0; background: #fbbf2405; opacity: .55; transform: scale(.96); transition: opacity 160ms ease, transform 160ms ease, background-color 160ms ease; scrollbar-width: thin; }
+.recommendationCard[data-highlighted='true'] { opacity: 1; transform: scale(1); border-bottom-color: #fbbf24; background: radial-gradient(ellipse at 50% 0%,#fbbf243b,transparent 70%),linear-gradient(160deg,#f59e0b14,#fbbf2405); box-shadow: inset 0 1px 0 #fde68a33; }
+.recommendationCard h3 { margin: 0; color: #fde68a; font-size: clamp(18px,2.5vw,26px); line-height: 1.2; font-weight: 950; text-shadow: 0 2px #78350f,0 5px 15px #0008; }
+.recommendationCard[data-highlighted='true'] h3 { color: #fff3b0; text-shadow: 0 2px #92400e,0 0 18px #fbbf2470; }
+.recommendationCard p { margin: 0; color: #cbd5e1; font-size: 14px; line-height: 1.6; }
+.recommendationNumber { color: #d4a953; font-size: 10px; font-weight: 800; letter-spacing: .12em; }
+.recommendationCard :is(button,a) { margin-top: auto; min-height: 40px; padding: 8px 0; border: 0; background: transparent; color: #fde68a; font-size: 12px; font-weight: 850; text-align: left; }
+.recommendationCard:focus-visible, .recommendationCard :is(button,a):focus-visible { outline: 2px solid #fde68a; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .recommendationCard { transition: none; } }
+
+.heroInsightRail::-webkit-scrollbar, .recommendationRail::-webkit-scrollbar { height: 3px; }
+.heroInsightRail::-webkit-scrollbar-track, .recommendationRail::-webkit-scrollbar-track { background: #ffffff08; border-radius: 0; }
+.heroInsightRail::-webkit-scrollbar-thumb, .recommendationRail::-webkit-scrollbar-thumb { background: #b58c3c; border-radius: 0; }
+.heroInsightRail::-webkit-scrollbar-button, .recommendationRail::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+@supports selector(::-webkit-scrollbar) { .heroInsightRail, .recommendationRail { scrollbar-width: auto; scrollbar-color: auto; } }
+
+/* Open advice: keep navigation, without nested card surfaces or scrollbars. */
+.heroInsightRail, .recommendationRail { scrollbar-width: none; }
+.heroInsightRail::-webkit-scrollbar, .recommendationRail::-webkit-scrollbar { display: none; height: 0; }
+.recommendationCard { justify-content: center; gap: 12px; padding: 8px 4px; border: 0; border-radius: 0; background: transparent; box-shadow: none; overflow-x: hidden; overflow-wrap: anywhere; }
+.recommendationCard[data-highlighted='true'] { border: 0; background: transparent; box-shadow: none; }
+.recommendationCard h3 { display: flex; align-items: center; gap: 10px; font-size: clamp(18px,2.2vw,24px); }
+.recommendationCard h3 svg { flex: 0 0 26px; width: 26px; height: 26px; color: #fbbf24; filter: drop-shadow(0 2px 0 #78350f) drop-shadow(0 0 8px #fbbf2460); }
+.recommendationCard h3 span { min-width: 0; }
+.recommendationCard p { font-size: 14px; line-height: 1.45; }
+.recommendationCard :is(button,a) { align-self: flex-start; margin-top: 2px; min-height: 36px; text-decoration: underline; text-underline-offset: 4px; }
+.recommendationCard[data-highlighted='true'] h3 { text-shadow: 0 2px #92400e,0 0 22px #fbbf2490; }
+@media (max-height: 650px) { .recommendationCard { gap: 8px; } .recommendationCard h3 { font-size: 18px; } .recommendationCard p { font-size: 13px; line-height: 1.4; } }
+
+/* Three practical actions across the member’s goals, without duplicate views. */
+.goalActionSummary { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 12px; justify-content: center; }
+.goalActionSummary > h2 { margin: 0; text-align: center; color: #fde68a; font-size: 18px; font-weight: 900; text-shadow: 0 2px #78350f,0 0 18px #fbbf2430; }
+.goalActionCards { display: grid; gap: 10px; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.goalActionCard { display: flex; align-items: center; gap: 14px; width: 100%; min-width: 0; padding: 12px; border: 0; border-bottom: 2px solid #d4a95355; border-radius: 8px; background: linear-gradient(120deg,#fbbf2410,transparent); text-align: left; color: #fef3c7; transition: background 150ms ease; }
+.goalActionCard:hover, .goalActionCard:focus-visible { background: #fbbf241b; }
+.goalActionCard:focus-visible { outline: 2px solid #fde68a; outline-offset: -2px; }
+.goalActionIcon { flex: 0 0 42px; width: 42px; height: 42px; color: #fcd34d; filter: drop-shadow(0 3px 0 #78350f) drop-shadow(0 0 12px #fbbf2440); }
+.goalActionCopy { display: grid; gap: 4px; min-width: 0; }
+.goalActionStep { font-size: 9px; font-weight: 800; letter-spacing: .15em; color: #bda568; }
+.goalActionCopy strong { font-size: 16px; line-height: 1.2; text-shadow: 0 2px #78350f; }
+.goalActionDetail { font-size: 12px; line-height: 1.4; color: #cbd5e1; }
+.goalActionLink { font-size: 11px; font-weight: 800; color: #fde68a; }
+@media (min-width: 760px) { .goalActionCards { grid-template-columns: repeat(3,minmax(0,1fr)); } .goalActionCard { flex-direction: column; text-align: center; padding: 20px 14px; } .goalActionCopy { gap: 9px; } }
+@media (max-height: 650px) { .goalActionSummary { gap: 6px; } .goalActionCards { gap: 5px; } .goalActionCard { padding: 7px 10px; gap: 10px; } .goalActionCopy { gap: 2px; } .goalActionIcon { width: 34px; height: 34px; flex-basis: 34px; } .goalActionCopy strong { font-size: 14px; } .goalActionDetail { font-size: 11px; line-height: 1.3; } }
+.goalActionCards { grid-template-rows: repeat(3,minmax(0,1fr)); overflow: visible; flex: 0 1 auto; }
+.goalActionCard { min-height: 0; }
+@media (min-width: 760px) { .goalActionCards { grid-template-rows: auto; } }
+.goalActionCards { flex: 0 1 390px; }
+.goalActionDetail { display: block; }
+@media (max-height: 750px) { .goalActionCard { padding: 8px 10px; gap: 10px; } .goalActionCopy { gap: 3px; } .goalActionCopy strong { font-size: 14px; } .goalActionDetail { font-size: 11px; line-height: 1.3; } .goalActionIcon { width: 34px; height: 34px; flex-basis: 34px; } }
+@media (min-width: 760px) { .goalActionCards { flex: 0 1 auto; } }
+
+.goalPreface > label > input { border: 0; border-radius: 0; background: transparent; padding: 8px 0; color: #fef3c7; font-size: clamp(20px,3vw,30px); font-weight: 900; text-shadow: 0 2px #78350f,0 4px 12px #0008; }
+.goalPreface > label > input::placeholder { color: #b6a579; opacity: .8; }
+.goalPreface > label > input:focus-visible { outline: 0; box-shadow: 0 2px #fbbf24; }
+.goalDatePicker { min-width: 0; }
+.goalDatePicker > h3 { margin: 0; color: #fde68a; font-size: 12px; font-weight: 850; }
+.goalDatePicker > p { margin: 6px 0 10px; color: #fef3c7; font-size: 13px; }
+.goalMonthRail { position: relative; display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
+.goalMonthRail::-webkit-scrollbar { display: none; }
+.goalDotMonth { flex: 0 0 calc((100% - 28px)/3); min-width: 154px; scroll-snap-align: start; }
+.goalDotMonth h4 { margin: 0 0 8px; text-transform: uppercase; color: var(--month-accent); font-size: 14px; font-weight: 900; text-shadow: 0 1px #000,0 0 12px var(--month-accent); }
+.goalDotMonth h4 span { font-size: 10px; opacity: .7; }
+.goalDotGrid { display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap: 3px; }
+.goalDotGrid > span { text-align: center; font-size: 8px; color: #94a3b8; }
+.goalDotGrid button { width: 100%; min-width: 0; min-height: 0; aspect-ratio: 1; padding: 0; border: 1px solid color-mix(in srgb,var(--month-accent) 35%,transparent); border-radius: 50%; background: color-mix(in srgb,var(--month-accent) 12%,#090d19); color: #e2e8f0; font-size: 9px; font-weight: 750; }
+.goalDotGrid button[aria-current='date'] { border-color: var(--month-accent); }
+.goalDotGrid button[aria-pressed='true'] { background: var(--month-accent); color: #090d19; box-shadow: 0 0 12px color-mix(in srgb,var(--month-accent) 60%,transparent); }
+.goalDotGrid button:focus-visible { outline: 2px solid white; outline-offset: 1px; }
+.goalDatePicker .goalQuestionArrows { margin-top: 8px; }
+.goalPreface { padding-inline: 8px; }
+.goalDotMonth { flex-basis: 100%; min-width: 0; }
+@media (min-width: 350px) { .goalDotMonth { flex-basis: calc((100% - 14px)/2); } }
+@media (min-width: 640px) { .goalDotMonth { flex-basis: calc((100% - 28px)/3); } }
+
+.goalPreface > label > .goalNameHeading, .goalDatePicker > h3 { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 900; letter-spacing: 0; text-transform: none; color: #fde68a; text-shadow: 0 2px #78350f,0 0 15px #fbbf2430; }
+.goalNameHeading svg, .goalDatePicker > h3 svg { width: 21px; height: 21px; flex-shrink: 0; color: #fbbf24; filter: drop-shadow(0 2px #78350f); }
+.goalDatePicker > .goalDateHint { color: #aab4c4; font-size: 11px; line-height: 1.4; margin: 6px 0; }
+.goalDotGrid { row-gap: 10px; }
+.goalDotGrid button { position: relative; overflow: visible; }
+.goalDotGrid button[data-milestone='true'] { border: 2px solid #fde68a; box-shadow: 0 0 9px #fbbf2455; color: #fff7d1; }
+.goalDotBadge { position: absolute; bottom: -7px; left: 50%; transform: translateX(-50%); padding: 0 2px; background: #29200c; color: #fde68a; font-size: 7px; font-weight: 950; line-height: 10px; pointer-events: none; }
+.goalMonthMilestones { display: grid; gap: 4px; padding-top: 14px; }
+.goalMonthMilestones button { display: flex; align-items: center; justify-content: space-between; gap: 4px; min-height: 24px; padding: 2px 0; border: 0; border-bottom: 1px solid #fbbf2430; border-radius: 0; background: transparent; color: #fde68a; font-size: 10px; }
+.goalMonthMilestones button span { color: #e2e8f0; }
+/* Keep the date question inside its rail and compact enough for phone height. */
+.goalPreface { padding-inline: 8px !important; box-sizing: border-box; gap: 10px; }
+.goalPreface > label { gap: 4px; }
+.goalPreface > label > input { min-height: 40px; padding: 5px 0; font-size: clamp(20px,3vw,28px); }
+.goalDotGrid { row-gap: 6px; }
+.goalDotMonth h4 { font-size: 12px; margin-bottom: 6px; }
+.goalMonthMilestones { padding-top: 9px; }
+.goalDatePicker > .goalDateHint { margin: 4px 0; }
+.goalDatePicker > p { margin-bottom: 7px; }
+
+.goalDatePicker .goalDateTrigger { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; margin: 2px 0; padding: 4px 0; border: 0; background: transparent; color: #fde68a; font-size: 14px; font-weight: 800; text-align: left; }
+.goalDateTrigger > span { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.goalDateTrigger > span { text-decoration: underline; text-underline-offset: 4px; }
+.goalDateTrigger small { font-size: 12px; color: #cbd5e1; font-weight: 600; }
+.goalDateTrigger svg { width: 16px; height: 16px; flex-shrink: 0; }
+.goalDateTrigger[aria-expanded='true'] svg { transform: rotate(180deg); }
+.goalDateTrigger:focus-visible { outline: 2px solid #fde68a; outline-offset: 3px; }
+.goalDatePicker .goalDateHint { margin: 0 0 7px; color: #aab4c4; font-size: 11px; }
+
+.goalDatePicker .goalDateTrigger { display: flex; width: 100%; margin-top: 8px; padding: 8px 0; gap: 12px; }
+.goalDateTrigger > .goalDateReadout { display: grid; flex: 1; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 12px; align-items: start; text-decoration: none; }
+.goalDateReadoutItem { display: grid; gap: 3px; }
+.goalDateReadoutItem small { line-height: 1.3; }
+.goalDateReadoutItem strong { color: #fff1ba; font-size: clamp(16px, 4.6vw, 24px); font-weight: 900; line-height: 1.15; text-shadow: 0 2px #78350f; }
+.goalDateReadoutItem:last-child strong { font-variant-numeric: tabular-nums; }
+.goalDateTrigger:hover .goalDateReadoutItem:first-child strong { text-decoration: underline; text-underline-offset: 4px; }
+
+.directionSelectionRail [data-highlighted='true'] { outline: 2px solid #fde68a; outline-offset: 3px; }
+.directionRank { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; color: #fff0b3; font-size: 14px; font-weight: 900; text-shadow: 0 2px #78350f, 0 4px 8px #0009; }
+.directionRank svg { width: 19px; height: 19px; flex: none; color: #fbbf24; filter: drop-shadow(0 2px #78350f); }
+
+.goalActionSummary { flex: 0 1 auto; justify-content: flex-start; gap: 8px; }
+.goalActionCards { flex: 0 1 auto; grid-template-rows: auto; gap: 6px; }
+.goalActionCard { padding-block: 8px; }
+.goal-milestone-card { display: grid; justify-items: center; gap: 4px; min-width: 100px; max-width: 190px; padding: 12px; border: 1px solid #fbbf2444; border-radius: 12px; color: #fde68a; background: #fbbf2410; font-weight: 800; overflow-wrap: anywhere; }
+.goal-milestone-card svg { width: 28px; height: 28px; }
+.planSummaryRail { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding-block: 8px; }
+.planSummaryRail > * { flex: 0 0 min(82%, 280px); scroll-snap-align: start; }
+.emptyGoalBank { display: grid; justify-items: center; gap: 12px; padding: 24px 12px; text-align: center; color: #fde68a; }
+.emptyGoalBank svg { width: 84px; height: 84px; filter: drop-shadow(0 3px #78350f) drop-shadow(0 0 16px #fbbf2455); }
+.emptyGoalBank button { min-height: 44px; font-weight: 800; text-decoration: underline; }
+.contentInner > .goalBank > .goalBankHeader { padding-inline: 0; text-align: center; }
+
+.createGoalHeading {
+  margin: 0;
+  color: #fff1ba;
+  font-size: clamp(26px, 6vw, 38px);
+  font-weight: 950;
+  line-height: 1.15;
+  text-align: center;
+  text-shadow: 0 2px #92400e, 0 4px 12px #0008;
+}
+
+.heroMemberBasics { gap: 8px 14px; }
+.heroMemberBasics > span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.heroMemberBasics svg { width: 14px; height: 14px; flex: none; color: #fcd34d; }
+
+.milestoneTemplateRail { display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 10px; scroll-snap-type: x proximity; }
+.milestoneTemplateRail > * { flex: 0 0 132px; min-width: 0; scroll-snap-align: start; }
+.milestoneTemplateRail :global(.goal-milestone-card) { width: 100%; height: 100%; min-height: 92px; }
+
+.checkInChoices { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; margin-top: 18px; }
+.checkInChoice { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; padding: 16px 8px; border: 1px solid #fbbf2430; border-radius: 12px; background: #fbbf2408; color: #d6cba9; text-align: center; }
+.checkInChoice svg { width: 34px; height: 34px; color: #fcd34d; filter: drop-shadow(0 2px #78350f); }
+.checkInChoice strong { font-size: 14px; line-height: 1.3; }
+.checkInChoice span { font-size: 10px; line-height: 1.3; }
+.checkInChoice[aria-pressed='true'] { border-color: #fbbf24; background: #fbbf241d; box-shadow: 0 0 18px #fbbf2420; color: #fff1ba; }
+.checkInChoice:focus-visible { outline: 2px solid #fff1ba; outline-offset: 3px; }
+
+.weightTargetAdjust { flex: 0 0 36px; width: 36px; height: 36px; border: 0; background: transparent; color: #fde68a; font-size: 28px; font-weight: 900; text-shadow: 0 2px #78350f; }
+.weightTargetAdjust:focus-visible { outline: 2px solid #fde68a; outline-offset: 2px; }
